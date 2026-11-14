@@ -117,7 +117,7 @@ fn release_editor_stress_profile() {
     for per_chapter in cases {
         let mut app = app();
         let mut project = Project::new();
-        let story = json!({"id":"main","title":"压力测试","start":"n0","nodes":
+        let story = json!({"story_schema":2,"id":"main","title":"压力测试","start":"n0","nodes":
             (0..per_chapter).map(|i| json!({"id":format!("n{i}"),"type":"say",
                 "mode":"narrative","text":format!("压力测试对白 {i}，检查编辑与切换步骤是否卡顿。")
             })).collect::<Vec<_>>()});
@@ -128,9 +128,12 @@ fn release_editor_stress_profile() {
             story["id"] = json!(id);
             project.stories.insert(id, story);
         }
-        project
-            .assets
-            .insert("stress-unused.bin".into(), vec![42; 64 * 1024 * 1024]);
+        for asset in 0..4 {
+            project.assets.insert(
+                format!("assets/stress-unused-{asset}.bin"),
+                vec![42; 16 * 1024 * 1024],
+            );
+        }
         app.install(project);
         println!("STRESS project chapters=10 nodes_per_chapter={per_chapter} total_nodes={} media_mib=64 debug={}", per_chapter * 10, cfg!(debug_assertions));
         let ctx = egui::Context::default();
@@ -203,5 +206,29 @@ fn release_editor_stress_profile() {
             edit.push(start.elapsed().as_secs_f64() * 1000.0);
         }
         report(&format!("{per_chapter}_edit_capture"), &mut edit);
+        let saved = tempfile::tempdir().unwrap();
+        let start = Instant::now();
+        assert!(app.save_at(saved.path(), false), "{:?}", app.error);
+        let request_ms = start.elapsed().as_secs_f64() * 1000.0;
+        let mut saving_frames = Vec::new();
+        while app.saving() {
+            let frame = Instant::now();
+            draw(&mut app, 3);
+            saving_frames.push(frame.elapsed().as_secs_f64() * 1000.0);
+            app.poll_background_save(&ctx);
+            assert!(start.elapsed() < Duration::from_secs(30), "保存未完成");
+        }
+        println!(
+            "STRESS {per_chapter}_background_save request_ms={request_ms:.3} total_ms={:.3}",
+            start.elapsed().as_secs_f64() * 1000.0
+        );
+        if !saving_frames.is_empty() {
+            report(&format!("{per_chapter}_saving_frame"), &mut saving_frames);
+        }
+        assert!(app.error.is_none(), "{:?}", app.error);
+        assert!(!app.dirty());
+        let reopened = Project::open(saved.path()).unwrap();
+        assert_eq!(reopened.stories, app.project.stories);
+        assert_eq!(reopened.assets.len(), app.project.assets.len());
     }
 }

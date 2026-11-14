@@ -357,7 +357,12 @@ pub fn cycle(node: &Value, library: Option<&Library>) -> Option<f64> {
             return None;
         }
         found = true;
-        longest = longest.max(span + number(action, "wait_after", 0.0).max(0.0));
+        let delay = if node["type"] == "parallel" {
+            lom_core::parallel::start_delay(action)
+        } else {
+            0.0
+        };
+        longest = longest.max(delay + span + number(action, "wait_after", 0.0).max(0.0));
     }
     found.then_some(longest.max(0.001))
 }
@@ -500,12 +505,126 @@ fn event(
     }
     instances.push(Instance::new(spec, source, now));
 }
+#[derive(Clone)]
+struct Scheduled {
+    spec: Value,
+    source: LayoutTarget,
+    time: f64,
+    managed: bool,
+}
+
+#[derive(Clone, Default)]
 pub struct Simulation {
     instances: Vec<Instance>,
+    pending: Vec<Scheduled>,
     now: f64,
     at_target: bool,
 }
 impl Simulation {
+    fn flush(&mut self, now: f64, library: Option<&Library>) {
+        let ready = self.pending.partition_point(|event| event.time <= now);
+        for scheduled in self.pending.drain(..ready) {
+            event(
+                &mut self.instances,
+                &scheduled.spec,
+                scheduled.source,
+                scheduled.time,
+                scheduled.managed,
+                library,
+            );
+        }
+    }
+
+    pub(super) fn apply_node(
+        &mut self,
+        parent: &Value,
+        id: &str,
+        managed: bool,
+        library: Option<&Library>,
+    ) {
+        self.flush(self.now, library);
+        if matches!(
+            text(parent, "type"),
+            "end" | "goto_scene" | "death" | "endgame" | "combat" | "battle"
+        ) && parent["resume_original"] != true
+        {
+            self.instances.clear();
+            self.pending.clear();
+        }
+        for (index, action) in lom_core::parallel::actions(parent).iter().enumerate() {
+            if action["type"] == "effect" {
+                let source = LayoutTarget::Effect {
+                    node: id.to_owned(),
+                    action: (parent["type"] == "parallel").then_some(index),
+                };
+                let delay = if parent["type"] == "parallel" {
+                    lom_core::parallel::start_delay(action)
+                } else {
+                    0.0
+                };
+                if delay == 0.0 {
+                    event(
+                        &mut self.instances,
+                        action,
+                        source,
+                        self.now,
+                        managed,
+                        library,
+                    );
+                } else {
+                    self.pending.push(Scheduled {
+                        spec: action.clone(),
+                        source,
+                        time: self.now + delay,
+                        managed,
+                    });
+                }
+            }
+        }
+        if !self.pending.is_empty() {
+            self.pending
+                .sort_by(|left, right| left.time.total_cmp(&right.time));
+            self.flush(self.now, library);
+        }
+        self.at_target = true;
+    }
+
+    pub(super) fn advance_after(&mut self, parent: &Value, library: Option<&Library>) {
+        self.now += super::playback_duration(parent);
+        self.flush(self.now, library);
+        self.at_target = false;
+    }
+
+    pub(super) fn retained_bytes(&self) -> usize {
+        std::mem::size_of::<Self>()
+            + self
+                .instances
+                .iter()
+                .map(|instance| {
+                    std::mem::size_of::<Instance>()
+                        + super::simulation::value_bytes(&instance.spec)
+                        + instance.name.len()
+                        + instance.key.len()
+                        + match &instance.source {
+                            LayoutTarget::Effect { node, .. } => node.len(),
+                            _ => 0,
+                        }
+                })
+                .sum::<usize>()
+            + self
+                .pending
+                .iter()
+                .map(|event| {
+                    std::mem::size_of::<Scheduled>()
+                        + super::simulation::value_bytes(&event.spec)
+                        + match &event.source {
+                            LayoutTarget::Effect { node, .. } => node.len(),
+                            _ => 0,
+                        }
+                })
+                .sum::<usize>()
+    }
+
     pub fn sample(&self, elapsed: f64, library: Option<&Library>) -> Value {
         let now = self.now
             + if self.at_target {
@@ -513,12 +632,14 @@ impl Simulation {
             } else {
                 0.0
             };
-        let mut instances = self.instances.clone();
-        for instance in &mut instances {
+        let mut sampled = self.clone();
+        sampled.flush(now, library);
+        for instance in &mut sampled.instances {
             instance.advance(now);
         }
         Value::Array(
-            instances
+            sampled
+                .instances
                 .iter()
                 .filter(|instance| !instance.ended(library))
                 .map(|instance| instance.value(library))
@@ -532,11 +653,7 @@ pub fn prepare(
     include_target: bool,
     library: Option<&Library>,
 ) -> Simulation {
-    let mut result = Simulation {
-        instances: Vec::new(),
-        now: 0.0,
-        at_target: false,
-    };
+    let mut result = Simulation::default();
     if !lom_core::parallel::story_actions(story).any(|(_, node)| node["type"] == "effect") {
         return result;
     }
@@ -549,8 +666,6 @@ pub fn prepare(
     }
     let path = super::route(story, target).unwrap_or_else(|| vec![target.to_owned()]);
     let managed = managed(story);
-    let mut instances = Vec::new();
-    let mut now = 0.0;
     for id in path {
         if id == target && !include_target {
             break;
@@ -558,36 +673,12 @@ pub fn prepare(
         let Some(parent) = nodes_by_id.get(id.as_str()).copied() else {
             continue;
         };
-        if matches!(
-            text(parent, "type"),
-            "end" | "goto_scene" | "death" | "endgame" | "combat" | "battle"
-        ) && parent["resume_original"] != true
-        {
-            instances.clear();
-        }
-        for (index, action) in lom_core::parallel::actions(parent).iter().enumerate() {
-            if action["type"] == "effect" {
-                event(
-                    &mut instances,
-                    action,
-                    LayoutTarget::Effect {
-                        node: id.clone(),
-                        action: (parent["type"] == "parallel").then_some(index),
-                    },
-                    now,
-                    managed,
-                    library,
-                );
-            }
-        }
+        result.apply_node(parent, &id, managed, library);
         if id == target {
-            result.at_target = true;
             break;
         }
-        now += super::playback_duration(parent);
+        result.advance_after(parent, library);
     }
-    result.instances = instances;
-    result.now = now;
     result
 }
 pub fn simulate(
@@ -1134,6 +1225,117 @@ mod tests {
         assert_eq!(initial[0]["age"], 0.2);
         assert_eq!(prepared.sample(1.0, Some(&captured))[0]["stopped_age"], 1.0);
         assert_eq!(prepared.sample(0.0, Some(&captured)), initial);
+    }
+    #[test]
+    fn incremental_effects_preserve_time_restarts_parallel_sources_and_end_cleanup() {
+        let captured = library(clip(false, true));
+        let story = json!({"start":"play","nodes":[
+            {"id":"play","type":"effect","name":"Rain_001","tag":"weather","wait_after":0.25},
+            {"id":"wait","type":"wait","seconds":3.0},
+            {"id":"replay","type":"parallel","actions":[
+                {"type":"effect","name":"Rain_001","tag":"weather","stop_after":0.2,"wait_after":0.1,"start_delay":0.2},
+                {"type":"effect","name":"Glow_001","c":0,"speed":2.0,"start_delay":0.1}]},
+            {"id":"line","type":"say","text":"等待"},
+            {"id":"stop","type":"effect","name":"Rain_001","tag":"weather","play":false,"clear":true},
+            {"id":"done","type":"end"}
+        ]});
+        let mut cache = super::super::simulation::Cache::default();
+        cache.synchronize(&story, None);
+        for target in [
+            "play", "wait", "replay", "line", "stop", "done", "replay", "line",
+        ] {
+            let incremental = cache.simulate(&story, target, Some(&captured));
+            assert_eq!(
+                incremental.before,
+                super::super::simulate_until(&story, target, false)
+            );
+            assert_eq!(incremental.after, super::super::simulate(&story, target));
+            let full = prepare(&story, target, true, Some(&captured));
+            for elapsed in [0.0, 0.1, 0.5, 2.0] {
+                assert_eq!(
+                    incremental.effects.sample(elapsed, Some(&captured)),
+                    full.sample(elapsed, Some(&captured)),
+                    "{target} at {elapsed}"
+                );
+            }
+        }
+    }
+    #[test]
+    fn delayed_effects_seek_in_start_order_and_complete_before_the_next_node() {
+        let captured = library(clip(true, false));
+        let story = json!({"start":"group","nodes":[
+            {"id":"group","type":"parallel","actions":[
+                {"type":"effect","name":"Rain_001","c":0,"start_delay":1.0},
+                {"type":"effect","name":"Glow_001","c":0,"start_delay":0.25},
+                {"type":"effect","name":"Rain_001","c":0,"start_delay":0.5},
+                {"type":"wait","seconds":2.0}]},
+            {"id":"next","type":"say","text":"下一步"}
+        ]});
+        let mut prepared = prepare(&story, "group", true, Some(&captured));
+        assert!(prepared
+            .sample(0.2, Some(&captured))
+            .as_array()
+            .unwrap()
+            .is_empty());
+        let middle = prepared.sample(0.75, Some(&captured));
+        assert_eq!(middle.as_array().unwrap().len(), 2);
+        assert_eq!(middle[0]["source_action"], 1);
+        assert_eq!(middle[0]["age"], 0.5);
+        assert_eq!(middle[1]["source_action"], 2);
+        assert_eq!(middle[1]["age"], 0.25);
+        let late = prepared.sample(1.25, Some(&captured));
+        assert_eq!(late.as_array().unwrap().len(), 3);
+        assert_eq!(late[2]["source_action"], 0);
+        assert_eq!(late[2]["age"], 0.25);
+        assert_eq!(prepared.sample(0.75, Some(&captured)), middle);
+        prepared.advance_after(&story["nodes"][0], Some(&captured));
+        assert!(prepared.pending.is_empty());
+        assert_eq!(
+            prepared.sample(0.0, Some(&captured)),
+            simulate(&story, "next", 0.0, false, Some(&captured))
+        );
+        let next = simulate(&story, "next", 0.0, true, Some(&captured));
+        assert_eq!(next[0]["age"], 1.75);
+        assert_eq!(next[1]["age"], 1.5);
+        assert_eq!(next[2]["age"], 1.0);
+    }
+
+    #[test]
+    fn delayed_stops_and_deadlines_use_each_effects_actual_start_time() {
+        let captured = library(clip(true, false));
+        let mut story = json!({"start":"group","nodes":[
+            {"id":"group","type":"parallel","actions":[
+                {"type":"effect","name":"Rain_001","tag":"weather","start_delay":1.0,"stop_after":0.2,"clear":true},
+                {"type":"effect","name":"Rain_001","tag":"weather","play":false,"clear":true,"start_delay":0.5},
+                {"type":"wait","seconds":2.0}]}
+        ]});
+        assert_eq!(
+            simulate(&story, "group", 1.1, true, Some(&captured))
+                .as_array()
+                .unwrap()
+                .len(),
+            1
+        );
+        assert!(simulate(&story, "group", 1.3, true, Some(&captured))
+            .as_array()
+            .unwrap()
+            .is_empty());
+        story["nodes"][0]["actions"][0]
+            .as_object_mut()
+            .unwrap()
+            .remove("stop_after");
+        story["nodes"][0]["actions"][1]["start_delay"] = json!(1.5);
+        assert_eq!(
+            simulate(&story, "group", 1.25, true, Some(&captured))
+                .as_array()
+                .unwrap()
+                .len(),
+            1
+        );
+        assert!(simulate(&story, "group", 1.6, true, Some(&captured))
+            .as_array()
+            .unwrap()
+            .is_empty());
     }
     #[test]
     fn unique_replay_resets_deadline_without_collecting_stacked_instances() {

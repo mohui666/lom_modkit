@@ -153,12 +153,26 @@ pub(super) fn normalize_character_draft(catalog: &Catalog, ctx: &egui::Context, 
     ctx.data_mut(|data| data.insert_temp(draft_id(), draft));
 }
 
-#[derive(Clone, Default, Serialize, Deserialize)]
+const DEFAULT_RECENT_LIMIT: usize = 16;
+
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(default)]
 struct Preferences {
     browse_preview: bool,
     favorites: BTreeMap<String, BTreeSet<String>>,
     recent: BTreeMap<String, Vec<String>>,
+    character_recent_limit: usize,
+}
+
+impl Default for Preferences {
+    fn default() -> Self {
+        Self {
+            browse_preview: false,
+            favorites: BTreeMap::new(),
+            recent: BTreeMap::new(),
+            character_recent_limit: DEFAULT_RECENT_LIMIT,
+        }
+    }
 }
 
 #[derive(Clone, Default)]
@@ -166,6 +180,7 @@ struct PreferenceStore {
     preferences: Preferences,
     path: Option<PathBuf>,
     error: Option<String>,
+    character_recent_revision: u64,
 }
 
 fn preferences_id() -> egui::Id {
@@ -218,6 +233,15 @@ fn update_preferences(ctx: &egui::Context, update: impl FnOnce(&mut Preferences)
     ctx.data_mut(|data| data.insert_temp(preferences_id(), store));
 }
 
+fn update_character_history(ctx: &egui::Context, update: impl FnOnce(&mut Preferences)) {
+    update_preferences(ctx, update);
+    ctx.data_mut(|data| {
+        let store = data.get_temp_mut_or_default::<PreferenceStore>(preferences_id());
+        store.character_recent_revision = store.character_recent_revision.wrapping_add(1);
+    });
+    ctx.request_repaint();
+}
+
 pub(super) fn resource_category(kind: &str, node: &Value) -> Option<String> {
     let category = match kind {
         kind if is_character_selector(kind) || kind == "character_appearance" => "character",
@@ -245,6 +269,7 @@ struct Cursor {
     tab: u8,
     order: Vec<String>,
     order_tab: Option<u8>,
+    character_recent_revision: u64,
     manual_id: Option<egui::Id>,
 }
 
@@ -354,6 +379,48 @@ impl<'a> Picker<'a> {
                 }
             }
         });
+        if tabs && self.category.as_deref() == Some("character") && self.cursor.tab == 1 {
+            let saved = preferences(ui.ctx()).preferences;
+            let mut limit = saved.character_recent_limit.clamp(1, 200);
+            let previous_limit = limit;
+            ui.horizontal_wrapped(|ui| {
+                let label = ui.label(crate::i18n::key("editor.picker.character_recent_limit"));
+                if ui
+                    .add(
+                        egui::DragValue::new(&mut limit)
+                            .range(1..=200)
+                            .speed(1.0)
+                            .update_while_editing(false),
+                    )
+                    .labelled_by(label.id)
+                    .changed()
+                    && limit != previous_limit
+                {
+                    update_character_history(ui.ctx(), |preferences| {
+                        preferences.character_recent_limit = limit;
+                        if let Some(recent) = preferences.recent.get_mut("character") {
+                            recent.truncate(limit);
+                        }
+                    });
+                }
+                if ui
+                    .add_enabled(
+                        saved
+                            .recent
+                            .get("character")
+                            .is_some_and(|recent| !recent.is_empty()),
+                        egui::Button::new(crate::i18n::key(
+                            "editor.picker.clear_recent_characters",
+                        )),
+                    )
+                    .clicked()
+                {
+                    update_character_history(ui.ctx(), |preferences| {
+                        preferences.recent.remove("character");
+                    });
+                }
+            });
+        }
         if let Some(error) = preferences(ui.ctx()).error {
             ui.colored_label(
                 ui.visuals().warn_fg_color,
@@ -373,8 +440,12 @@ impl<'a> Picker<'a> {
         let Some(category) = &self.category else {
             return options.to_vec();
         };
-        let preferences = preferences(ctx).preferences;
-        if self.cursor.order_tab != Some(self.cursor.tab) {
+        let store = preferences(ctx);
+        let preferences = store.preferences;
+        let history_changed = category == "character"
+            && self.cursor.tab == 1
+            && self.cursor.character_recent_revision != store.character_recent_revision;
+        if self.cursor.order_tab != Some(self.cursor.tab) || history_changed {
             self.cursor.order = match self.cursor.tab {
                 1 => preferences
                     .recent
@@ -394,6 +465,7 @@ impl<'a> Picker<'a> {
                 _ => Vec::new(),
             };
             self.cursor.order_tab = Some(self.cursor.tab);
+            self.cursor.character_recent_revision = store.character_recent_revision;
         }
         if self.cursor.tab == 0 {
             options.to_vec()
@@ -433,10 +505,15 @@ impl<'a> Picker<'a> {
             return;
         }
         update_preferences(ctx, |preferences| {
+            let limit = if category == "character" {
+                preferences.character_recent_limit.clamp(1, 200)
+            } else {
+                DEFAULT_RECENT_LIMIT
+            };
             let recent = preferences.recent.entry(category.clone()).or_default();
             recent.retain(|key| key != id);
             recent.insert(0, id.to_owned());
-            recent.truncate(16);
+            recent.truncate(limit);
         });
     }
 
@@ -700,6 +777,269 @@ pub(super) fn cancel_generic(ui: &Ui, owner: egui::Id) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn history_frame(
+        ctx: &egui::Context,
+        source: &Value,
+        kind: &str,
+        tab: u8,
+        events: Vec<egui::Event>,
+    ) -> (egui::FullOutput, Vec<String>) {
+        ctx.enable_accesskit();
+        let options = ["one", "two", "three"].map(|id| (id.to_owned(), id.to_owned()));
+        let mut visible = Vec::new();
+        let output = ctx.run(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(800.0, 400.0),
+                )),
+                events,
+                ..Default::default()
+            },
+            |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    let mut picker =
+                        Picker::new(ui, source, "character", kind, source["character"].as_str());
+                    picker.cursor.tab = tab;
+                    picker.controls(ui);
+                    visible = picker
+                        .options(ctx, &options)
+                        .into_iter()
+                        .map(|(id, _)| id)
+                        .collect();
+                    picker.save(ui);
+                });
+            },
+        );
+        (output, visible)
+    }
+
+    fn limit_target(output: &egui::FullOutput) -> egui::accesskit::NodeId {
+        output
+            .platform_output
+            .accesskit_update
+            .as_ref()
+            .unwrap()
+            .nodes
+            .iter()
+            .find_map(|(id, node)| node.numeric_value().is_some().then_some(*id))
+            .unwrap()
+    }
+
+    #[test]
+    fn old_character_preferences_keep_sixteen_and_record_without_duplicate_or_arrow_reordering() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("resource-pickers.json");
+        let legacy = br#"{"browse_preview":false,"favorites":{"character":["favorite"]},"recent":{"character":["one","two"],"music":["original-music"]}}"#;
+        std::fs::write(&path, legacy).unwrap();
+        let ctx = egui::Context::default();
+        configure_resource_preferences(&ctx, path.clone());
+        assert_eq!(preferences(&ctx).preferences.character_recent_limit, 16);
+        assert_eq!(std::fs::read(&path).unwrap(), legacy);
+        let source = json!({"id":"show","type":"show","character":"one"});
+        let original = source.clone();
+        let _ = ctx.run(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                let mut picker = Picker::new(
+                    ui,
+                    &source,
+                    "character",
+                    "character_appearance",
+                    Some("one"),
+                );
+                for index in 0..20 {
+                    picker.record(ctx, Some(&format!("actor{index}")));
+                }
+                picker.record(ctx, Some("actor10"));
+                let recent = preferences(ctx).preferences.recent["character"].clone();
+                assert_eq!(recent.len(), 16);
+                assert_eq!(recent[0], "actor10");
+                assert_eq!(recent.iter().filter(|id| *id == "actor10").count(), 1);
+                assert_eq!(recent.last().unwrap(), "actor4");
+                picker.cursor.tab = 1;
+                let options: Vec<_> = (0..20)
+                    .map(|index| (format!("actor{index}"), format!("actor{index}")))
+                    .collect();
+                let before = picker.options(ctx, &options);
+                picker.record(ctx, Some("actor4"));
+                assert_eq!(
+                    picker.options(ctx, &options),
+                    before,
+                    "Recording a selection must keep open arrow navigation stable"
+                );
+                assert_eq!(
+                    preferences(ctx).preferences.recent["character"][0],
+                    "actor4"
+                );
+                update_character_history(ctx, |preferences| preferences.character_recent_limit = 2);
+                let music = Picker::new(ui, &source, "name", "music", None);
+                for index in 0..20 {
+                    music.record(ctx, Some(&format!("track{index}")));
+                }
+                assert_eq!(preferences(ctx).preferences.recent["music"].len(), 16);
+                picker.record(ctx, Some("actor18"));
+                assert_eq!(
+                    preferences(ctx).preferences.recent["character"],
+                    ["actor18", "actor4"]
+                );
+            });
+        });
+        assert_eq!(source, original);
+        assert!(preferences(&ctx).preferences.favorites["character"].contains("favorite"));
+    }
+
+    #[test]
+    fn character_recent_limit_and_clear_buttons_refresh_cached_rows_and_survive_reopening() {
+        use egui::accesskit::{Action, ActionData, ActionRequest, Role};
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("resource-pickers.json");
+        let ctx = egui::Context::default();
+        configure_resource_preferences(&ctx, path.clone());
+        update_preferences(&ctx, |preferences| {
+            preferences.browse_preview = true;
+            preferences.recent.insert(
+                "character".into(),
+                vec!["three".into(), "two".into(), "one".into()],
+            );
+            preferences
+                .recent
+                .insert("music".into(), vec!["track".into()]);
+            preferences
+                .favorites
+                .insert("character".into(), ["favorite".into()].into());
+        });
+        let source = json!({"id":"say","type":"say","character":"one","text":"unchanged"});
+        let original = source.clone();
+        let (output, rows) = history_frame(&ctx, &source, "character", 1, vec![]);
+        assert_eq!(rows, ["three", "two", "one"]);
+        let event = egui::Event::AccessKitActionRequest(ActionRequest {
+            action: Action::SetValue,
+            target: limit_target(&output),
+            data: Some(ActionData::NumericValue(2.0)),
+        });
+        let (_, rows) = history_frame(&ctx, &source, "character", 1, vec![event]);
+        assert_eq!(
+            rows,
+            ["three", "two"],
+            "The cached recent order must refresh in the same frame"
+        );
+        let reopened = egui::Context::default();
+        configure_resource_preferences(&reopened, path.clone());
+        assert_eq!(preferences(&reopened).preferences.character_recent_limit, 2);
+        let (output, rows) = history_frame(&reopened, &source, "character", 1, vec![]);
+        assert_eq!(rows, ["three", "two"]);
+        let label = crate::i18n::key("editor.picker.clear_recent_characters");
+        let target = output
+            .platform_output
+            .accesskit_update
+            .as_ref()
+            .unwrap()
+            .nodes
+            .iter()
+            .find_map(|(id, node)| {
+                (node.role() == Role::Button && node.label() == Some(label.as_str())).then_some(*id)
+            })
+            .unwrap();
+        let event = egui::Event::AccessKitActionRequest(ActionRequest {
+            action: Action::Click,
+            target,
+            data: None,
+        });
+        assert!(
+            history_frame(&reopened, &source, "character", 1, vec![event])
+                .1
+                .is_empty()
+        );
+        let again = egui::Context::default();
+        configure_resource_preferences(&again, path);
+        let saved = preferences(&again).preferences;
+        assert!(!saved.recent.contains_key("character"));
+        assert_eq!(saved.character_recent_limit, 2);
+        assert_eq!(saved.recent["music"], ["track"]);
+        assert!(saved.favorites["character"].contains("favorite"));
+        assert!(saved.browse_preview);
+        assert_eq!(source, original);
+        for (kind, tab) in [("character", 0), ("character", 2), ("music", 1)] {
+            let (output, _) = history_frame(&again, &source, kind, tab, vec![]);
+            assert!(!output
+                .platform_output
+                .accesskit_update
+                .as_ref()
+                .unwrap()
+                .nodes
+                .iter()
+                .any(|(_, node)| node.numeric_value().is_some()
+                    || node.label() == Some(label.as_str())));
+        }
+    }
+
+    #[test]
+    fn typing_a_larger_character_limit_does_not_truncate_on_intermediate_digits() {
+        use egui::accesskit::{Action, ActionRequest};
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("resource-pickers.json");
+        let ctx = egui::Context::default();
+        configure_resource_preferences(&ctx, path.clone());
+        let recent: Vec<_> = (0..16).map(|index| format!("actor{index}")).collect();
+        update_preferences(&ctx, |preferences| {
+            preferences
+                .recent
+                .insert("character".into(), recent.clone());
+        });
+        let before = std::fs::read(&path).unwrap();
+        let source = json!({"id":"show","type":"show","character":"one"});
+        let (output, _) = history_frame(&ctx, &source, "character", 1, vec![]);
+        let focus = egui::Event::AccessKitActionRequest(ActionRequest {
+            action: Action::Focus,
+            target: limit_target(&output),
+            data: None,
+        });
+        history_frame(&ctx, &source, "character", 1, vec![focus]);
+        history_frame(
+            &ctx,
+            &source,
+            "character",
+            1,
+            vec![egui::Event::Text("2".into())],
+        );
+        assert_eq!(preferences(&ctx).preferences.character_recent_limit, 16);
+        assert_eq!(preferences(&ctx).preferences.recent["character"], recent);
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+        history_frame(
+            &ctx,
+            &source,
+            "character",
+            1,
+            vec![egui::Event::Text("00".into())],
+        );
+        assert_eq!(preferences(&ctx).preferences.character_recent_limit, 16);
+        history_frame(
+            &ctx,
+            &source,
+            "character",
+            1,
+            vec![egui::Event::Key {
+                key: egui::Key::Enter,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: Default::default(),
+            }],
+        );
+        assert_eq!(preferences(&ctx).preferences.character_recent_limit, 200);
+        assert_eq!(preferences(&ctx).preferences.recent["character"], recent);
+        let reopened = egui::Context::default();
+        configure_resource_preferences(&reopened, path);
+        assert_eq!(
+            preferences(&reopened).preferences.character_recent_limit,
+            200
+        );
+        assert_eq!(
+            preferences(&reopened).preferences.recent["character"],
+            recent
+        );
+    }
 
     #[test]
     fn resource_preferences_reload_and_hide_unavailable_project_resources() {

@@ -6,6 +6,7 @@ mod editor_update;
 mod effect_capture;
 mod error_location;
 mod error_ui;
+mod file_dialog;
 mod forms;
 mod game_flags;
 mod game_setup;

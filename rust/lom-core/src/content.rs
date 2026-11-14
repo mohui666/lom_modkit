@@ -698,8 +698,13 @@ pub fn gameplay_references(node: &Value) -> Vec<(&str, &'static str, &str)> {
             refs.push((text(node, "character"), "character", ""))
         }
         "free_trigger" => refs.push((text(node, "when_affinity"), "character", "")),
-        "camera" => {
-            for id in node["exclude_characters"].as_array().into_iter().flatten() {
+        "camera" | "say" => {
+            let field = if node["type"] == "camera" {
+                "exclude_characters"
+            } else {
+                "highlight_characters"
+            };
+            for id in node[field].as_array().into_iter().flatten() {
                 if let Some(id) = id.as_str() {
                     refs.push((id, "character", ""));
                 }

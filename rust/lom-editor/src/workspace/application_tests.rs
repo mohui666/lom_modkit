@@ -9,6 +9,27 @@ fn app() -> App {
     app
 }
 
+#[test]
+fn theme_settings_persist_the_choice_and_preserve_other_preferences() {
+    let mut app = app();
+    let ctx = egui::Context::default();
+    let root = tempfile::tempdir().unwrap();
+    let path = root.path().join("preferences.json");
+    std::fs::write(&path, br#"{"ui_locale":"chs","auto_save_seconds":60}"#).unwrap();
+    for theme in shell::Theme::ALL {
+        app.set_interface_theme(&ctx, theme, &path).unwrap();
+        let prefs = lom_core::load_json(&path).unwrap();
+        assert_eq!(
+            shell::Theme::from_id(prefs["ui_theme"].as_str().unwrap()),
+            theme
+        );
+        assert_eq!(app.theme, theme);
+        assert_eq!(prefs["ui_locale"], "chs");
+        assert_eq!(prefs["auto_save_seconds"], 60);
+        assert_eq!(ctx.style().visuals.dark_mode, theme == shell::Theme::Dark);
+    }
+}
+
 fn saved_preview_fixture(root: &Path, name: &str) -> PathBuf {
     let directory = root.join(name);
     std::fs::create_dir_all(directory.join("assets")).unwrap();
@@ -127,7 +148,7 @@ fn typing_and_saving_a_mood_default_applies_to_the_next_added_step() {
     app.catalog
         .configure_parameter_defaults(preferences.clone())
         .unwrap();
-    let original = app.story()["nodes"][0].clone();
+    let original = app.story().clone()["nodes"][0].clone();
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
     app.steps_panel_open = true;
@@ -218,7 +239,7 @@ fn typing_and_saving_a_mood_default_applies_to_the_next_added_step() {
     );
     let output = draw(&mut app, vec![egui::Event::Text("0.5".into())]);
     assert_eq!(
-        app.story()["nodes"][0],
+        app.story().clone()["nodes"][0],
         original,
         "default editing must keep the current step unchanged"
     );
@@ -240,18 +261,18 @@ fn typing_and_saving_a_mood_default_applies_to_the_next_added_step() {
     let mood = app.catalog.label("mood");
     click(&mut app, button(&output, &mood));
     assert_eq!(
-        app.story()["nodes"].as_array().unwrap().len(),
+        app.story().clone()["nodes"].as_array().unwrap().len(),
         3,
         "{}",
-        app.story()
+        app.story().clone()
     );
     assert_eq!(
-        app.story()["nodes"][app.selected]["wait_after"],
+        app.story().clone()["nodes"][app.selected]["wait_after"],
         json!(0.5),
         "{}",
-        app.story()
+        app.story().clone()
     );
-    assert_eq!(app.story()["nodes"][0], original);
+    assert_eq!(app.story().clone()["nodes"][0], original);
     let mut reopened = Catalog::new();
     reopened.configure_parameter_defaults(preferences).unwrap();
     assert_eq!(
@@ -463,16 +484,16 @@ fn typing_dialogue_keeps_the_sidebar_width_and_allows_shrinking_it() {
 #[test]
 fn authoring_entries_open_the_existing_name_and_talent_workflows() {
     let mut app = app();
-    let original = app.story();
+    let original = app.story().clone();
     app.open_name_authoring();
-    let node = app.story()["nodes"][app.selected].clone();
+    let node = app.story().clone()["nodes"][app.selected].clone();
     assert_eq!(node["type"], "character_title");
     assert_eq!(node["name_action"], "set");
     assert_eq!(node["action"], "keep");
     app.track();
     app.flush();
     app.undo();
-    assert_eq!(app.story(), original);
+    assert_eq!(app.story().clone(), original);
     let source = snapshot(&app.project);
     app.open_custom_talent();
     assert_eq!(app.center, Center::Assets);
@@ -589,7 +610,7 @@ fn assert_mood_drag_updates(action: Option<usize>, second_mood: bool) {
             {"type":"show","character":"user:test.other","position":"R1","facing":"left"} ]});
         story["nodes"][1]["actions"][1] = json!({"type":"mood","character":"user:test.other","enabled":true,"icon":"shock","offset_x":77,"offset_y":-31});
     }
-    let original = app.story()["nodes"][1].clone();
+    let original = app.story().clone()["nodes"][1].clone();
     let mood = |story: Value| -> Value {
         action
             .map(|index| story["nodes"][1]["actions"][index].clone())
@@ -664,16 +685,16 @@ fn assert_mood_drag_updates(action: Option<usize>, second_mood: bool) {
     let target = center + Vec2::new(30.0, -20.0);
     draw(&mut app, vec![egui::Event::PointerMoved(target)]);
     draw(&mut app, vec![pointer(target, false)]);
-    let offset = mood(app.story());
+    let offset = mood(app.story().clone());
     assert!(offset["offset_x"].as_f64().unwrap() > 20.0, "{offset}");
     assert!(offset["offset_y"].as_f64().unwrap() > 20.0, "{offset}");
     draw(&mut app, vec![]);
-    assert_eq!(mood(app.story()), offset);
-    assert!(app.story()["nodes"][0].get("offset_x").is_none());
+    assert_eq!(mood(app.story().clone()), offset);
+    assert!(app.story().clone()["nodes"][0].get("offset_x").is_none());
     if let Some(action) = action {
-        assert!(app.story()["nodes"][1].get("offset_x").is_none());
+        assert!(app.story().clone()["nodes"][1].get("offset_x").is_none());
         assert_eq!(
-            app.story()["nodes"][1]["actions"][1 - action],
+            app.story().clone()["nodes"][1]["actions"][1 - action],
             original["actions"][1 - action]
         );
         let saved = tempfile::tempdir().unwrap();
@@ -702,7 +723,10 @@ fn assert_mood_drag_updates(action: Option<usize>, second_mood: bool) {
             pointer(target, false),
         ],
     );
-    assert!(mood(app.story())["offset_x"].as_f64().unwrap() > offset["offset_x"].as_f64().unwrap());
+    assert!(
+        mood(app.story().clone())["offset_x"].as_f64().unwrap()
+            > offset["offset_x"].as_f64().unwrap()
+    );
 }
 fn key_event(key: egui::Key, modifiers: egui::Modifiers) -> egui::Event {
     egui::Event::Key {

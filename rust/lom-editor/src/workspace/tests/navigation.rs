@@ -34,13 +34,13 @@ fn manual_editor_performance_check() {
         .insert("perf-unused.bin".into(), vec![42; 64 * 1024 * 1024]);
     app.install(project);
     measure("story_copy", 30, || {
-        std::hint::black_box(app.story());
+        std::hint::black_box(app.story().clone());
     });
     measure("saved_status", 30, || {
         std::hint::black_box(app.dirty());
     });
     measure("change_tracking", 30, || app.track());
-    let node = app.story()["nodes"][0].clone();
+    let node = app.story().clone()["nodes"][0].clone();
     measure("character_options", 30, || {
         std::hint::black_box(app.catalog.options("character_group", &node, &[], &[]));
     });
@@ -134,18 +134,26 @@ fn game_bookmarks_locate_dialogue_preserve_edits_and_use_the_unsaved_project_gua
     assert!(snapshot(&app.project) == dirty);
 }
 #[test]
-fn editor_update_uses_the_existing_unsaved_project_decision() {
+fn editor_update_install_uses_the_existing_unsaved_project_decision() {
     let mut app = app();
     let ctx = egui::Context::default();
     app.project.stories.get_mut("main").unwrap()["nodes"][0]["text"] = json!("unsaved update test");
     app.track();
     app.flush();
     app.request(Pending::EditorUpdate, &ctx);
-    assert!(matches!(app.pending, Some(Pending::EditorUpdate)));
+    assert!(
+        app.pending.is_none(),
+        "preparing an update does not exit the editor"
+    );
+    app.request(Pending::InstallEditorUpdate, &ctx);
+    assert!(matches!(app.pending, Some(Pending::InstallEditorUpdate)));
     assert!(!app.updater.open);
-    app.pending = None; // Cancelling must retain the unsaved project.
+    app.cancel_pending_action();
     assert!(app.dirty());
-    assert_eq!(app.story()["nodes"][0]["text"], "unsaved update test");
+    assert_eq!(
+        app.story().clone()["nodes"][0]["text"],
+        "unsaved update test"
+    );
 }
 
 #[test]
@@ -426,7 +434,7 @@ fn visible_help_button_and_f1_open_the_guide_without_changing_the_project() {
 fn node_description_button_opens_its_own_reference_without_editing() {
     let mut app = app();
     app.selected = 1;
-    assert_eq!(app.story()["nodes"][1]["type"], "end");
+    assert_eq!(app.story().clone()["nodes"][1]["type"], "end");
     let before = snapshot(&app.project);
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
@@ -506,14 +514,14 @@ fn advanced_node_rename_preserves_links_and_localizations() {
         focus_name: false,
     });
     app.commit_rename().unwrap();
-    assert_eq!(app.story()["start"], "greeting");
-    assert_eq!(app.story()["nodes"][0]["id"], "greeting");
-    assert_eq!(app.story()["nodes"][0]["goto"], "end1");
+    assert_eq!(app.story().clone()["start"], "greeting");
+    assert_eq!(app.story().clone()["nodes"][0]["id"], "greeting");
+    assert_eq!(app.story().clone()["nodes"][0]["goto"], "end1");
     assert_eq!(
-        app.story()["localization"]["translations"]["cht"]["greeting.text"],
+        app.story().clone()["localization"]["translations"]["cht"]["greeting.text"],
         "春日"
     );
-    assert!(app.story()["localization"]["translations"]["cht"]
+    assert!(app.story().clone()["localization"]["translations"]["cht"]
         .get("say1.text")
         .is_none());
 }

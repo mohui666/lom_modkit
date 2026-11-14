@@ -4,7 +4,7 @@ use super::*;
 impl App {
     pub(super) fn center(&mut self, ctx: &egui::Context) {
         if self.center == Center::Node && self.is_vanilla_patch() {
-            let mut story = self.story();
+            let mut story = self.story().clone();
             self.vanilla.set_segment_chapters(
                 self.project
                     .stories
@@ -26,7 +26,7 @@ impl App {
                 .filter_map(|(_, story)| lom_core::vanilla_import::target(story).map(str::to_owned))
                 .collect();
             egui::CentralPanel::default()
-                .frame(surface(true))
+                .frame(surface(ctx, true))
                 .show(ctx, |ui| {
                     if self.vanilla.route_open() {
                         self.vanilla.show(
@@ -111,7 +111,7 @@ impl App {
             return;
         }
         egui::CentralPanel::default()
-            .frame(surface(true))
+            .frame(surface(ctx, true))
             .show(ctx, |ui| {
                 egui::ScrollArea::vertical()
                     .id_salt(format!(
@@ -120,7 +120,12 @@ impl App {
                     ))
                     .show(ui, |ui| match self.center {
                         Center::Node => {
-                            let mut story = self.story();
+                            let chapter_view = self.chapter_view();
+                            let story = self
+                                .project
+                                .stories
+                                .get(&self.current)
+                                .unwrap_or(&Value::Null);
                             if let Some(notice) = story["lua_import"]["notice"].as_str() {
                                 ui.small(notice);
                                 ui.separator();
@@ -131,12 +136,7 @@ impl App {
                                     &[("target", target.into())],
                                 ));
                             }
-                            let ids: Vec<_> = story["nodes"]
-                                .as_array()
-                                .into_iter()
-                                .flatten()
-                                .filter_map(|n| n["id"].as_str().map(str::to_owned))
-                                .collect();
+                            let ids = &chapter_view.ids;
                             let stories = self.project.stories.keys().cloned().collect::<Vec<_>>();
                             if let Some(mut node) = story["nodes"].get(self.selected).cloned() {
                                 crate::forms::set_preview_scope(
@@ -266,18 +266,23 @@ impl App {
                                         .on_hover_text(crate::i18n::key("editor.rotation.hint"))
                                         .changed()
                                     {
-                                        if let Err(error) = self.set_legacy_character_rotation(
-                                            legacy,
-                                            &user_root().join("rust/preferences.json"),
-                                        ) {
+                                        if let Err(error) =
+                                            super::settings::save_legacy_character_rotation(
+                                                &mut self.preview,
+                                                legacy,
+                                                &user_root().join("rust/preferences.json"),
+                                            )
+                                        {
                                             self.error = Some(crate::error_ui::capture(error));
                                         }
                                     }
                                 }
                                 self.catalog.stage_characters = Some(
-                                    self.preview
-                                        .state_before(&story, node["id"].as_str().unwrap_or(""))
-                                        ["actors"]
+                                    self.preview.state_before_versioned(
+                                        story,
+                                        node["id"].as_str().unwrap_or(""),
+                                        self.document_revision,
+                                    )["actors"]
                                         .as_object()
                                         .into_iter()
                                         .flatten()
@@ -291,8 +296,10 @@ impl App {
                                     self.tools_panel.open_node_help(&kind);
                                 }
                                 if matches!(node["type"].as_str(), Some("music" | "sound")) {
-                                    let browsing = crate::forms::preview_story(ctx, &story);
-                                    let audition = &browsing["nodes"][self.selected];
+                                    let audition = {
+                                        let browsing = crate::forms::preview_story(ctx, &story);
+                                        browsing["nodes"][self.selected].clone()
+                                    };
                                     ui.horizontal(|ui| {
                                         let name = audition["name"].as_str().unwrap_or("");
                                         let playable = !name.is_empty()
@@ -350,10 +357,10 @@ impl App {
                                     ui.small(crate::i18n::key("editor.audio.preview_hint"));
                                 }
                                 if response.changed || image_changed {
-                                    story["nodes"][self.selected] = node.clone();
-                                    self.project
-                                        .stories
-                                        .insert(self.current.clone(), story.clone());
+                                    if let Some(story) = self.project.stories.get_mut(&self.current)
+                                    {
+                                        story["nodes"][self.selected] = node;
+                                    }
                                 }
                             } else {
                                 ui.heading(tr("还没有步骤"));
@@ -449,7 +456,7 @@ impl App {
                 }
             });
         });
-        let mut story = self.story();
+        let mut story = self.story().clone();
         let mut title = story["title"].as_str().unwrap_or_default().to_owned();
         ui.label(tr("章节名称"));
         if ui
@@ -668,7 +675,7 @@ impl App {
     pub(super) fn localization(&mut self, ui: &mut egui::Ui) {
         ui.heading(tr("多语言对白"));
         ui.label(crate::i18n::key("editor.workspace.translation_hint"));
-        let mut s = self.story();
+        let mut s = self.story().clone();
         if !s["localization"].is_object() {
             if ui.button(tr("启用本章多语言")).clicked() {
                 s["localization"] =
@@ -747,7 +754,11 @@ impl App {
             let sources = lom_core::localization::iter_localizable_texts(&s);
             for (key, source) in sources {
                 egui::Frame::group(ui.style()).show(ui, |ui| {
-                    ui.label(RichText::new(&key).small().color(ACCENT));
+                    ui.label(
+                        RichText::new(&key)
+                            .small()
+                            .color(shell::accent_for(ui.ctx())),
+                    );
                     ui.label(&source);
                     let mut translated = s["localization"]["translations"][&self.locale][&key]
                         .as_str()
@@ -779,7 +790,8 @@ impl App {
         ui.separator();
         ui.horizontal(|ui| {
             if ui.button(tr("导出本章翻译…")).clicked() {
-                if let Some(path) = rfd::FileDialog::new()
+                if let Some(path) = self
+                    .export_dialog()
                     .set_file_name(format!("{}-translations.json", self.current))
                     .save_file()
                 {
@@ -792,7 +804,8 @@ impl App {
                 }
             }
             if ui.button(tr("导入本章翻译…")).clicked() {
-                if let Some(path) = rfd::FileDialog::new()
+                if let Some(path) = self
+                    .project_dialog()
                     .add_filter("JSON", &["json"])
                     .pick_file()
                 {

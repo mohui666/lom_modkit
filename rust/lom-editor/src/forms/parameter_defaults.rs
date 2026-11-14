@@ -167,7 +167,7 @@ impl ParameterDefaults {
         };
         let mut close = false;
         egui::Modal::new(draft_id)
-            .frame(crate::shell::dialog_frame())
+            .frame(crate::shell::dialog_frame_for(ui.ctx()))
             .show(ui.ctx(), |ui| {
                 ui.set_width(520.0_f32.min((ui.ctx().content_rect().width() - 48.0).max(280.0)));
                 close |= crate::shell::dialog_header(

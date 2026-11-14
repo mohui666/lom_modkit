@@ -4,7 +4,6 @@ use eframe::egui::{self, Color32, RichText};
 use serde_json::Value;
 use std::sync::OnceLock;
 
-const BLUE: Color32 = Color32::from_rgb(41, 101, 158);
 const INK: Color32 = Color32::from_rgb(45, 51, 59);
 
 #[derive(Debug)]
@@ -182,7 +181,7 @@ impl HelpDocument {
     pub fn show(&mut self, ctx: &egui::Context) -> bool {
         let mut close = false;
         let response = egui::Modal::new(egui::Id::new("help-document"))
-            .frame(crate::shell::dialog_frame())
+            .frame(crate::shell::dialog_frame_for(ctx))
             .show(ctx, |ui| {
                 let size = ctx.content_rect().size();
                 ui.set_width((size.x - 64.0).clamp(280.0, 1010.0));
@@ -338,10 +337,22 @@ impl HelpDocument {
                         },
                     );
                     let article_width = (width - nav_width - 12.0).max(100.0);
+                    let classic = ui.visuals().panel_fill == Color32::TRANSPARENT;
                     egui::Frame::new()
-                        .fill(Color32::WHITE)
+                        .fill(if classic {
+                            Color32::WHITE
+                        } else {
+                            ui.visuals().window_fill
+                        })
                         .corner_radius(8.0)
-                        .stroke(egui::Stroke::new(1.0_f32, Color32::from_rgb(227, 231, 234)))
+                        .stroke(egui::Stroke::new(
+                            1.0_f32,
+                            if classic {
+                                Color32::from_rgb(227, 231, 234)
+                            } else {
+                                ui.visuals().widgets.noninteractive.bg_stroke.color
+                            },
+                        ))
                         .inner_margin(20.0)
                         .show(ui, |ui| {
                             ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| {
@@ -350,7 +361,12 @@ impl HelpDocument {
                                     egui::TextStyle::Body,
                                     egui::FontId::proportional(15.0),
                                 );
-                                ui.visuals_mut().override_text_color = Some(INK);
+                                let ink = if classic {
+                                    INK
+                                } else {
+                                    ui.visuals().text_color()
+                                };
+                                ui.visuals_mut().override_text_color = Some(ink);
                                 ui.spacing_mut().item_spacing.y = 9.0;
                                 let mut scroll = egui::ScrollArea::vertical()
                                     .id_salt((
@@ -495,7 +511,11 @@ fn nav_button(ui: &mut egui::Ui, selected: bool, title: &str, scroll_to_selected
     response.clicked()
 }
 fn article_header(ui: &mut egui::Ui, section: &str, title: &str) {
-    ui.label(RichText::new(section).size(12.0).color(BLUE));
+    ui.label(
+        RichText::new(section)
+            .size(12.0)
+            .color(crate::shell::accent_for(ui.ctx())),
+    );
     ui.label(RichText::new(title).size(25.0).strong());
     ui.add_space(5.0);
 }
@@ -505,7 +525,11 @@ fn subheading(ui: &mut egui::Ui, title: &str) {
 }
 fn note(ui: &mut egui::Ui, text: &str) {
     egui::Frame::new()
-        .fill(Color32::from_rgb(237, 244, 249))
+        .fill(if ui.visuals().panel_fill == Color32::TRANSPARENT {
+            Color32::from_rgb(237, 244, 249)
+        } else {
+            ui.visuals().widgets.inactive.bg_fill
+        })
         .corner_radius(5.0)
         .inner_margin(12.0)
         .show(ui, |ui| {
@@ -529,7 +553,11 @@ fn render_blocks(ui: &mut egui::Ui, blocks: &[Block]) {
             Block::Note(text) => note(ui, text),
             Block::Example(text) => {
                 egui::Frame::new()
-                    .fill(Color32::from_rgb(247, 248, 249))
+                    .fill(if ui.visuals().panel_fill == Color32::TRANSPARENT {
+                        Color32::from_rgb(247, 248, 249)
+                    } else {
+                        ui.visuals().code_bg_color
+                    })
                     .corner_radius(5.0)
                     .inner_margin(12.0)
                     .show(ui, |ui| {
@@ -549,7 +577,7 @@ fn render_blocks(ui: &mut egui::Ui, blocks: &[Block]) {
                                     "·".into()
                                 })
                                 .size(14.0)
-                                .color(BLUE)
+                                .color(crate::shell::accent_for(ui.ctx()))
                                 .strong(),
                             ),
                         );

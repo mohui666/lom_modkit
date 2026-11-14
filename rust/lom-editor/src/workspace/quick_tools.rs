@@ -922,7 +922,7 @@ impl App {
         #[cfg(test)]
         let mut geometry = SearchGeometry::default();
         let modal = egui::Modal::new(egui::Id::new("command-palette"))
-            .frame(shell::dialog_frame())
+            .frame(shell::dialog_frame_for(ctx))
             .show(ctx, |outer| {
                 // Only this allocation contributes to the modal's size. Result
                 // children stay clipped inside it and cannot resize the area.
@@ -1310,7 +1310,7 @@ fn dialogue_ui(
         && ctx.input_mut(|input| input.consume_key(egui::Modifiers::NONE, egui::Key::Escape));
     let mut submit = false;
     egui::Modal::new(egui::Id::new("continuous-dialogue"))
-        .frame(shell::dialog_frame())
+        .frame(shell::dialog_frame_for(ctx))
         .show(ctx, |ui| {
             ui.set_width(740.0);
             cancel |= shell::dialog_header(ui, &qt("dialogue"));

@@ -204,7 +204,8 @@ impl FlagReference {
                     )
                     .clicked()
                 {
-                    if let Some(game) = rfd::FileDialog::new().pick_folder() {
+                    if let Some(game) = crate::file_dialog::at(Some(&self.panel.game)).pick_folder()
+                    {
                         self.panel = Panel {
                             game,
                             ..Default::default()
@@ -783,7 +784,7 @@ impl Panel {
                     )
                     .clicked()
                 {
-                    if let Some(game) = rfd::FileDialog::new().pick_folder() {
+                    if let Some(game) = crate::file_dialog::at(Some(&self.game)).pick_folder() {
                         self.game = game;
                         self.chapters.clear();
                         self.sources.clear();
@@ -933,6 +934,7 @@ impl Panel {
             return;
         }
         ui.small(key("vanilla.import_hint"));
+        ui.small(crate::i18n::tr("给原版对白添加配音：先点击“导入整章到步骤编辑器”，再选中对应对白，在“对白语音”中选择已导入的音频。"));
         if self.content_position == ContentPosition::FullChapter {
             return;
         }

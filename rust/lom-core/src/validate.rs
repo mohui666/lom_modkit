@@ -468,6 +468,9 @@ fn manifest_inner(m: &Value) -> Result<()> {
     Ok(())
 }
 fn fields(node: &Value) -> Result<&str> {
+    fields_in_context(node, false)
+}
+fn fields_in_context(node: &Value, parallel_action: bool) -> Result<&str> {
     let ntype = node["type"]
         .as_str()
         .context("缺少必填字段 \"type\"（字符串）")?;
@@ -478,6 +481,7 @@ fn fields(node: &Value) -> Result<&str> {
     for key in object(node, "节点")?.keys() {
         ensure!(
             member("common_fields", key)
+                || parallel_action && key == "start_delay"
                 || required.contains_key(key)
                 || optional.contains_key(key),
             "未知字段 \"{key}\""
@@ -1018,7 +1022,7 @@ fn extra(n: &Value, ntype: &str, catalog: &Value, check_effect_names: bool) -> R
         crate::parallel::validate_group(n)?;
         for (i, action) in crate::parallel::actions(n).iter().enumerate() {
             let label = format!("第 {} 个同时动作", i + 1);
-            let kind = fields(action).with_context(|| label.clone())?;
+            let kind = fields_in_context(action, true).with_context(|| label.clone())?;
             extra(action, kind, catalog, check_effect_names).with_context(|| label)?;
         }
         return Ok(());
@@ -1230,6 +1234,26 @@ fn extra(n: &Value, ntype: &str, catalog: &Value, check_effect_names: bool) -> R
         }
         "say" => {
             ensure!(nonblank(&n["text"]), "必填字段 \"text\" 不能为空或仅含空白");
+            if let Some(characters) = n.get("highlight_characters") {
+                let mut unique = BTreeSet::new();
+                for raw in characters.as_array().unwrap() {
+                    let id = raw
+                        .as_str()
+                        .filter(|id| !id.trim().is_empty())
+                        .ok_or_else(|| anyhow::anyhow!("旁白高亮人物必须是非空人物 ID"))?;
+                    ensure!(unique.insert(id), "旁白高亮人物重复：{id}");
+                    if id.starts_with("user:") {
+                        user_ref(raw, "highlight_characters")?;
+                    } else {
+                        ensure!(
+                            array(&catalog["characters"])
+                                .iter()
+                                .any(|row| row["id"] == id),
+                            "未知旁白高亮人物 {id}"
+                        );
+                    }
+                }
+            }
             if nonempty(&n["mood_icon"]) {
                 let target = if nonblank(&n["mood_character"]) {
                     &n["mood_character"]

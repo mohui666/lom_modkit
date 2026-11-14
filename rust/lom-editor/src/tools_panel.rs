@@ -39,6 +39,7 @@ impl ToolPage {
 pub struct ToolsPanel {
     pub page: ToolPage,
     export_requested: bool,
+    export_directory: Option<PathBuf>,
     update_check_requested: bool,
     installation: Option<Value>,
     mods: Vec<Value>,
@@ -74,6 +75,8 @@ pub struct ToolsPanel {
     progress: Value,
     cancel: Arc<AtomicBool>,
     preview_ready: Option<PathBuf>,
+    preview_library: Option<PathBuf>,
+    preview_library_available: bool,
     effect_ready: VecDeque<(PathBuf, bool)>,
     notification: Option<(String, std::time::Instant)>,
 }
@@ -101,6 +104,7 @@ impl Default for ToolsPanel {
         Self {
             page: ToolPage::default(),
             export_requested: false,
+            export_directory: None,
             update_check_requested: false,
             installation: None,
             mods: vec![],
@@ -145,6 +149,8 @@ impl Default for ToolsPanel {
             progress: Value::Null,
             cancel: Arc::new(AtomicBool::new(false)),
             preview_ready: None,
+            preview_library: None,
+            preview_library_available: false,
             effect_ready: VecDeque::new(),
             notification: None,
         }
@@ -315,6 +321,14 @@ impl ToolsPanel {
     pub fn take_preview_library(&mut self) -> Option<PathBuf> {
         self.preview_ready.take()
     }
+    pub fn set_preview_library(&mut self, path: Option<PathBuf>) {
+        if self.preview_library != path {
+            self.preview_library_available = path
+                .as_ref()
+                .is_some_and(|root| root.join("preview_map.json").is_file());
+            self.preview_library = path;
+        }
+    }
     pub fn take_effect_library(&mut self) -> Option<(PathBuf, bool)> {
         self.effect_ready.pop_front()
     }
@@ -354,6 +368,13 @@ impl ToolsPanel {
         }
     }
     pub fn start_extraction(&mut self) {
+        self.start_image_extraction(
+            self.preview_library
+                .clone()
+                .filter(|_| self.preview_library_available),
+        );
+    }
+    fn start_image_extraction(&mut self, existing: Option<PathBuf>) {
         if self.job.is_some() {
             self.report_open = true;
             return;
@@ -367,7 +388,7 @@ impl ToolsPanel {
             }
         };
         if crate::asset_extraction::validate_game(&self.game).is_err() {
-            let Some(path) = rfd::FileDialog::new()
+            let Some(path) = crate::file_dialog::at(Some(&self.game))
                 .set_title(crate::i18n::key("common.tools.choose_game_data"))
                 .pick_folder()
             else {
@@ -387,9 +408,16 @@ impl ToolsPanel {
         let cache = settings_path().parent().unwrap().join("game-previews");
         let cancel = self.cancel.clone();
         self.background_progress("一键提取游戏资产", move |tx| {
-            crate::asset_extraction::extract(&helper, &game, &cache, cancel, move |v| {
-                let _ = tx.send(JobEvent::Progress(v));
-            })
+            crate::asset_extraction::extract(
+                &helper,
+                &game,
+                &cache,
+                existing.as_deref(),
+                cancel,
+                move |v| {
+                    let _ = tx.send(JobEvent::Progress(v));
+                },
+            )
         });
     }
     pub fn poll(&mut self, ctx: &egui::Context) {
@@ -454,7 +482,7 @@ impl ToolsPanel {
             let mut cancel = false;
             let mut remove = false;
             let response = egui::Modal::new(egui::Id::new("remove-installed-mod"))
-                .frame(crate::shell::dialog_frame())
+                .frame(crate::shell::dialog_frame_for(ctx))
                 .show(ctx, |ui| {
                     ui.set_width(440.0_f32.min(ctx.content_rect().width() - 64.0).max(240.0));
                     cancel |= crate::shell::dialog_header(ui, &tr("删除 MOD"));
@@ -489,7 +517,7 @@ impl ToolsPanel {
         }
         let running = self.job.is_some() && self.report_title == self.job_title;
         let response = egui::Modal::new(egui::Id::new("creation-tool-result"))
-            .frame(crate::shell::dialog_frame())
+            .frame(crate::shell::dialog_frame_for(ctx))
             .show(ctx, |ui| {
                 ui.set_width(560.0_f32.min(ctx.content_rect().width() - 64.0).max(240.0));
                 if crate::shell::dialog_header(ui, &crate::i18n::tr(&self.report_title)) {
@@ -632,8 +660,12 @@ impl ToolsPanel {
     pub fn take_export_request(&mut self) -> bool {
         std::mem::take(&mut self.export_requested)
     }
+    pub fn set_export_directory(&mut self, directory: Option<PathBuf>) {
+        self.export_directory = directory;
+    }
     pub fn export_play_bundle(&mut self, project: &Project) {
-        let _ = self.export_play_bundle_in(project, None);
+        let directory = self.export_directory.clone();
+        let _ = self.export_play_bundle_in(project, directory.as_deref());
     }
     pub fn export_play_bundle_in(
         &mut self,
@@ -651,11 +683,12 @@ impl ToolsPanel {
             self.report_open = true;
             return None;
         }
-        let mut dialog =
-            rfd::FileDialog::new().set_title(crate::i18n::key("common.tools.save_play_pack"));
-        if let Some(directory) = directory {
-            dialog = dialog.set_directory(directory);
-        }
+        let dialog = crate::file_dialog::at(
+            directory
+                .filter(|directory| directory.is_dir())
+                .or_else(|| crate::file_dialog::project_directory(project)),
+        )
+        .set_title(crate::i18n::key("common.tools.save_play_pack"));
         if let Some(output) = dialog
             .add_filter("ZIP", &["zip"])
             .set_file_name(format!(
@@ -706,7 +739,7 @@ impl ToolsPanel {
             .all(|name| self.runtime.join(name).is_file())
     }
     fn choose_game(&mut self) {
-        if let Some(path) = rfd::FileDialog::new()
+        if let Some(path) = crate::file_dialog::at(Some(&self.game))
             .set_title(crate::i18n::tr("选择包含 Mortal.exe 的游戏目录"))
             .pick_folder()
         {
@@ -951,9 +984,10 @@ impl ToolsPanel {
                 .add_enabled(idle && ready, egui::Button::new(tr("安装 .lommod 文件…")))
                 .clicked()
             {
-                if let Some(path) = rfd::FileDialog::new()
-                    .add_filter("MOD", &["lommod"])
-                    .pick_file()
+                if let Some(path) =
+                    crate::file_dialog::at(crate::file_dialog::project_directory(project))
+                        .add_filter("MOD", &["lommod"])
+                        .pick_file()
                 {
                     self.result("导入 MOD", game_tools::install_mod(&self.game, &path, true));
                     self.refresh_game();
@@ -1045,7 +1079,7 @@ impl ToolsPanel {
             ui.add_enabled_ui(idle, |ui| {
                 ui.label(self.runtime.display().to_string());
                 if ui.button(tr("选择 C# 宿主所在目录")).clicked() {
-                    if let Some(path) = rfd::FileDialog::new().pick_folder() {
+                    if let Some(path) = crate::file_dialog::at(Some(&self.runtime)).pick_folder() {
                         if !game_tools::HOST_FILES.iter().all(|name| path.join(name).is_file()) {
                             self.present("选择 C# 宿主所在目录", json!({"error":"所选目录必须同时包含 MortalModHost.dll 和 NVorbis.dll"}));
                         } else {
@@ -1101,10 +1135,12 @@ impl ToolsPanel {
                     .button(crate::i18n::key("common.tools.reset_read_choose"))
                     .clicked()
                 {
-                    if let Some(paths) = rfd::FileDialog::new()
-                        .set_title(crate::i18n::key("common.tools.choose_save"))
-                        .add_filter("Universe", &["dat"])
-                        .pick_files()
+                    if let Some(paths) = crate::file_dialog::at(
+                        self.read_reset.first().and_then(|path| path.parent()),
+                    )
+                    .set_title(crate::i18n::key("common.tools.choose_save"))
+                    .add_filter("Universe", &["dat"])
+                    .pick_files()
                     {
                         self.read_reset = paths;
                     }
@@ -1195,7 +1231,7 @@ impl ToolsPanel {
                         )
                         .clicked()
                     {
-                        if let Some(path) = rfd::FileDialog::new()
+                        if let Some(path) = crate::file_dialog::at(Some(&self.game))
                             .set_title(crate::i18n::key("common.tools.choose_game_data"))
                             .pick_folder()
                         {
@@ -1211,8 +1247,18 @@ impl ToolsPanel {
                     }
                 });
                 ui.small(crate::i18n::tr(
-                    "首次选择游戏目录即可。只读取游戏文件，图片保存到本地素材缓存。",
+                    "已有图片库只补新增或缺失图片。只读取游戏文件，取消时保留原素材库。",
                 ));
+                if self.preview_library_available
+                    && ui
+                        .add_enabled(
+                            self.job.is_none(),
+                            egui::Button::new(crate::i18n::tr("重新完整提取")).small(),
+                        )
+                        .clicked()
+                {
+                    self.start_image_extraction(None);
+                }
             });
     }
     fn show_release(&mut self, ui: &mut egui::Ui, project: &mut Project) {
@@ -1261,7 +1307,7 @@ impl ToolsPanel {
                         )
                         .clicked()
                     {
-                        project.stories = after;
+                        project.stories = after.into();
                         self.fixes = None;
                         self.present(
                             "应用安全修复",
@@ -1283,9 +1329,14 @@ impl ToolsPanel {
                         self.export_requested = true;
                     }
                     if ui.button(crate::i18n::tr("生成发布目录")).clicked() {
-                        if let Some(path) = rfd::FileDialog::new()
-                            .set_title(crate::i18n::key("common.tools.choose_export_folder"))
-                            .pick_folder()
+                        if let Some(path) = crate::file_dialog::at(
+                            self.export_directory
+                                .as_deref()
+                                .filter(|directory| directory.is_dir())
+                                .or_else(|| crate::file_dialog::project_directory(project)),
+                        )
+                        .set_title(crate::i18n::key("common.tools.choose_export_folder"))
+                        .pick_folder()
                         {
                             self.result(
                                 "生成发布目录",
@@ -1328,9 +1379,10 @@ impl ToolsPanel {
                     .button(crate::i18n::key("common.tools.choose_ffmpeg"))
                     .clicked()
                 {
-                    if let Some(path) = rfd::FileDialog::new()
-                        .set_title(crate::i18n::key("common.tools.choose_ffmpeg_file"))
-                        .pick_file()
+                    if let Some(path) =
+                        crate::file_dialog::at(self.ffmpeg.as_ref().and_then(|path| path.parent()))
+                            .set_title(crate::i18n::key("common.tools.choose_ffmpeg_file"))
+                            .pick_file()
                     {
                         self.ffmpeg = Some(path.clone());
                         self.save_setting("ffmpeg_path", json!(path));
@@ -1338,9 +1390,10 @@ impl ToolsPanel {
                 }
             });
             if ui.button(crate::i18n::tr("检查 .lommod 包")).clicked() {
-                if let Some(path) = rfd::FileDialog::new()
-                    .add_filter("Mod", &["lommod"])
-                    .pick_file()
+                if let Some(path) =
+                    crate::file_dialog::at(crate::file_dialog::project_directory(project))
+                        .add_filter("Mod", &["lommod"])
+                        .pick_file()
                 {
                     self.package_report = Value::Null;
                     match inspect_package(&path) {
@@ -1479,7 +1532,7 @@ impl ToolsPanel {
             .show(ui, |ui| {
                 ui.label(self.library.display().to_string());
                 if ui.button(crate::i18n::tr("选择内容库目录")).clicked() {
-                    if let Some(path) = rfd::FileDialog::new().pick_folder() {
+                    if let Some(path) = crate::file_dialog::at(Some(&self.library)).pick_folder() {
                         self.library = path;
                     }
                 }
@@ -1487,12 +1540,18 @@ impl ToolsPanel {
                     self.result("列出内容", content_library::list_contents(&self.library));
                 }
                 if ui.button(crate::i18n::tr("检查待导入的内容包")).clicked() {
-                    if let Some(path) = rfd::FileDialog::new()
-                        .add_filter(
-                            crate::i18n::key("common.tools.content_filter"),
-                            &["lomcontent"],
-                        )
-                        .pick_file()
+                    if let Some(path) = crate::file_dialog::at(
+                        self.pending_pack
+                            .as_ref()
+                            .and_then(|path| path.parent())
+                            .filter(|directory| directory.is_dir())
+                            .or(Some(&self.library)),
+                    )
+                    .add_filter(
+                        crate::i18n::key("common.tools.content_filter"),
+                        &["lomcontent"],
+                    )
+                    .pick_file()
                     {
                         match content_library::inspect_content_pack(&self.library, &path) {
                             Ok(info) => {
@@ -1599,7 +1658,7 @@ impl ToolsPanel {
                     });
                 }
                 if ui.button(crate::i18n::tr("导出共享内容包")).clicked() {
-                    if let Some(path) = rfd::FileDialog::new()
+                    if let Some(path) = crate::file_dialog::at(Some(&self.library))
                         .set_file_name(format!("{}.lomcontent", self.content_id))
                         .save_file()
                     {
@@ -1628,8 +1687,8 @@ impl ToolsPanel {
     fn show_maintenance(&mut self, ui: &mut egui::Ui, project: &mut Project) {
         egui::CollapsingHeader::new(crate::i18n::tr("迁移与诊断")).default_open(true).show(ui,|ui|{
             ui.label(crate::i18n::key("common.tools.migration_hint"));
-            if ui.button(crate::i18n::tr("检查并迁移所选 JSON")).clicked(){if let Some(path)=rfd::FileDialog::new().add_filter("JSON",&["json"]).pick_file(){let kind=match path.file_name().and_then(|s|s.to_str()){Some("manifest.json")=>"manifest",Some("content.json")=>"content",_=>"story"};self.result("迁移旧项目", lom_core::migration::migrate_json_file(&path,kind,None).map(|(result,backup)|json!({"changed":result.changed,"steps":result.steps,"backup":backup})));}}
-            if ui.button(crate::i18n::tr("导出脱敏诊断 ZIP")).clicked(){if let Some(path)=rfd::FileDialog::new().set_file_name("lom-editor-diagnostics.zip").save_file(){let issues=release::run_preflight(project,release::Profile::Editing,"1.1.3");self.result("导出诊断资料", release::export_diagnostic_bundle(&path,project,&issues,&self.diagnostic_options()));}}
+            if ui.button(crate::i18n::tr("检查并迁移所选 JSON")).clicked(){if let Some(path)=crate::file_dialog::at(crate::file_dialog::project_directory(project)).add_filter("JSON",&["json"]).pick_file(){let kind=match path.file_name().and_then(|s|s.to_str()){Some("manifest.json")=>"manifest",Some("content.json")=>"content",_=>"story"};self.result("迁移旧项目", lom_core::migration::migrate_json_file(&path,kind,None).map(|(result,backup)|json!({"changed":result.changed,"steps":result.steps,"backup":backup})));}}
+            if ui.button(crate::i18n::tr("导出脱敏诊断 ZIP")).clicked(){if let Some(path)=crate::file_dialog::at(self.export_directory.as_deref().filter(|directory|directory.is_dir()).or_else(||crate::file_dialog::project_directory(project))).set_file_name("lom-editor-diagnostics.zip").save_file(){let issues=release::run_preflight(project,release::Profile::Editing,"1.1.3");self.result("导出诊断资料", release::export_diagnostic_bundle(&path,project,&issues,&self.diagnostic_options()));}}
         });
     }
     fn show_latest_result(&mut self, ui: &mut egui::Ui, project: &Project) {

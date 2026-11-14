@@ -1,6 +1,52 @@
 use super::*;
 
 #[test]
+fn project_dialog_directory_uses_the_project_or_standalone_file_parent_before_recent() {
+    let root = tempfile::tempdir().unwrap();
+    let project = root.path().join("project");
+    let recent = root.path().join("recent");
+    let exports = root.path().join("exports");
+    for directory in [&project, &recent, &exports] {
+        std::fs::create_dir(directory).unwrap();
+    }
+    let mut app = app();
+    app.recent = vec![recent];
+    app.project.source = Some(project.clone());
+    assert_eq!(app.project_dialog_directory(), Some(project.as_path()));
+    for filename in ["story.json", "project.lommod"] {
+        let source = project.join(filename);
+        std::fs::write(&source, b"").unwrap();
+        app.project.source = Some(source);
+        assert_eq!(app.project_dialog_directory(), Some(project.as_path()));
+    }
+    app.usability.export_directory = Some(exports.clone());
+    assert_eq!(app.export_dialog_directory(), Some(exports.as_path()));
+    app.usability.export_directory = Some(root.path().join("missing-exports"));
+    assert_eq!(app.export_dialog_directory(), Some(project.as_path()));
+}
+
+#[test]
+fn project_dialog_directory_uses_the_first_valid_recent_location_without_guessing() {
+    let root = tempfile::tempdir().unwrap();
+    let recent = root.path().join("recent");
+    let older = root.path().join("older");
+    std::fs::create_dir(&recent).unwrap();
+    std::fs::create_dir(&older).unwrap();
+    let mut app = app();
+    app.project.source = None;
+    app.recent = vec![root.path().join("missing/project"), recent.clone(), older];
+    assert_eq!(app.project_dialog_directory(), Some(recent.as_path()));
+    let source = recent.join("story.json");
+    std::fs::write(&source, b"").unwrap();
+    app.project.source = Some(root.path().join("missing/project"));
+    app.recent[1] = source;
+    assert_eq!(app.project_dialog_directory(), Some(recent.as_path()));
+    app.project.source = None;
+    app.recent.clear();
+    assert_eq!(app.project_dialog_directory(), None);
+}
+
+#[test]
 fn preflight_errors_show_details_and_target_the_owning_chapter() {
     let mut app = app();
     for id in ["main", "other"] {
@@ -36,13 +82,13 @@ fn chapter_groups_support_rename_move_undo_and_project_roundtrip() {
     second["id"] = json!("second");
     project.stories.insert("second".into(), second);
     app.install(project);
-    let lua = compile_with_assets(&app.project, &app.story()).unwrap();
+    let lua = compile_with_assets(&app.project, &app.story().clone()).unwrap();
     app.begin_chapter_group(false);
     app.chapter_dialog.as_mut().unwrap().name = "主线".into();
     app.commit_chapter().unwrap();
     assert_eq!(chapter_group(&app.project.stories["main"]), "主线");
     assert_eq!(
-        compile_with_assets(&app.project, &app.story()).unwrap(),
+        compile_with_assets(&app.project, &app.story().clone()).unwrap(),
         lua
     );
     app.current = "second".into();
@@ -125,7 +171,7 @@ fn duplicate_chapter_names_select_distinct_ids_without_renaming_stories() {
 #[test]
 fn compiler_diagnostic_link_selects_the_error_node_across_chapters() {
     let mut app = app();
-    let mut second = app.story();
+    let mut second = app.story().clone();
     second["id"] = json!("second");
     app.project.stories.insert("second".into(), second);
     app.project.stories.insert("main".into(), json!({
@@ -234,7 +280,7 @@ fn ime_confirmation_keeps_dialog_open_then_return_creates_the_chapter() {
         |ctx| app.dialogs(ctx),
     );
     assert!(app.chapter_dialog.is_none());
-    assert_eq!(app.story()["title"], "春日");
+    assert_eq!(app.story().clone()["title"], "春日");
     app.begin_chapter(false);
     app.chapter_dialog.as_mut().unwrap().name = "Next chapter".into();
     let _ = ctx.run(
@@ -252,7 +298,7 @@ fn ime_confirmation_keeps_dialog_open_then_return_creates_the_chapter() {
         |ctx| app.dialogs(ctx),
     );
     assert!(app.chapter_dialog.is_none());
-    assert_eq!(app.story()["title"], "Next chapter");
+    assert_eq!(app.story().clone()["title"], "Next chapter");
 }
 #[test]
 fn chapter_controls_are_buttons_and_deletion_can_be_cancelled() {
@@ -347,7 +393,7 @@ fn chapter_deletion_retargets_references_undoes_and_stays_deleted_after_save() {
     let directory = tempfile::tempdir().unwrap();
     let root = directory.path();
     for id in ["keep", "other"] {
-        let mut story = app.story();
+        let mut story = app.story().clone();
         story["id"] = json!(id);
         story["title"] = json!(id);
         app.project.stories.insert(id.into(), story);
@@ -440,8 +486,8 @@ fn chapter_creation_uses_unique_identity_and_preserves_owned_filenames() {
     app.chapter_dialog.as_mut().unwrap().name = "  春日初遇  ".into();
     app.commit_chapter().unwrap();
     assert_eq!(app.current, "chapter2");
-    assert_eq!(app.story()["title"], "春日初遇");
-    lom_core::validate::validate_story(&app.story()).unwrap();
+    assert_eq!(app.story().clone()["title"], "春日初遇");
+    lom_core::validate::validate_story(&app.story().clone()).unwrap();
     assert_eq!(app.project.paths["main"], PathBuf::from("CHAPTER1.json"));
     assert!(!app.project.paths.contains_key("chapter2"));
     assert!(app.chapter_dialog.is_none());
@@ -497,7 +543,7 @@ fn advanced_chapter_rename_keeps_owned_filename_and_repairs_entry_and_links() {
         .insert("main".into(), "original.json".into());
     app.project.stories.get_mut("main").unwrap()["nodes"][1]["next_script"] = json!("main");
     app.project.stories.get_mut("main").unwrap()["_editor"] = json!({"tests":[{"story":"main"}]});
-    let mut other = app.story();
+    let mut other = app.story().clone();
     other["id"] = json!("other");
     app.project.stories.insert("other".into(), other);
     let before = snapshot(&app.project);
@@ -516,12 +562,15 @@ fn advanced_chapter_rename_keeps_owned_filename_and_repairs_entry_and_links() {
     assert_eq!(app.current, "opening");
     assert_eq!(app.project.paths["opening"], PathBuf::from("original.json"));
     assert_eq!(app.project.manifest["entry"], "opening");
-    assert_eq!(app.story()["nodes"][1]["next_script"], "opening");
+    assert_eq!(app.story().clone()["nodes"][1]["next_script"], "opening");
     assert_eq!(
         app.project.stories["other"]["nodes"][1]["next_script"],
         "opening"
     );
-    assert_eq!(app.story()["_editor"]["tests"][0]["story"], "opening");
+    assert_eq!(
+        app.story().clone()["_editor"]["tests"][0]["story"],
+        "opening"
+    );
     app.undo();
     assert!(snapshot(&app.project) == before);
 }
@@ -590,7 +639,7 @@ fn deleting_dragged_offsets_keeps_the_rest_of_the_chapter_reachable() {
                 .unwrap();
             app.track();
             app.flush();
-            let dragged = app.story();
+            let dragged = app.story().clone();
             assert_eq!(dragged["nodes"][2]["type"], "offset");
             assert_eq!(
                 preview::simulate(&dragged, "bubble")["actors"]["player"]["offset_x"],
@@ -600,7 +649,7 @@ fn deleting_dragged_offsets_keeps_the_rest_of_the_chapter_reachable() {
             app.delete();
             app.track();
             app.flush();
-            let deleted = app.story();
+            let deleted = app.story().clone();
             assert_eq!(deleted, story);
             for id in ["line", "bubble", "end"] {
                 assert!(preview::route(&deleted, id).is_some(), "{id}: {deleted}");
@@ -616,15 +665,15 @@ fn deleting_dragged_offsets_keeps_the_rest_of_the_chapter_reachable() {
             lom_core::validate::validate_story(&deleted).unwrap();
             compile_with_assets(&app.project, &deleted).unwrap();
             app.undo();
-            assert_eq!(app.story(), dragged);
+            assert_eq!(app.story().clone(), dragged);
             app.redo();
-            assert_eq!(app.story(), deleted);
+            assert_eq!(app.story().clone(), deleted);
         }
         let root = tempfile::tempdir().unwrap();
         let path = root.path().join("project");
         app.project.save_to(&path).unwrap();
         let reopened = Project::open(&path).unwrap();
-        assert_eq!(reopened.stories["main"], app.story());
+        assert_eq!(reopened.stories["main"], app.story().clone());
         assert!(preview::route(&reopened.stories["main"], "end").is_some());
     }
 }

@@ -1,6 +1,52 @@
 use super::*;
 
 #[test]
+fn chapter_views_and_search_follow_bulk_edits_replacements_and_undo() {
+    let mut app = app();
+    let mut other = app.story().clone();
+    other["id"] = json!("other");
+    app.project.stories.insert("other".into(), other);
+    app.track();
+    app.flush();
+    app.mark_saved();
+    let view = app.chapter_view();
+    assert!(std::sync::Arc::ptr_eq(&view, &app.chapter_view()));
+    let search = app.step_search("bulk-marker");
+    assert!(search.is_empty());
+    assert!(std::sync::Arc::ptr_eq(
+        &search,
+        &app.step_search("bulk-marker")
+    ));
+    for story in app.project.stories.values_mut() {
+        story["nodes"][0]["text"] = json!("bulk-marker");
+    }
+    app.track();
+    app.flush();
+    assert_eq!(app.step_search("bulk-marker").len(), 2);
+    assert!(!std::sync::Arc::ptr_eq(&view, &app.chapter_view()));
+    app.undo();
+    assert!(app.step_search("bulk-marker").is_empty());
+    assert!(!app.dirty());
+    app.redo();
+    assert_eq!(app.step_search("bulk-marker").len(), 2);
+    // Replacing a whole map through deserialization also invalidates views,
+    // even if it has exactly the same chapter IDs and length.
+    let mut replacement = serde_json::to_value(&app.project.stories).unwrap();
+    replacement["main"]["nodes"][0]["text"] = json!("replacement-marker");
+    app.project.stories = serde_json::from_value(replacement).unwrap();
+    app.track();
+    assert_eq!(app.step_search("bulk-marker").len(), 1);
+    assert_eq!(app.step_search("replacement-marker").len(), 1);
+    app.project.stories.remove("other");
+    app.project
+        .stories
+        .insert("third".into(), app.story().clone());
+    app.track();
+    assert!(!app.last.stories.contains_key("other"));
+    assert!(app.last.stories.contains_key("third"));
+}
+
+#[test]
 fn chapter_history_shares_unchanged_content_and_captures_pending_edits() {
     let mut app = app();
     app.project
@@ -54,9 +100,13 @@ fn released_picture_package_survives_history_save_and_reexport() {
     let root = tempfile::tempdir().unwrap();
     let source = root.path().join("source");
     assert!(app.save_at(&source, false), "{:?}", app.error);
+    super::recovery_tests::finish_saves(&mut app);
+    assert!(app.error.is_none(), "{:?}", app.error);
     app.project.stories.get_mut("main").unwrap()["title"] = json!("保存后继续编辑");
     app.track();
     assert!(app.save_at(&source, false), "{:?}", app.error);
+    super::recovery_tests::finish_saves(&mut app);
+    assert!(app.error.is_none(), "{:?}", app.error);
     let mut reopened = Project::open(&source).unwrap();
     assert_eq!(reopened.stories, app.project.stories);
     let package = root.path().join("reexport.lommod");
@@ -168,7 +218,7 @@ fn original_dialogue_flag_insertion_ui_undoes_and_does_not_save_original_lua() {
     app.track();
     app.flush();
     assert_eq!(
-        app.story()["vanilla_patch"]["edits"][0]["before_condition"]["source"],
+        app.story().clone()["vanilla_patch"]["edits"][0]["before_condition"]["source"],
         "condition"
     );
     assert!(!serde_json::to_string(&app.project.stories)

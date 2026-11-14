@@ -32,6 +32,35 @@ enum Cue {
     Fade(Channel, f64),
 }
 
+struct Scheduled {
+    at: f64,
+    cue: Cue,
+}
+
+fn scheduled(node: &Value) -> Vec<Scheduled> {
+    let mut result: Vec<_> = if node["type"] == "parallel" {
+        node["actions"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .flat_map(|action| {
+                let at = lom_core::parallel::start_delay(action);
+                cues(action)
+                    .into_iter()
+                    .map(move |cue| Scheduled { at, cue })
+            })
+            .collect()
+    } else {
+        cues(node)
+            .into_iter()
+            .map(|cue| Scheduled { at: 0.0, cue })
+            .collect()
+    };
+    // Stable order keeps the authored order for actions beginning together.
+    result.sort_by(|left, right| left.at.total_cmp(&right.at));
+    result
+}
+
 fn cues(node: &Value) -> Vec<Cue> {
     if node["type"] == "parallel" {
         return node["actions"]
@@ -89,7 +118,7 @@ fn restored(story: &Value, index: usize) -> Vec<Cue> {
         .take_while(|next| next != id)
     {
         if let Some(node) = nodes.iter().find(|node| node["id"] == id) {
-            for cue in cues(node) {
+            for Scheduled { cue, .. } in scheduled(node) {
                 match cue {
                     Cue::Play(key) if key.channel != Channel::Sound => {
                         tracks.insert(key.channel, key);
@@ -128,6 +157,8 @@ pub(crate) struct Timeline {
     location: Option<(String, String)>,
     cache: BTreeMap<Key, Asset>,
     pending: Vec<Pending>,
+    scheduled: Vec<Scheduled>,
+    elapsed: f64,
     voices: Vec<Voice>,
     last_tick: Option<Instant>,
     advancing: bool,
@@ -147,6 +178,8 @@ impl Timeline {
     pub fn finish(&mut self) {
         self.voices.clear();
         self.pending.clear();
+        self.scheduled.clear();
+        self.elapsed = 0.0;
         self.cache.clear();
         self.location = None;
         self.last_tick = None;
@@ -178,7 +211,9 @@ impl Timeline {
                 .cache
                 .values()
                 .any(|asset| asset.player.is_none() && asset.error.is_none())
-            || (self.advancing && self.voices.iter().any(|voice| voice.fade.is_some()))
+            || (self.advancing
+                && (!self.scheduled.is_empty()
+                    || self.voices.iter().any(|voice| voice.fade.is_some())))
     }
     pub fn buffering(&self) -> bool {
         !self.pending.is_empty()
@@ -193,7 +228,10 @@ impl Timeline {
     }
     pub fn enter(&mut self, chapter: &str, node: &Value) {
         self.location = Some((chapter.into(), node["id"].as_str().unwrap_or("").into()));
-        self.apply(cues(node));
+        self.scheduled = scheduled(node);
+        self.elapsed = 0.0;
+        self.prefetch(node);
+        self.apply_due();
     }
     pub fn prefetch(&mut self, node: &Value) {
         for cue in cues(node) {
@@ -201,6 +239,15 @@ impl Timeline {
                 self.cache.entry(key).or_default();
             }
         }
+    }
+    fn apply_due(&mut self) {
+        let count = self.scheduled.partition_point(|cue| cue.at <= self.elapsed);
+        let due = self
+            .scheduled
+            .drain(..count)
+            .map(|scheduled| scheduled.cue)
+            .collect();
+        self.apply(due);
     }
     fn apply(&mut self, cues: Vec<Cue>) {
         for cue in cues {
@@ -363,6 +410,31 @@ impl Timeline {
         Ok(())
     }
     pub fn update(&mut self, project: &Project, game: &Path, playing: bool) {
+        self.update_clock(project, game, playing, None);
+    }
+    /// The stage clock also decides when a parallel group advances. Using the
+    /// same elapsed value prevents its final delayed cue from losing a frame.
+    pub fn update_at(&mut self, project: &Project, game: &Path, playing: bool, elapsed: f64) {
+        self.update_clock(project, game, playing, Some(elapsed));
+    }
+    fn update_clock(
+        &mut self,
+        project: &Project,
+        game: &Path,
+        playing: bool,
+        elapsed: Option<f64>,
+    ) {
+        let now = Instant::now();
+        let advancing = playing && !self.buffering();
+        let delta = self
+            .last_tick
+            .replace(now)
+            .filter(|_| advancing && self.advancing)
+            .map_or(0.0, |previous| now.duration_since(previous).as_secs_f64());
+        if playing && elapsed.is_some() || advancing {
+            self.elapsed = elapsed.unwrap_or(self.elapsed + delta).max(0.0);
+            self.apply_due();
+        }
         self.prepare(project, game);
         let ready = self.pending.iter().all(|pending| {
             self.cache.get(&pending.key).is_some_and(|asset| {
@@ -392,13 +464,7 @@ impl Timeline {
                 }
             }
         }
-        let now = Instant::now();
         let advancing = playing && !self.buffering();
-        let delta = self
-            .last_tick
-            .replace(now)
-            .filter(|_| advancing && self.advancing)
-            .map_or(0.0, |previous| now.duration_since(previous).as_secs_f64());
         self.advancing = advancing;
         #[cfg(windows)]
         self.voices.retain(|voice| !voice.sink.empty());
@@ -484,6 +550,156 @@ mod tests {
     fn update(timeline: &mut Timeline, project: &Project, playing: bool) {
         timeline.update(project, Path::new("unused-for-project-audio"), playing);
         assert!(timeline.warnings().is_empty(), "{:?}", timeline.warnings());
+    }
+    #[test]
+    fn repeated_clip_starts_at_distinct_times_overlaps_and_waits_while_paused() {
+        let mut project = project();
+        project
+            .assets
+            .insert("assets/user/audio/fx/clip.wav".into(), wav(8192, 8000));
+        let original = project.clone();
+        let (mixer, mut source) = rodio::mixer::mixer(1, 8000);
+        let mut timeline = Timeline {
+            test_mixer: Some(mixer),
+            ..Default::default()
+        };
+        timeline.enter(
+            "main",
+            &json!({"id":"staggered","type":"parallel","actions":[
+                {"type":"sound","name":"user:fx"},
+                {"type":"sound","name":"user:fx","start_delay":0.5}
+            ]}),
+        );
+        update(&mut timeline, &project, true);
+        assert_eq!(timeline.voices.len(), 1);
+        assert_eq!(
+            timeline.cache.len(),
+            1,
+            "one prepared clip is shared by both starts"
+        );
+        assert!((render(&mut source, 40) - 0.25).abs() < 0.0001);
+        timeline.pause();
+        timeline.last_tick = Some(Instant::now() - Duration::from_secs(10));
+        update(&mut timeline, &project, false);
+        assert_eq!(timeline.voices.len(), 1);
+        assert_eq!(timeline.elapsed, 0.0);
+        assert!(render(&mut source, 40).abs() < 0.0001);
+        update(&mut timeline, &project, true);
+        timeline.last_tick = Some(Instant::now() - Duration::from_millis(450));
+        update(&mut timeline, &project, true);
+        assert_eq!(timeline.voices.len(), 1);
+        timeline.last_tick = Some(Instant::now() - Duration::from_millis(100));
+        update(&mut timeline, &project, true);
+        assert_eq!(timeline.voices.len(), 2);
+        assert_eq!(timeline.voices[0].key, timeline.voices[1].key);
+        assert!(
+            (render(&mut source, 40) - 0.5).abs() < 0.0001,
+            "the same clip really mixes with itself"
+        );
+        assert!(timeline.scheduled.is_empty());
+        timeline.stop();
+        assert!(timeline.voices.is_empty());
+        assert_eq!(project, original);
+    }
+
+    #[test]
+    fn stage_clock_fires_the_final_sound_at_the_group_end_before_entering_the_next_node() {
+        let project = project();
+        let (mixer, mut source) = rodio::mixer::mixer(1, 8000);
+        let mut timeline = Timeline {
+            test_mixer: Some(mixer),
+            ..Default::default()
+        };
+        timeline.enter(
+            "main",
+            &json!({"id":"boundary","type":"parallel","actions":[
+                {"type":"wait","seconds":0.5},
+                {"type":"sound","name":"user:fx","start_delay":0.5}
+            ]}),
+        );
+        for elapsed in [0.0, 0.499] {
+            timeline.update_at(&project, Path::new("unused"), true, elapsed);
+            assert!(timeline.voices.is_empty());
+        }
+        // No wall-clock sleep: the stage's exact boundary must trigger this cue.
+        timeline.update_at(&project, Path::new("unused"), true, 0.5);
+        assert_eq!(timeline.voices.len(), 1);
+        assert!(!timeline.buffering());
+        assert!(timeline.scheduled.is_empty());
+        timeline.enter("main", &json!({"id":"next","type":"say","text":"下一句"}));
+        assert!((render(&mut source, 40) - 0.25).abs() < 0.0001);
+        timeline.stop();
+    }
+
+    #[test]
+    fn stage_clock_does_not_drop_the_last_start_when_the_first_audio_update_is_late() {
+        let project = project();
+        let (mixer, mut source) = rodio::mixer::mixer(1, 8000);
+        let mut timeline = Timeline {
+            test_mixer: Some(mixer),
+            ..Default::default()
+        };
+        timeline.enter(
+            "main",
+            &json!({"id":"late-frame","type":"parallel","actions":[
+                {"type":"sound","name":"user:fx"},
+                {"type":"sound","name":"user:fx","start_delay":0.5}
+            ]}),
+        );
+        timeline.update_at(&project, Path::new("unused"), false, 0.5);
+        assert_eq!(
+            timeline.scheduled.len(),
+            1,
+            "a paused stage cannot trigger its future sound"
+        );
+        timeline.update_at(&project, Path::new("unused"), true, 0.5);
+        assert_eq!(timeline.voices.len(), 2);
+        assert!(timeline.scheduled.is_empty());
+        assert!(!timeline.buffering());
+        assert!((render(&mut source, 40) - 0.5).abs() < 0.0001);
+        timeline.stop();
+    }
+
+    #[test]
+    fn leaving_a_group_discards_its_future_starts_and_stop_does_not_cancel_later_authored_sound() {
+        let project = project();
+        let (mixer, mut source) = rodio::mixer::mixer(1, 8000);
+        let mut timeline = Timeline {
+            test_mixer: Some(mixer),
+            ..Default::default()
+        };
+        timeline.enter(
+            "main",
+            &json!({"id":"stop-then-play","type":"parallel","actions":[
+                {"type":"music","op":"stop"},
+                {"type":"sound","name":"user:fx","start_delay":0.5}
+            ]}),
+        );
+        update(&mut timeline, &project, true);
+        assert_eq!(timeline.scheduled.len(), 1);
+        assert!(timeline.voices.is_empty());
+        timeline.last_tick = Some(Instant::now() - Duration::from_millis(600));
+        update(&mut timeline, &project, true);
+        assert_eq!(timeline.voices.len(), 1);
+        assert!((render(&mut source, 40) - 0.25).abs() < 0.0001);
+        timeline.enter(
+            "main",
+            &json!({"id":"future","type":"parallel","actions":[
+                {"type":"wait","seconds":2},
+                {"type":"sound","name":"user:fx","start_delay":1}
+            ]}),
+        );
+        assert_eq!(timeline.scheduled.len(), 1);
+        timeline.enter("main", &json!({"id":"skip","type":"wait","seconds":2}));
+        timeline.last_tick = Some(Instant::now() - Duration::from_secs(2));
+        update(&mut timeline, &project, true);
+        assert!(timeline.scheduled.is_empty());
+        assert_eq!(
+            timeline.voices.len(),
+            1,
+            "manual navigation must not trigger an old group's future sound"
+        );
+        timeline.stop();
     }
     #[test]
     fn mixes_music_environment_and_overlapping_effects_with_pause_fade_and_cleanup() {

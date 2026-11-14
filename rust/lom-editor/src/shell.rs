@@ -1,6 +1,10 @@
 //! Shared Rust window shell. Platform chrome is isolated from authoring state.
 use eframe::egui::{self, Color32, Vec2};
 
+#[path = "shell/themes.rs"]
+mod themes;
+pub use themes::{accent_for, apply_theme, dialog_frame_for, surface_for, Theme};
+
 pub const ACCENT: Color32 = Color32::from_rgb(41, 101, 158);
 const TEXT: Color32 = Color32::from_rgb(45, 51, 59);
 pub const NAVIGATION_WIDTH: f32 = 280.0;
@@ -107,7 +111,7 @@ impl Shell {
         }
     }
     pub fn clear_color(&self) -> [f32; 4] {
-        [0.94, 0.94, 0.92, 1.0]
+        Theme::Classic.clear_color()
     }
 }
 
@@ -187,7 +191,7 @@ pub fn pin_button(
         egui::WidgetInfo::selected(egui::WidgetType::Button, ui.is_enabled(), pinned, label)
     });
     let color = if pinned {
-        ACCENT
+        accent_for(ui.ctx())
     } else {
         ui.style().interact(&response).fg_stroke.color
     };
@@ -345,54 +349,7 @@ fn font_definitions() -> egui::FontDefinitions {
 }
 pub fn style(ctx: &egui::Context) {
     ctx.set_fonts(font_definitions());
-    let mut s = (*ctx.style()).clone();
-    s.visuals = egui::Visuals::light();
-    s.visuals.panel_fill = Color32::TRANSPARENT;
-    s.visuals.window_fill = Color32::from_rgb(249, 249, 247);
-    s.visuals.extreme_bg_color = Color32::from_white_alpha(195);
-    s.visuals.faint_bg_color = Color32::from_black_alpha(3);
-    s.visuals.override_text_color = Some(TEXT);
-    s.visuals.selection.bg_fill = Color32::from_rgb(218, 232, 244);
-    s.visuals.selection.stroke = egui::Stroke::new(1.0_f32, Color32::from_rgb(39, 89, 137));
-    s.visuals.widgets.active.bg_fill = Color32::from_rgb(204, 224, 244);
-    s.visuals.widgets.active.weak_bg_fill = Color32::from_rgb(204, 224, 244);
-    s.visuals.widgets.hovered.bg_fill = Color32::from_rgb(226, 238, 249);
-    s.visuals.widgets.hovered.weak_bg_fill = Color32::from_rgb(226, 238, 249);
-    s.visuals.widgets.inactive.bg_fill = Color32::from_rgb(246, 249, 252);
-    s.visuals.widgets.inactive.weak_bg_fill = Color32::from_rgb(246, 249, 252);
-    for widget in [
-        &mut s.visuals.widgets.inactive,
-        &mut s.visuals.widgets.hovered,
-        &mut s.visuals.widgets.active,
-        &mut s.visuals.widgets.noninteractive,
-    ] {
-        widget.corner_radius = egui::CornerRadius::same(5);
-        widget.bg_stroke = egui::Stroke::new(1.0_f32, Color32::from_black_alpha(22));
-        widget.fg_stroke.color = TEXT;
-    }
-    s.visuals.widgets.inactive.bg_stroke.color = Color32::from_rgb(150, 164, 178);
-    s.visuals.widgets.hovered.bg_stroke.color = Color32::from_rgb(65, 118, 169);
-    s.visuals.widgets.active.bg_stroke.color = ACCENT;
-    s.visuals.window_corner_radius = egui::CornerRadius::same(12);
-    s.visuals.window_stroke = egui::Stroke::new(1.0_f32, Color32::from_black_alpha(22));
-    s.spacing.item_spacing = Vec2::new(12.0, 8.0);
-    s.spacing.interact_size.y = 30.0;
-    s.spacing.text_edit_width = 180.0;
-    s.spacing.scroll = egui::style::ScrollStyle::solid();
-    s.spacing.icon_width = 14.0;
-    s.spacing.icon_width_inner = 8.0;
-    s.visuals.widgets.noninteractive.bg_stroke.color = Color32::from_black_alpha(17);
-    s.spacing.button_padding = Vec2::new(11.0, 7.0);
-    s.text_styles
-        .insert(egui::TextStyle::Body, egui::FontId::proportional(13.0));
-    s.text_styles
-        .insert(egui::TextStyle::Button, egui::FontId::proportional(14.0));
-    s.text_styles
-        .insert(egui::TextStyle::Heading, egui::FontId::proportional(19.0));
-    // Choose the app's light theme explicitly: set_style alone can configure the
-    // fallback dark theme before Windows supplies its first system-theme input.
-    ctx.set_theme(egui::Theme::Light);
-    ctx.set_style_of(egui::Theme::Light, s);
+    apply_theme(ctx, Theme::Classic);
 }
 
 pub fn surface(content: bool) -> egui::Frame {

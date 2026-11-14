@@ -186,7 +186,7 @@ pub fn build(request: &Path, output: &Path) -> Result<Value> {
         }
         removed_documents |= project.stories.keys().any(|id| !stories.contains_key(id));
         project.paths.retain(|id, _| stories.contains_key(id));
-        project.stories = stories;
+        project.stories = stories.into();
     }
     if let Some(scenario) = recipe.get("scenario") {
         ensure!(

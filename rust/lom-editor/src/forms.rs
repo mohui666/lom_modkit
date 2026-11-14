@@ -311,11 +311,11 @@ impl Catalog {
                 "audio" => {
                     if meta["character"].is_string() {
                         entry["character"] = meta["character"].clone();
-                        self.data["user_voices"]
-                            .as_array_mut()
-                            .unwrap()
-                            .push(entry.clone());
                     }
+                    self.data["user_voices"]
+                        .as_array_mut()
+                        .unwrap()
+                        .push(entry.clone());
                     match meta["audio_kind"].as_str().unwrap_or("") {
                         "music" => "music",
                         "env" => "env_sounds",
@@ -646,11 +646,21 @@ impl Catalog {
             return localized_rows(&rows, "user_consumables");
         }
         if kind == "voice" {
+            let character = node["character"].as_str().unwrap_or("");
+            let bound_only = node["inherit_dialog"] != true
+                && !character.is_empty()
+                && matches!(
+                    node["mode"].as_str().unwrap_or("character"),
+                    "character" | "think"
+                );
             return self.data["user_voices"]
                 .as_array()
                 .map(|a| {
                     a.iter()
-                        .filter(|v| v["character"] == node["character"])
+                        .filter(|v| {
+                            let binding = v["character"].as_str().unwrap_or("");
+                            !bound_only || binding.is_empty() || binding == character
+                        })
                         .filter_map(|v| {
                             Some((
                                 v["id"].as_str()?.to_owned(),
@@ -833,7 +843,11 @@ impl Catalog {
         .contains(&kind.as_str());
         if !allow_goto && node.get("goto").is_some() {
             ui.colored_label(
-                Color32::from_rgb(255, 107, 97),
+                if ui.visuals().panel_fill == Color32::TRANSPARENT {
+                    Color32::from_rgb(255, 107, 97)
+                } else {
+                    ui.visuals().error_fg_color
+                },
                 "此节点由自己的分支决定流程，不允许额外 goto。",
             );
             if ui.button(tr("移除非法 goto 字段")).clicked() {
@@ -1220,13 +1234,62 @@ impl Catalog {
         if node["type"] == "character_profile" && key == "page" {
             return crate::character_profile_panel::page_field(ui, node);
         }
-        if node["type"] == "camera" && key == "exclude_characters" {
-            let options = self.options("character", node, node_ids, story_ids);
+        let narrative_highlights = node["type"] == "say" && key == "highlight_characters";
+        if node["type"] == "camera" && key == "exclude_characters" || narrative_highlights {
+            if narrative_highlights && !field_visible("say", node, key) {
+                return false;
+            }
+            let mut options = self.options("character", node, node_ids, story_ids);
             let mut selected = node[key].as_array().cloned().unwrap_or_default();
+            let unavailable: Vec<_> = if narrative_highlights {
+                selected
+                    .iter()
+                    .filter_map(|value| {
+                        let id = value
+                            .as_str()
+                            .map(str::to_owned)
+                            .unwrap_or_else(|| value.to_string());
+                        let option = options.iter().find(|(candidate, _)| candidate == &id);
+                        if option.is_some()
+                            && self
+                                .stage_characters
+                                .as_ref()
+                                .is_some_and(|staged| staged.contains(&id))
+                        {
+                            None
+                        } else {
+                            let name = option
+                                .map(|(_, name)| name.clone())
+                                .unwrap_or_else(|| id.clone());
+                            Some((value.clone(), id, name))
+                        }
+                    })
+                    .collect()
+            } else {
+                Vec::new()
+            };
+            if narrative_highlights {
+                options.retain(|(id, _)| {
+                    self.stage_characters
+                        .as_ref()
+                        .is_some_and(|staged| staged.contains(id))
+                });
+            }
             let mut changed = false;
-            ui.label(crate::i18n::key("field.camera.exclude_characters"));
-            ui.small(crate::i18n::key("editor.form.filter_exclusions_hint"));
-            let caption = if selected.is_empty() {
+            if narrative_highlights {
+                ui.label(tr("本句变亮人物"));
+                ui.small(tr("只作用本句：选中人物变亮，未选人物变暗；下一步恢复原明暗。只能选择已登场人物，留空沿用原版明暗。"));
+            } else {
+                ui.label(crate::i18n::key("field.camera.exclude_characters"));
+                ui.small(crate::i18n::key("editor.form.filter_exclusions_hint"));
+            }
+            let caption = if narrative_highlights {
+                if selected.is_empty() {
+                    tr("沿用原版明暗")
+                } else {
+                    format!("{} · {}", tr("本句变亮人物"), selected.len())
+                }
+            } else if selected.is_empty() {
                 crate::i18n::key("editor.form.filter_exclusions_empty")
             } else {
                 crate::i18n::message(
@@ -1236,7 +1299,14 @@ impl Catalog {
             };
             resource_combo(
                 ui,
-                ("filter-exclusions", node["id"].as_str().unwrap_or("")),
+                (
+                    if narrative_highlights {
+                        key
+                    } else {
+                        "filter-exclusions"
+                    },
+                    node["id"].as_str().unwrap_or(""),
+                ),
                 &caption,
                 |ui| {
                     let search_id = ui.id().with("filter-character-search");
@@ -1272,6 +1342,24 @@ impl Catalog {
                                     changed = true;
                                 }
                             }
+                            if !unavailable.is_empty() {
+                                ui.separator();
+                                ui.small(tr("已选但未登场（可取消）"));
+                                for (value, id, name) in &unavailable {
+                                    if !selected.contains(value)
+                                        || !resource_matches(id, name, &lower)
+                                    {
+                                        continue;
+                                    }
+                                    let mut enabled = true;
+                                    if ui.checkbox(&mut enabled, name).on_hover_text(id).changed()
+                                        && !enabled
+                                    {
+                                        selected.retain(|selected| selected != value);
+                                        changed = true;
+                                    }
+                                }
+                            }
                         });
                     ui.data_mut(|data| data.insert_temp(search_id, search));
                 },
@@ -1280,6 +1368,11 @@ impl Catalog {
                 node[key] = json!(selected);
             }
             return changed;
+        }
+        if node["type"] == "say" && key == "voice" {
+            ui.small(tr(
+                "选择已导入的音频；有语音的自动过句会等待播放结束，仍可主动跳过。",
+            ));
         }
         if node["type"] == "character_title" && key == "title" && node["action"] != "set" {
             return false;
@@ -1854,14 +1947,24 @@ fn stage_position_picker(ui: &mut Ui, selected: &str) -> Option<String> {
                 rect.min + egui::vec2(rect.width() * 0.16, 0.0),
                 rect.max - egui::vec2(rect.width() * 0.16, 0.0),
             );
-            ui.painter()
-                .rect_filled(stage, 4.0, Color32::from_rgb(224, 232, 236));
+            let classic = ui.visuals().panel_fill == Color32::TRANSPARENT;
+            let text_color = if classic {
+                Color32::DARK_GRAY
+            } else {
+                ui.visuals().text_color()
+            };
+            let stage_fill = if classic {
+                Color32::from_rgb(224, 232, 236)
+            } else {
+                ui.visuals().faint_bg_color
+            };
+            ui.painter().rect_filled(stage, 4.0, stage_fill);
             ui.painter().text(
                 stage.center_top() + egui::vec2(0.0, 9.0),
                 egui::Align2::CENTER_TOP,
                 crate::i18n::key("editor.form.stage"),
                 egui::FontId::proportional(12.0),
-                Color32::DARK_GRAY,
+                text_color,
             );
             for (id, label) in [
                 ("SL", "左外"),
@@ -1902,9 +2005,11 @@ fn stage_position_picker(ui: &mut Ui, selected: &str) -> Option<String> {
                     point,
                     if active { 6.0 } else { 4.0 },
                     if active {
-                        crate::shell::ACCENT
-                    } else {
+                        crate::shell::accent_for(ui.ctx())
+                    } else if classic {
                         Color32::from_rgb(88, 107, 117)
+                    } else {
+                        ui.visuals().weak_text_color()
                     },
                 );
                 ui.painter().text(
@@ -1912,7 +2017,7 @@ fn stage_position_picker(ui: &mut Ui, selected: &str) -> Option<String> {
                     egui::Align2::CENTER_TOP,
                     tr(label),
                     egui::FontId::proportional(10.0),
-                    Color32::DARK_GRAY,
+                    text_color,
                 );
                 if response.clicked() {
                     choice = Some(id.to_owned());
@@ -2455,6 +2560,9 @@ pub fn number_duplicate_labels(options: &mut [(String, String)]) {
 }
 
 fn field_visible(kind: &str, node: &Value, key: &str) -> bool {
+    if kind == "say" && key == "highlight_characters" {
+        return node["mode"] == "narrative" && node["inherit_dialog"] != true;
+    }
     if kind == "effect" && !effect_playing(node) {
         return matches!(key, "name" | "play" | "tag" | "clear" | "wait_after");
     }
@@ -5191,6 +5299,250 @@ mod tests {
         let _ = click(&output, Role::ComboBox, "无语音");
         let story = json!({"story_schema":2, "id":"main", "start":"n1", "nodes":[node, {"id":"end", "type":"end"}]});
         lom_core::validate::validate_story(&story).unwrap();
+    }
+
+    #[test]
+    fn audio_voice_options_include_unbound_assets_and_follow_dialogue_mode() {
+        let mut catalog = Catalog::new();
+        let mut assets = std::collections::BTreeMap::new();
+        for (id, kind, character) in [
+            ("free", "sound", None),
+            ("hero", "sound", Some("player")),
+            ("other", "sound", Some("trainee")),
+            ("music", "music", Some("")),
+            ("ambient", "env", None),
+        ] {
+            let mut meta = json!({"content_schema":1,"id":id,"type":"audio","name":id,"audio_kind":kind,"files":{"main":"audio.wav"}});
+            if let Some(character) = character {
+                meta["character"] = json!(character);
+            }
+            assets.insert(
+                format!("assets/user/audio/{id}/content.json"),
+                serde_json::to_vec(&meta).unwrap(),
+            );
+        }
+        catalog.sync_assets(&assets);
+        assert_eq!(catalog.data["user_voices"].as_array().unwrap().len(), 5);
+        let all: std::collections::BTreeSet<_> = [
+            "user:ambient",
+            "user:free",
+            "user:hero",
+            "user:music",
+            "user:other",
+        ]
+        .map(String::from)
+        .into();
+        let options = |node: Value| {
+            catalog
+                .options("voice", &node, &[], &[])
+                .into_iter()
+                .map(|(id, _)| id)
+                .collect::<std::collections::BTreeSet<_>>()
+        };
+        let ordinary: std::collections::BTreeSet<_> =
+            ["user:ambient", "user:free", "user:hero", "user:music"]
+                .map(String::from)
+                .into();
+        assert_eq!(
+            options(json!({"type":"say","character":"player"})),
+            ordinary
+        );
+        assert_eq!(
+            options(json!({"type":"say","mode":"character","character":"player"})),
+            ordinary
+        );
+        let thought: std::collections::BTreeSet<_> =
+            ["user:ambient", "user:free", "user:music", "user:other"]
+                .map(String::from)
+                .into();
+        assert_eq!(
+            options(json!({"type":"say","mode":"think","character":"trainee"})),
+            thought
+        );
+        for mode in ["narrative", "center", "offscreen"] {
+            assert_eq!(
+                options(json!({"type":"say","mode":mode,"character":"player"})),
+                all
+            );
+        }
+        assert_eq!(
+            options(json!({"type":"say","character":"player","inherit_dialog":true})),
+            all
+        );
+        assert_eq!(options(json!({"type":"say","mode":"character"})), all);
+        assert_eq!(
+            options(json!({"type":"say","mode":"think","character":""})),
+            all
+        );
+    }
+
+    #[test]
+    fn narrative_highlight_selector_uses_only_stage_characters_and_keeps_hidden_values() {
+        use egui::accesskit::Role;
+        let mut catalog = Catalog::new();
+        catalog.data["characters"] = json!([
+            {"id":"one","name":"场上人物"}, {"id":"two","name":"场外人物"},
+            {"id":"user:hero","name":"自定义人物"}
+        ]);
+        catalog.stage_characters = Some(["one".into(), "user:hero".into()].into());
+        let ctx = egui::Context::default();
+        let mut node = json!({"id":"say","type":"say","mode":"narrative","text":"旁白"});
+        let (output, changed) = field_frame(
+            &catalog,
+            &ctx,
+            &mut node,
+            "highlight_characters",
+            "filter_characters",
+            vec![],
+        );
+        assert!(!changed);
+        assert!(node.get("highlight_characters").is_none());
+        assert!(catalog
+            .new_node("say", "new".into())
+            .get("highlight_characters")
+            .is_none());
+        let events = click(&output, Role::ComboBox, &tr("沿用原版明暗"));
+        field_frame(
+            &catalog,
+            &ctx,
+            &mut node,
+            "highlight_characters",
+            "filter_characters",
+            events,
+        );
+        let (output, changed) = field_frame(
+            &catalog,
+            &ctx,
+            &mut node,
+            "highlight_characters",
+            "filter_characters",
+            vec![],
+        );
+        assert!(!changed);
+        let entries = &output
+            .platform_output
+            .accesskit_update
+            .as_ref()
+            .unwrap()
+            .nodes;
+        assert!(entries
+            .iter()
+            .any(|(_, entry)| entry.role() == Role::CheckBox && entry.label() == Some("场上人物")));
+        assert!(!entries
+            .iter()
+            .any(|(_, entry)| entry.role() == Role::CheckBox && entry.label() == Some("场外人物")));
+        let events = click(&output, Role::CheckBox, "场上人物");
+        let (_, changed) = field_frame(
+            &catalog,
+            &ctx,
+            &mut node,
+            "highlight_characters",
+            "filter_characters",
+            events,
+        );
+        assert!(changed);
+        assert_eq!(node["highlight_characters"], json!(["one"]));
+        let (output, _) = field_frame(
+            &catalog,
+            &ctx,
+            &mut node,
+            "highlight_characters",
+            "filter_characters",
+            vec![],
+        );
+        let events = click(&output, Role::CheckBox, "自定义人物");
+        let (_, changed) = field_frame(
+            &catalog,
+            &ctx,
+            &mut node,
+            "highlight_characters",
+            "filter_characters",
+            events,
+        );
+        assert!(changed);
+        assert_eq!(node["highlight_characters"], json!(["one", "user:hero"]));
+        catalog.stage_characters = Some(["one".into()].into());
+        node["highlight_characters"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!("user:removed"));
+        let (output, changed) = field_frame(
+            &catalog,
+            &ctx,
+            &mut node,
+            "highlight_characters",
+            "filter_characters",
+            vec![],
+        );
+        assert!(!changed);
+        let events = click(&output, Role::CheckBox, "自定义人物");
+        let (_, changed) = field_frame(
+            &catalog,
+            &ctx,
+            &mut node,
+            "highlight_characters",
+            "filter_characters",
+            events,
+        );
+        assert!(changed);
+        assert_eq!(node["highlight_characters"], json!(["one", "user:removed"]));
+        let (output, _) = field_frame(
+            &catalog,
+            &ctx,
+            &mut node,
+            "highlight_characters",
+            "filter_characters",
+            vec![],
+        );
+        assert!(!output
+            .platform_output
+            .accesskit_update
+            .as_ref()
+            .unwrap()
+            .nodes
+            .iter()
+            .any(
+                |(_, entry)| entry.role() == Role::CheckBox && entry.label() == Some("自定义人物")
+            ));
+        let events = click(&output, Role::CheckBox, "user:removed");
+        let (_, changed) = field_frame(
+            &catalog,
+            &ctx,
+            &mut node,
+            "highlight_characters",
+            "filter_characters",
+            events,
+        );
+        assert!(changed);
+        assert_eq!(node["highlight_characters"], json!(["one"]));
+        let selected = node["highlight_characters"].clone();
+        for mode in ["character", "think", "center", "offscreen"] {
+            node["mode"] = json!(mode);
+            assert!(!field_visible("say", &node, "highlight_characters"));
+            let (_, changed) = field_frame(
+                &catalog,
+                &ctx,
+                &mut node,
+                "highlight_characters",
+                "filter_characters",
+                vec![],
+            );
+            assert!(!changed);
+            assert_eq!(node["highlight_characters"], selected);
+        }
+        node["mode"] = json!("narrative");
+        node["inherit_dialog"] = json!(true);
+        assert!(!field_visible("say", &node, "highlight_characters"));
+        let (_, changed) = field_frame(
+            &catalog,
+            &ctx,
+            &mut node,
+            "highlight_characters",
+            "filter_characters",
+            vec![],
+        );
+        assert!(!changed);
+        assert_eq!(node["highlight_characters"], selected);
     }
     #[test]
     fn optional_numbers_and_arrays_can_be_reset_without_reinstating_template_values() {

@@ -475,7 +475,7 @@ impl Advanced {
                         self.insertion,
                     ) {
                         Ok(t) => {
-                            self.proposal = Some((selection, project.stories.clone(), t));
+                            self.proposal = Some((selection, (*project.stories).clone(), t));
                             self.error.clear();
                         }
                         Err(e) => self.error = crate::error_ui::capture(e),
@@ -798,7 +798,7 @@ mod tests {
             };
             let plan = editing::transfer(&project.stories, "main", 0, 1, "second", 0)
                 .expect("valid preview");
-            panel.proposal = Some((panel.copy_selection(), project.stories.clone(), plan));
+            panel.proposal = Some((panel.copy_selection(), (*project.stories).clone(), plan));
             // An unchanged frame preserves the preview; editing any input invalidates it.
             let _ = ctx.run(Default::default(), |ctx| {
                 egui::CentralPanel::default().show(ctx, |ui| {

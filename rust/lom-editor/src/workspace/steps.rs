@@ -36,7 +36,7 @@ impl App {
                 node["inherit_dialog"] = json!(true);
             }
         }
-        let mut story = self.story();
+        let mut story = self.story().clone();
         match insert_nodes_after(&mut story, self.selected, vec![node]) {
             Ok(at) => {
                 self.project.stories.insert(self.current.clone(), story);
@@ -72,7 +72,7 @@ impl App {
         }
         self.flush();
         let mut clones = self.clipboard.clone();
-        let mut story = self.story();
+        let mut story = self.story().clone();
         let imported = story.get("vanilla_import").is_some();
         if story["vanilla_import"]["schema"] != 2
             && clones.iter().any(|node| {
@@ -151,7 +151,7 @@ impl App {
             .iter()
             .filter_map(|i| old_nodes.get(*i)?.get("id")?.as_str().map(str::to_owned))
             .collect();
-        let mut story = self.story();
+        let mut story = self.story().clone();
         story["nodes"]
             .as_array_mut()
             .unwrap()
@@ -206,7 +206,7 @@ impl App {
         self.move_steps(&indices, boundary);
     }
     pub(super) fn move_steps(&mut self, indices: &[usize], boundary: usize) {
-        let mut story = self.story();
+        let mut story = self.story().clone();
         let Some(nodes) = story["nodes"].as_array_mut() else {
             return;
         };

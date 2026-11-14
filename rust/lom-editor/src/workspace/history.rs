@@ -6,6 +6,18 @@ use std::sync::Arc;
 // Share small node blocks between edits. Contiguous values keep large-chapter
 // comparisons fast without copying whole chapters into each undo entry.
 const SNAPSHOT_BLOCK: usize = 32;
+pub(super) struct ChapterView {
+    chapter: String,
+    revision: u64,
+    pub(super) ids: Vec<String>,
+    pub(super) rows: Vec<authoring::Row>,
+    pub(super) sections_error: Option<String>,
+}
+pub(super) struct StepSearch {
+    query: String,
+    revision: u64,
+    results: Arc<Vec<(String, usize)>>,
+}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct StorySnapshot {
     fields: Value,
@@ -110,10 +122,21 @@ impl crate::persistence::StoryBaseline for Arc<StorySnapshot> {
 
 fn changed_stories(
     left: &BTreeMap<String, Arc<StorySnapshot>>,
-    right: &BTreeMap<String, Value>,
+    right: &mut lom_core::project::Stories,
 ) -> Option<BTreeMap<String, Arc<StorySnapshot>>> {
+    let changes = right.take_changes();
     let mut next = (left.len() != right.len()).then(|| left.clone());
-    for (id, story) in right {
+    let candidates: Box<dyn Iterator<Item = &String> + '_> = match &changes {
+        Some(changes) => Box::new(changes.iter()),
+        None => Box::new(right.keys()),
+    };
+    for id in candidates {
+        let Some(story) = right.get(id) else {
+            if left.contains_key(id) {
+                next.get_or_insert_with(|| left.clone()).remove(id);
+            }
+            continue;
+        };
         if left.get(id).is_none_or(|old| !old.same(story)) {
             next.get_or_insert_with(|| left.clone()).insert(
                 id.clone(),
@@ -128,6 +151,52 @@ fn changed_stories(
 }
 
 impl App {
+    pub(super) fn step_search(&mut self, query: &str) -> Arc<Vec<(String, usize)>> {
+        if let Some(search) = &self.step_search {
+            if search.query == query && search.revision == self.document_revision {
+                return search.results.clone();
+            }
+        }
+        let mut results = Vec::new();
+        for (id, story) in &self.project.stories {
+            for (index, node) in story["nodes"].as_array().into_iter().flatten().enumerate() {
+                if node.to_string().to_lowercase().contains(query) {
+                    results.push((id.clone(), index));
+                }
+            }
+        }
+        let results = Arc::new(results);
+        self.step_search = Some(StepSearch {
+            query: query.to_owned(),
+            revision: self.document_revision,
+            results: results.clone(),
+        });
+        results
+    }
+    pub(super) fn chapter_view(&mut self) -> Arc<ChapterView> {
+        if let Some(view) = &self.chapter_view {
+            if view.chapter == self.current && view.revision == self.document_revision {
+                return view.clone();
+            }
+        }
+        let story = self.story();
+        let view = Arc::new(ChapterView {
+            chapter: self.current.clone(),
+            revision: self.document_revision,
+            ids: story["nodes"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|n| n["id"].as_str().map(str::to_owned))
+                .collect(),
+            rows: authoring::section_rows(story),
+            sections_error: authoring::validate_sections(story)
+                .err()
+                .map(crate::error_ui::capture),
+        });
+        self.chapter_view = Some(view.clone());
+        view
+    }
     pub(super) fn dirty(&self) -> bool {
         self.document_dirty
             || self.asset_dirty
@@ -144,12 +213,9 @@ impl App {
             .get(&self.current)
             .is_some_and(|story| story.get("vanilla_patch").is_some())
     }
-    pub(super) fn story(&self) -> Value {
-        self.project
-            .stories
-            .get(&self.current)
-            .cloned()
-            .unwrap_or(json!({"nodes":[]}))
+    pub(super) fn story(&self) -> &Value {
+        static EMPTY: std::sync::LazyLock<Value> = std::sync::LazyLock::new(|| json!({"nodes":[]}));
+        self.project.stories.get(&self.current).unwrap_or(&EMPTY)
     }
     pub(super) fn flush(&mut self) {
         if let Some(s) = self.pending_history.take() {
@@ -162,15 +228,17 @@ impl App {
     pub(super) fn track(&mut self) {
         // Asset editors report actual mutations. Comparing every image/audio byte
         // on every UI frame makes even an unchanged large project stall.
-        let assets_changed =
-            std::mem::take(&mut self.asset_dirty) && *self.last.assets != self.project.assets;
-        let stories_changed = changed_stories(&self.last.stories, &self.project.stories);
+        let assets_changed = (std::mem::take(&mut self.asset_dirty)
+            || self.last.assets.len() != self.project.assets.len())
+            && *self.last.assets != self.project.assets;
+        let stories_changed = changed_stories(&self.last.stories, &mut self.project.stories);
         if self.last.manifest != self.project.manifest
             || self.last.scenario != self.project.scenario
             || stories_changed.is_some()
             || self.last.paths != self.project.paths
             || assets_changed
         {
+            self.document_revision = self.document_revision.wrapping_add(1);
             let current = Snapshot {
                 manifest: self.project.manifest.clone(),
                 scenario: self.project.scenario.clone(),
@@ -202,6 +270,7 @@ impl App {
         }
     }
     pub(super) fn restore(&mut self, s: Snapshot) {
+        self.document_revision = self.document_revision.wrapping_add(1);
         self.preview.cancel_layout_drag();
         self.content_panel.reset();
         self.advanced.reset();

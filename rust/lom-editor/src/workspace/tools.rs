@@ -59,7 +59,7 @@ impl App {
             return;
         }
         ui.collapsing(tr("批量修改选中步骤字段"), |ui| {
-            let story = self.story();
+            let story = self.story().clone();
             let indices: BTreeSet<usize> = self.selected_indices().into_iter().collect();
             let selected: Vec<Value> = indices
                 .iter()
@@ -231,7 +231,8 @@ impl App {
         ui.separator();
     }
     pub(super) fn diagnostic(&mut self) {
-        if let Some(path) = rfd::FileDialog::new()
+        if let Some(path) = self
+            .export_dialog()
             .set_file_name("lom-editor-diagnostics.zip")
             .save_file()
         {
@@ -252,7 +253,7 @@ impl App {
         }
     }
     pub(super) fn choose_preview_library(&mut self) {
-        let Some(path) = rfd::FileDialog::new()
+        let Some(path) = crate::file_dialog::at(Some(&self.preview.library))
             .set_title(tr(
                 "选择已提取的素材库（含 preview_map.json），或选择游戏安装目录进行提取",
             ))

@@ -13,7 +13,16 @@ use unity_rs_core::{
     studio::{Studio, StudioObject},
 };
 
+#[cfg(test)]
 pub fn extract(studio: &Studio, output: &Path) -> Result<Value> {
+    extract_cached(studio, output, None, &Value::Null)
+}
+pub(crate) fn extract_cached(
+    studio: &Studio,
+    output: &Path,
+    existing: Option<&Path>,
+    previous: &Value,
+) -> Result<Value> {
     let panels = studio
         .objects()
         .filter(|o| {
@@ -40,26 +49,45 @@ pub fn extract(studio: &Studio, output: &Path) -> Result<Value> {
             right.file_id == 0 && left.file_id == 0,
             "气泡预制体使用了未知外部引用"
         );
+        let mut keys = Vec::with_capacity(count);
+        for _ in 0..count {
+            let ptr = r.ptr()?;
+            ensure!(ptr.file_id == 0, "气泡映射使用了未知外部引用");
+            keys.push(unity::mapping(studio, panel, ptr)?);
+        }
         let mut entries = serde_json::Map::new();
         for (name, ptr) in [("left", left), ("right", right)] {
             if !cache.contains_key(&ptr.path_id) {
+                let old = keys
+                    .iter()
+                    .find_map(|key| previous[key].get(name))
+                    .unwrap_or(&Value::Null);
                 cache.insert(
                     ptr.path_id,
-                    animation(studio, unity::resolve(studio, panel, ptr)?, output)?,
+                    animation(
+                        studio,
+                        unity::resolve(studio, panel, ptr)?,
+                        output,
+                        existing,
+                        old,
+                    )?,
                 );
             }
             entries.insert(name.into(), cache[&ptr.path_id].clone());
         }
-        for _ in 0..count {
-            let ptr = r.ptr()?;
-            ensure!(ptr.file_id == 0, "气泡映射使用了未知外部引用");
-            let key = unity::mapping(studio, panel, ptr)?;
+        for key in keys {
             moods.insert(key, Value::Object(entries.clone()));
         }
     }
     Ok(Value::Object(moods))
 }
-fn animation(studio: &Studio, object: StudioObject<'_>, output: &Path) -> Result<Value> {
+fn animation(
+    studio: &Studio,
+    object: StudioObject<'_>,
+    output: &Path,
+    existing: Option<&Path>,
+    previous: &Value,
+) -> Result<Value> {
     let file = &studio.collection().serialized_files()[object.file_index()].file;
     let game_object = read_game_object(file, object.object_index(), Default::default())?;
     let components = game_object
@@ -155,13 +183,25 @@ fn animation(studio: &Studio, object: StudioObject<'_>, output: &Path) -> Result
                     .pptr_curve_mapping
                     .get(value as usize)
                     .context("气泡动画精灵帧越界")?;
-                let sprite = unity::resolve(studio, clip_obj, ptr)?;
-                let relative = format!("assets/moods/{}/{}.png", object.path_id(), ptr.path_id);
-                let path = output.join(&relative);
-                if !path.exists() {
-                    images::save(&images::decode(studio, sprite, true)?, &path, None)?;
-                }
-                frames.push(json!({"time":duration+time.max(0.0) as f64,"file":relative}));
+                let time = duration + time.max(0.0) as f64;
+                let old = previous["frames"]
+                    .get(frames.len())
+                    .filter(|frame| frame["time"].as_f64() == Some(time));
+                let relative = if let Some(relative) = images::cached_file(
+                    existing,
+                    old.map(|frame| &frame["file"]).unwrap_or(&Value::Null),
+                )? {
+                    relative
+                } else {
+                    let relative = format!("assets/moods/{}/{}.png", object.path_id(), ptr.path_id);
+                    let path = output.join(&relative);
+                    if !path.exists() {
+                        let sprite = unity::resolve(studio, clip_obj, ptr)?;
+                        images::save(&images::decode(studio, sprite, true)?, &path, None)?;
+                    }
+                    relative
+                };
+                frames.push(json!({"time":time,"file":relative}));
                 clip_frames += 1;
             }
         }

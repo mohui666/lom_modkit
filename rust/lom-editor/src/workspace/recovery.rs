@@ -51,11 +51,15 @@ impl App {
         }
     }
     pub(super) fn clear_recovery(&mut self) {
+        if self.defer_recovery_clear() {
+            return;
+        }
         if self.recovery_dir.exists() {
             let _ = std::fs::remove_dir_all(&self.recovery_dir);
         }
         self.recovery_paths.clear();
         self.recovery_assets.clear();
+        self.reset_recovery_tracking();
     }
     pub(super) fn idle_repaint_delay(&self) -> Duration {
         let mut delay = Duration::MAX;
@@ -65,9 +69,15 @@ impl App {
         if self.pending_history.is_some() {
             delay = delay.min(Duration::from_millis(650).saturating_sub(self.last_edit.elapsed()));
         }
-        if self.dirty() {
-            delay = delay.min(Duration::from_secs(30).saturating_sub(self.last_recovery.elapsed()));
-            if self.auto_save_project
+        if self.saving() {
+            delay = delay.min(Duration::from_millis(50));
+        } else {
+            if self.recovery_needs_refresh() {
+                delay =
+                    delay.min(Duration::from_secs(30).saturating_sub(self.last_recovery.elapsed()));
+            }
+            if self.dirty()
+                && self.auto_save_project
                 && !self.saved.stories.is_empty()
                 && self.save_target().is_some()
             {
@@ -86,6 +96,9 @@ impl App {
         delay
     }
     pub(super) fn autosave(&mut self) {
+        if self.saving() {
+            return;
+        }
         if self.auto_save_project
             && self.dirty()
             && !self.saved.stories.is_empty()
@@ -106,75 +119,115 @@ impl App {
                 }
             }
         }
-        if !self.dirty() || self.last_recovery.elapsed() < Duration::from_secs(30) {
+        if (!self.dirty() && !self.recovery_needs_refresh())
+            || self.last_recovery.elapsed() < Duration::from_secs(30)
+        {
             return;
         }
         self.last_recovery = Instant::now();
-        let mut p = self.project.clone();
-        let pending_warning = self.content_panel.apply_pending_to_snapshot(&mut p).err();
-        p.paths = self.recovery_paths.clone();
-        p.story_subdir = true;
-        // Only earlier successful writes establish ownership of recovery files.
-        // Never borrow the original project's filenames or trust a preexisting directory.
-        p.source = if self.recovery_paths.is_empty() {
-            None
-        } else {
-            Some(
-                self.recovery_dir
-                    .canonicalize()
-                    .unwrap_or_else(|_| self.recovery_dir.clone()),
-            )
-        };
-        let result = (|| -> anyhow::Result<()> {
-            p.save_to(&self.recovery_dir)?;
-            let previous_paths = self.recovery_paths.clone();
-            let previous_assets = self.recovery_assets.clone();
-            self.recovery_paths.extend(p.paths.clone());
-            self.recovery_assets.extend(p.assets.keys().cloned());
-            // Undoing chapter creation/renaming must not resurrect an obsolete
-            // chapter when recovery reopens the directory. Only remove owned files.
-            for (id, filename) in previous_paths {
-                if !p.paths.values().any(|path| path == &filename) {
-                    let file = self.recovery_dir.join("story").join(&filename);
-                    if file.exists() {
-                        std::fs::remove_file(file)?;
-                    }
-                    self.recovery_paths.remove(&id);
-                }
-            }
-            for name in previous_assets {
-                if !p.assets.contains_key(&name) {
-                    let file = self.recovery_dir.join(&name);
-                    if file.exists() {
-                        let file =
-                            lom_core::package::resolve_confined_file(&self.recovery_dir, &file)?;
-                        anyhow::ensure!(
-                            file == self.recovery_dir.canonicalize()?.join(&name),
-                            "恢复素材路径已改变，未移除：{name}"
-                        );
-                        std::fs::remove_file(file)?;
-                    }
-                    self.recovery_assets.remove(&name);
-                }
-            }
-            let session = json!({"source":self.project.source,"paths":self.project.paths,"story_subdir":self.project.story_subdir,"has_manifest":self.project.has_manifest,"current":self.current,"selected":self.selected});
-            lom_core::project::atomic_write(
-                &self.recovery_dir.join("session.json"),
-                &lom_core::stable_json(&session)?,
-            )?;
-            Ok(())
-        })();
-        if let Err(e) = result {
-            self.status = format!(
-                "自动恢复副本写入失败。{}",
-                crate::error_ui::text(&crate::error_ui::capture(e))
-            );
-        } else if let Some(error) = pending_warning {
-            self.status = format!(
-                "素材输入尚未完成。{}",
-                crate::error_ui::text(&crate::error_ui::capture(error))
-            );
+        self.track_save_snapshot();
+        if !self.recovery_needs_refresh() {
+            return;
         }
+        self.start_recovery_write(RecoveryWrite {
+            snapshot: self.last.clone(),
+            metadata: background_save::ProjectMetadata::capture(&self.project),
+            directory: self.recovery_dir.clone(),
+            paths: self.recovery_paths.clone(),
+            assets: self.recovery_assets.clone(),
+            session: json!({"source":self.project.source,"paths":self.project.paths,"story_subdir":self.project.story_subdir,"has_manifest":self.project.has_manifest,"current":self.current,"selected":self.selected}),
+            pending_content: self.content_panel.pending_snapshot(),
+        });
+    }
+}
+
+pub(super) struct RecoveryWrite {
+    snapshot: Snapshot,
+    metadata: background_save::ProjectMetadata,
+    directory: PathBuf,
+    paths: BTreeMap<String, PathBuf>,
+    assets: BTreeSet<String>,
+    session: Value,
+    pub(super) pending_content: Option<crate::content_panel::PendingContentSnapshot>,
+}
+
+pub(super) struct WrittenRecovery {
+    pub(super) paths: BTreeMap<String, PathBuf>,
+    pub(super) assets: BTreeSet<String>,
+    pub(super) result: Result<(), String>,
+    pub(super) pending_warning: Option<String>,
+}
+
+pub(super) fn write_recovery(input: RecoveryWrite) -> WrittenRecovery {
+    let RecoveryWrite {
+        snapshot,
+        metadata,
+        directory,
+        mut paths,
+        mut assets,
+        session,
+        pending_content,
+    } = input;
+    let mut p = background_save::project_from_snapshot(&snapshot, metadata);
+    let pending_warning = pending_content
+        .and_then(|pending| pending.apply_to_snapshot(&mut p).err())
+        .map(crate::error_ui::capture);
+    p.paths = paths.clone();
+    p.story_subdir = true;
+    // Only earlier successful writes establish ownership of recovery files.
+    // Never borrow the original project's filenames or trust a preexisting directory.
+    p.source = if paths.is_empty() {
+        None
+    } else {
+        Some(
+            directory
+                .canonicalize()
+                .unwrap_or_else(|_| directory.clone()),
+        )
+    };
+    let result = (|| -> anyhow::Result<()> {
+        p.save_to(&directory)?;
+        let previous_paths = paths.clone();
+        let previous_assets = assets.clone();
+        paths.extend(p.paths.clone());
+        assets.extend(p.assets.keys().cloned());
+        // Undoing chapter creation/renaming must not resurrect an obsolete
+        // chapter when recovery reopens the directory. Only remove owned files.
+        for (id, filename) in previous_paths {
+            if !p.paths.values().any(|path| path == &filename) {
+                let file = directory.join("story").join(&filename);
+                if file.exists() {
+                    std::fs::remove_file(file)?;
+                }
+                paths.remove(&id);
+            }
+        }
+        for name in previous_assets {
+            if !p.assets.contains_key(&name) {
+                let file = directory.join(&name);
+                if file.exists() {
+                    let file = lom_core::package::resolve_confined_file(&directory, &file)?;
+                    anyhow::ensure!(
+                        file == directory.canonicalize()?.join(&name),
+                        "恢复素材路径已改变，未移除：{name}"
+                    );
+                    std::fs::remove_file(file)?;
+                }
+                assets.remove(&name);
+            }
+        }
+        lom_core::project::atomic_write(
+            &directory.join("session.json"),
+            &lom_core::stable_json(&session)?,
+        )?;
+        Ok(())
+    })()
+    .map_err(crate::error_ui::capture);
+    WrittenRecovery {
+        paths,
+        assets,
+        result,
+        pending_warning,
     }
 }
 

@@ -8,6 +8,30 @@ fn story(actions: Value) -> Value {
 }
 
 #[test]
+fn repeated_one_shot_sounds_accept_independent_start_times_but_not_invalid_delays() {
+    let actions = json!([
+        {"type":"sound","name":"same-sound","start_delay":0},
+        {"type":"sound","name":"same-sound","start_delay":0.25},
+        {"type":"sound","name":"same-sound","start_delay":0.5}
+    ]);
+    parallel::validate_group(&json!({"actions":actions})).unwrap();
+    assert_eq!(parallel::start_delay(&json!({"type":"sound"})), 0.0);
+    assert_eq!(parallel::start_delay(&actions[2]), 0.5);
+    for value in [json!(-0.01), json!("0.5"), json!(true)] {
+        let mut invalid = actions.clone();
+        invalid[1]["start_delay"] = value;
+        let error = parallel::validate_group(&json!({"actions":invalid})).unwrap_err();
+        assert!(error.to_string().contains("第 2 个同时动作的 start_delay"));
+    }
+    // Independent sound starts do not turn environment/music into multivoice channels.
+    assert!(parallel::validate_group(&json!({"actions":[
+        {"type":"sound","kind":"env","name":"rain","start_delay":0},
+        {"type":"sound","kind":"env","name":"rain","start_delay":0.5}
+    ]}))
+    .is_err());
+}
+
+#[test]
 fn bubbles_join_visible_actor_actions_without_erasing_them_or_weakening_conflicts() {
     let bubble =
         json!({"type":"mood","character":"player","enabled":true,"icon":"shock","wait_after":0.5});
@@ -247,4 +271,40 @@ fn user_images_characters_and_audio_used_only_inside_group_are_packaged() {
     assert_eq!(stats["node_types"]["parallel"], 1);
     assert_eq!(stats["parallel_actions"], 3);
     assert_eq!(stats["characters"], 1);
+}
+
+#[test]
+fn official_shocks_are_independent_per_character_and_same_actor_remains_exclusive() {
+    let mut actions = json!([
+        {"type":"shock","character":"player","duration":0.8},
+        {"type":"shock","character":"brother1","duration":1.2,"start_delay":0.15}
+    ]);
+    let lua = codegen::compile_story(&story(actions.clone()), None, None, None).unwrap();
+    assert!(lua.contains("mod_char_shock(\"player\", 0.8)"));
+    assert!(
+        lua.contains("wait(0.15)\n\t\t\tmod_char_shock(\"brother1\", 1.2)"),
+        "{lua}"
+    );
+    assert!(!lua.contains("ShockPosition"));
+    actions[1]["character"] = json!("player");
+    assert!(validate::validate_story(&story(actions)).is_err());
+}
+
+#[test]
+fn one_shot_delay_is_emitted_inside_each_branch_and_invalid_top_level_delay_is_diagnosed() {
+    let actions = json!([
+        {"type":"sound","name":"Cymbal_001","start_delay":0},
+        {"type":"sound","name":"Cymbal_001","start_delay":0.15},
+        {"type":"sound","name":"Cymbal_001","start_delay":0.3}
+    ]);
+    let lua = codegen::compile_story(&story(actions), None, None, None).unwrap();
+    assert_eq!(
+        lua.matches("luamanager.PlaySound(\"Cymbal_001\")").count(),
+        3
+    );
+    assert!(lua.contains("wait(0.15)\n\t\t\tluamanager.PlaySound"));
+    assert!(lua.contains("wait(0.3)\n\t\t\tluamanager.PlaySound"));
+    let mut invalid = story(json!([{"type":"wait","seconds":1},{"type":"wait","seconds":0}]));
+    invalid["nodes"][1]["start_delay"] = json!(0.2);
+    assert!(validate::validate_story(&invalid).is_err());
 }

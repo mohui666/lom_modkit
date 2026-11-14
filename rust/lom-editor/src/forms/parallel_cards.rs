@@ -1,6 +1,6 @@
 use super::{resource_matches, Catalog, SearchCombo, Value};
 use crate::i18n::{key, message, tr};
-use eframe::egui::{self, Color32, Ui};
+use eframe::egui::{self, Ui};
 
 #[derive(Clone, Default, Debug, PartialEq, Eq)]
 struct CardState {
@@ -120,23 +120,105 @@ fn title(catalog: &Catalog, action: &Value, index: usize, duration: f64) -> Stri
     } else {
         format!("{} · ", target)
     };
-    format!(
+    let title = format!(
         "{} · {}{} · {}",
         index + 1,
         target,
         catalog.label(kind),
         timing_label(duration)
-    )
+    );
+    let delay = lom_core::parallel::start_delay(action);
+    if delay > 0.0 {
+        format!("{title} · {} {}s", tr("延迟"), seconds(delay))
+    } else {
+        title
+    }
+}
+
+fn card_frame(ui: &Ui, selected: bool) -> egui::Frame {
+    let visuals = ui.visuals();
+    egui::Frame::new()
+        .fill(if selected {
+            visuals.selection.bg_fill
+        } else {
+            visuals.window_fill
+        })
+        .stroke(egui::Stroke::new(
+            if selected { 3.0_f32 } else { 2.0_f32 },
+            if selected {
+                visuals.widgets.active.bg_stroke.color
+            } else {
+                visuals.text_color().gamma_multiply(0.85)
+            },
+        ))
+        .corner_radius(8)
+        .inner_margin(12)
+}
+
+fn delay_editor(ui: &mut Ui, action: &mut Value) -> bool {
+    let mut delay = action["start_delay"].as_f64().unwrap_or(0.0);
+    let changed = ui
+        .horizontal(|ui| {
+            let label = ui.label(tr("开始延迟（秒）"));
+            ui.add(
+                egui::DragValue::new(&mut delay)
+                    .speed(0.05)
+                    .range(0.0..=f64::MAX)
+                    .clamp_existing_to_range(false)
+                    .suffix(" s"),
+            )
+            .labelled_by(label.id)
+            .changed()
+        })
+        .inner;
+    if changed {
+        action["start_delay"] = serde_json::json!(delay.max(0.0));
+    }
+    changed
+}
+
+fn timeline_bar(ui: &mut Ui, delay: f64, duration: f64, total: f64) -> egui::Response {
+    let (rect, response) =
+        ui.allocate_exact_size(egui::vec2(ui.available_width(), 22.0), egui::Sense::click());
+    if ui.is_rect_visible(rect) {
+        let visuals = ui.visuals();
+        ui.painter().rect_filled(rect, 4, visuals.extreme_bg_color);
+        if total > 0.0 {
+            let start = (delay / total).clamp(0.0, 1.0) as f32;
+            let end = ((delay + duration) / total).clamp(0.0, 1.0) as f32;
+            let left = (rect.left() + rect.width() * start).min(rect.right() - 2.0);
+            let right = (rect.left() + rect.width() * end).max(left + 2.0);
+            let span = egui::Rect::from_min_max(
+                egui::pos2(left, rect.top()),
+                egui::pos2(right, rect.bottom()),
+            );
+            ui.painter().rect_filled(span, 3, visuals.selection.bg_fill);
+            ui.painter().rect_stroke(
+                span,
+                3,
+                egui::Stroke::new(1.0_f32, visuals.widgets.active.bg_stroke.color),
+                egui::StrokeKind::Inside,
+            );
+        }
+        ui.painter().text(
+            rect.center(),
+            egui::Align2::CENTER_CENTER,
+            timing_label(delay + duration),
+            egui::FontId::proportional(11.0),
+            visuals.text_color(),
+        );
+    }
+    response
 }
 
 pub(super) fn show(catalog: &Catalog, ui: &mut Ui, node: &mut Value) -> bool {
-    ui.label(tr("这些动作会一起开始，全部完成后才继续下一步。"));
+    ui.label(tr("这些动作按各自的开始延迟启动，全部完成后才继续下一步。"));
     ui.small(tr(
         "音乐、音效和循环特效在启动后即视为完成；可添加“等待”控制整组停留时间。",
     ));
     let Some(actions) = node.get("actions").and_then(Value::as_array) else {
         ui.colored_label(
-            Color32::from_rgb(179, 55, 49),
+            ui.visuals().error_fg_color,
             tr("同时动作数据不是数组，请先修正原始数据。"),
         );
         return false;
@@ -171,7 +253,10 @@ pub(super) fn show(catalog: &Catalog, ui: &mut Ui, node: &mut Value) -> bool {
         .iter()
         .map(crate::preview::action_duration)
         .collect();
-    let total = durations.iter().copied().fold(0.0, f64::max);
+    let total = actions
+        .iter()
+        .map(crate::preview::parallel_action_duration)
+        .fold(0.0, f64::max);
     let labels: Vec<_> = actions
         .iter()
         .enumerate()
@@ -203,19 +288,13 @@ pub(super) fn show(catalog: &Catalog, ui: &mut Ui, node: &mut Value) -> bool {
                             select_preview(ui.ctx(), &parent, Some(index));
                             scroll_to = Some(index);
                         }
-                        let fraction = if total > 0.0 {
-                            (durations[index] / total) as f32
-                        } else {
-                            0.0
-                        };
-                        if ui
-                            .add(
-                                egui::ProgressBar::new(fraction)
-                                    .desired_width(ui.available_width())
-                                    .text(timing_label(durations[index])),
-                            )
-                            .interact(egui::Sense::click())
-                            .clicked()
+                        if timeline_bar(
+                            ui,
+                            lom_core::parallel::start_delay(&actions[index]),
+                            durations[index],
+                            total,
+                        )
+                        .clicked()
                         {
                             state.choose(index);
                             select_preview(ui.ctx(), &parent, Some(index));
@@ -230,9 +309,16 @@ pub(super) fn show(catalog: &Catalog, ui: &mut Ui, node: &mut Value) -> bool {
     let mut remove = None;
     let mut swap = None;
     for (index, action) in actions.iter_mut().enumerate() {
+        if index > 0 {
+            ui.add_space(10.0);
+        }
         ui.push_id(index, |ui| {
             let mut action_changed = false;
-            let response = egui::Frame::group(ui.style()).show(ui, |ui| {
+            let response = card_frame(
+                ui,
+                state.observed == Some(index) || state.expanded == Some(index),
+            )
+            .show(ui, |ui| {
                 let header = ui.horizontal_wrapped(|ui| {
                     let expanded = state.expanded == Some(index);
                     let toggle = key(if expanded {
@@ -291,15 +377,19 @@ pub(super) fn show(catalog: &Catalog, ui: &mut Ui, node: &mut Value) -> bool {
                         }
                     });
                 if selected != old {
+                    let delay = action.get("start_delay").cloned();
                     *action = catalog.new_node(&selected, String::new());
                     action.as_object_mut().unwrap().remove("id");
+                    if let Some(delay) = delay {
+                        action["start_delay"] = delay;
+                    }
                     changed = true;
                     action_changed = true;
                 }
                 let kind = action["type"].as_str().unwrap_or("");
                 if !lom_core::parallel::ACTION_TYPES.contains(&kind) {
                     ui.colored_label(
-                        Color32::from_rgb(179, 55, 49),
+                        ui.visuals().error_fg_color,
                         tr("这个步骤不能同时执行，请改为演出动作或移到组外。"),
                     );
                     return;
@@ -308,10 +398,16 @@ pub(super) fn show(catalog: &Catalog, ui: &mut Ui, node: &mut Value) -> bool {
                     .as_array()
                     .cloned()
                     .unwrap_or_default();
+                let delay_changed = delay_editor(ui, action);
+                changed |= delay_changed;
+                action_changed |= delay_changed;
                 catalog.parameter_defaults.editor(catalog, ui, action);
                 super::set_preview_action(ui.ctx(), Some(index));
                 for field in fields {
-                    if field[0] == "appearance" || field[0] == "wait_for_completion" {
+                    if field[0] == "appearance"
+                        || field[0] == "wait_for_completion"
+                        || field[0] == "start_delay"
+                    {
                         continue;
                     }
                     if let (Some(key), Some(label), Some(field_kind)) =
@@ -335,7 +431,7 @@ pub(super) fn show(catalog: &Catalog, ui: &mut Ui, node: &mut Value) -> bool {
                 for key in ["id", "goto"] {
                     if action.get(key).is_some() {
                         ui.colored_label(
-                            Color32::from_rgb(179, 55, 49),
+                            ui.visuals().error_fg_color,
                             format!("{}: {key}", tr("组内不支持此字段")),
                         );
                         if ui
@@ -403,6 +499,70 @@ pub(super) fn show(catalog: &Catalog, ui: &mut Ui, node: &mut Value) -> bool {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn cards_keep_strong_borders_in_every_theme_without_inserting_default_delays() {
+        let catalog = Catalog::new();
+        let original = json!({"id":"group","type":"parallel","actions":[
+            {"type":"wait","seconds":1.0},
+            {"type":"wait","seconds":2.0,"start_delay":0.5}
+        ]});
+        for theme in crate::shell::Theme::ALL {
+            let ctx = egui::Context::default();
+            crate::shell::apply_theme(&ctx, theme);
+            let mut node = original.clone();
+            let (output, changed) = frame(&catalog, &ctx, &mut node);
+            assert!(!changed);
+            assert_eq!(node, original);
+            let visuals = &ctx.style().visuals;
+            assert!(output.shapes.iter().any(|shape| matches!(&shape.shape, egui::Shape::Rect(rect)
+                if rect.stroke.width == 2.0 && rect.stroke.color == visuals.text_color().gamma_multiply(0.85))));
+            assert!(output.shapes.iter().any(|shape| matches!(&shape.shape, egui::Shape::Rect(rect)
+                if rect.stroke.width == 3.0 && rect.stroke.color == visuals.widgets.active.bg_stroke.color)));
+            assert!(title(&catalog, &node["actions"][1], 1, 2.0).contains("0.5"));
+        }
+    }
+
+    #[test]
+    fn editing_delay_changes_only_that_action_and_clamps_new_negative_values() {
+        use egui::accesskit::{Action, ActionData, ActionRequest};
+        let catalog = Catalog::new();
+        let ctx = egui::Context::default();
+        let mut node = json!({"id":"group","type":"parallel","actions":[
+            {"type":"wait","seconds":1.0}, {"type":"wait","seconds":2.0}
+        ]});
+        let other = node["actions"][1].clone();
+        let (output, changed) = frame(&catalog, &ctx, &mut node);
+        assert!(!changed);
+        assert!(node["actions"][0].get("start_delay").is_none());
+        let mut output = output;
+        for (value, expected) in [(0.75, 0.75), (-1.0, 0.0)] {
+            let target = output
+                .platform_output
+                .accesskit_update
+                .as_ref()
+                .unwrap()
+                .nodes
+                .iter()
+                .find_map(|(id, field)| field.numeric_value().is_some().then_some(*id))
+                .unwrap();
+            let (next, changed) = frame_with_events(
+                &catalog,
+                &ctx,
+                &mut node,
+                vec![egui::Event::AccessKitActionRequest(ActionRequest {
+                    action: Action::SetValue,
+                    target,
+                    data: Some(ActionData::NumericValue(value)),
+                })],
+            );
+            assert!(changed);
+            assert_eq!(node["actions"][0]["start_delay"], expected);
+            assert_eq!(node["actions"][0]["seconds"], 1.0);
+            assert_eq!(node["actions"][1], other);
+            output = next;
+        }
+    }
 
     #[test]
     fn focus_opens_one_card_without_undoing_a_deliberate_collapse() {

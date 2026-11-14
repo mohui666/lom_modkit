@@ -213,6 +213,12 @@
           "type": "sound"
         },
         {
+          "type": "sound",
+          "name": "user:showcase.lantern_chime",
+          "kind": "sound",
+          "start_delay": 0.25
+        },
+        {
           "character": "player",
           "enabled": true,
           "icon": "laugh1",
@@ -653,9 +659,18 @@
       ]
     },
     {
+      "id": "parallel_shocks_demo",
+      "type": "parallel",
+      "actions": [
+        {"type": "shock", "character": "player", "duration": 0.6},
+        {"type": "shock", "character": "user:showcase.lin_deng", "duration": 0.6, "start_delay": 0.15}
+      ]
+    },
+    {
       "id": "camera_preview_note",
       "type": "say",
       "mode": "narrative",
+      "highlight_characters": ["player", "user:showcase.lin_deng"],
       "text": "回忆滤镜用 1.2 秒渐入。赵活与场景进入回忆色调，讲述者林灯保持原彩；下一步再用 1.2 秒淡出滤镜。"
     },
     {

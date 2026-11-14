@@ -217,7 +217,73 @@ fn addressable(
     ensure!(!key.is_empty() && !address.is_empty(), "背景条目为空");
     Ok((key, address))
 }
-pub fn extract(game: &Path, output: &Path, max_size: u32) -> Result<Value> {
+/// Reuse only explicitly mapped files. Missing files are extracted again; unsafe
+/// paths are errors even when the referenced file no longer exists.
+pub(crate) fn cached_file(root: Option<&Path>, value: &Value) -> Result<Option<String>> {
+    let Some(root) = root else { return Ok(None) };
+    if value.is_null() {
+        return Ok(None);
+    }
+    let name = value.as_str().context("已有图片路径格式不正确")?;
+    lom_core::package::canonical_archive_name(name)?;
+    ensure!(name.starts_with("assets/"), "已有图片路径超出素材目录");
+    let path = root.join(name);
+    let mut ancestor = path.as_path();
+    while !ancestor.try_exists()? {
+        ancestor = ancestor.parent().context("已有图片路径无效")?;
+    }
+    ensure!(
+        ancestor.canonicalize()?.starts_with(root.canonicalize()?),
+        "已有图片路径指向素材库之外：{name}"
+    );
+    if !path.try_exists()? {
+        return Ok(None);
+    }
+    lom_core::package::resolve_confined_file(root, &path)?;
+    Ok(Some(name.into()))
+}
+
+fn target<'a>(map: &'a Value, group: &str, id: &str, key: &str) -> &'a Value {
+    if group == "character" {
+        &map["characters"][id]["portraits"][key]
+    } else {
+        &map[group][key]
+    }
+}
+
+fn set_target(map: &mut Value, group: &str, id: &str, key: &str, relative: &str) {
+    if group == "character" {
+        map["characters"][id]["portraits"][key] = json!(relative);
+    } else {
+        map[group][key] = json!(relative);
+    }
+}
+
+fn reuse_targets(
+    map: &mut Value,
+    previous: &Value,
+    existing: Option<&Path>,
+    targets: &[(String, String, String)],
+) -> Result<bool> {
+    let retained = targets
+        .iter()
+        .map(|(group, id, key)| cached_file(existing, target(previous, group, id, key)))
+        .collect::<Result<Vec<_>>>()?;
+    let Some(shared) = retained.iter().flatten().next() else {
+        return Ok(false);
+    };
+    for ((group, id, key), old) in targets.iter().zip(&retained) {
+        set_target(map, group, id, key, old.as_deref().unwrap_or(shared));
+    }
+    Ok(true)
+}
+
+pub fn extract(
+    game: &Path,
+    output: &Path,
+    max_size: u32,
+    existing: Option<&Path>,
+) -> Result<Value> {
     let game = game.canonicalize()?;
     let output = output.canonicalize()?;
     ensure!(
@@ -232,6 +298,35 @@ pub fn extract(game: &Path, output: &Path, max_size: u32) -> Result<Value> {
         (128..=1600).contains(&max_size),
         "预览尺寸应在 128 至 1600 之间"
     );
+    let existing = existing.map(Path::canonicalize).transpose()?;
+    let previous = if let Some(root) = existing.as_deref() {
+        ensure!(root != output, "增量输出必须使用独立的空目录");
+        let mapping =
+            lom_core::package::resolve_confined_file(root, &root.join("preview_map.json"))?;
+        let map = lom_core::load_json(mapping)?;
+        ensure!(
+            map["characters"].is_object() && map["views"].is_object(),
+            "已有素材库映射不完整"
+        );
+        ensure!(
+            map["portrait_canvas"] == "sprite_rect",
+            "已有立绘库使用旧画布格式，请使用“重新完整提取”；原素材库保持不变"
+        );
+        for character in map["characters"].as_object().unwrap().values() {
+            let portraits = character["portraits"]
+                .as_object()
+                .context("已有立绘映射不完整")?;
+            ensure!(
+                character["first"]
+                    .as_str()
+                    .is_some_and(|first| portraits.contains_key(first)),
+                "已有素材库人物缺少默认立绘映射"
+            );
+        }
+        map
+    } else {
+        json!({})
+    };
     let data = game.join("Mortal_Data");
     let aa = data.join("StreamingAssets/aa");
     let bundles = ["StandaloneWindows64", "StandaloneWindows"]
@@ -292,7 +387,25 @@ pub fn extract(game: &Path, output: &Path, max_size: u32) -> Result<Value> {
             json!({"key":&k[4..],"category":category})
         })
         .collect();
-    let mut map = json!({"portrait_canvas":"sprite_rect","characters":{},"views":{},"pictures":{},"picture_catalog":pictures});
+    let mut map = previous.clone();
+    map["portrait_canvas"] = json!("sprite_rect");
+    for group in ["characters", "views", "pictures", "moods"] {
+        if map.get(group).is_none() {
+            map[group] = json!({});
+        }
+        ensure!(map[group].is_object(), "已有素材库 {group} 映射必须是对象");
+    }
+    if map.get("picture_catalog").is_none() {
+        map["picture_catalog"] = json!([]);
+    }
+    let catalog = map["picture_catalog"]
+        .as_array_mut()
+        .context("插图目录格式不正确")?;
+    for picture in &pictures {
+        if !catalog.iter().any(|old| old["key"] == picture["key"]) {
+            catalog.push(picture.clone());
+        }
+    }
     let mut tasks = BTreeMap::<(String, bool), (String, Vec<(String, String, String)>)>::new();
     for (id, c) in characters {
         let mut portraits = c["addresses"]
@@ -307,7 +420,9 @@ pub fn extract(game: &Path, output: &Path, max_size: u32) -> Result<Value> {
         portraits
             .entry(first.clone())
             .or_insert(c["first_address"].clone());
-        map["characters"][&id] = json!({"name":c["name"],"mood_position":c["mood_position"],"first":first,"portraits":{}});
+        if map["characters"].get(&id).is_none() {
+            map["characters"][&id] = json!({"name":c["name"],"mood_position":c["mood_position"],"first":first,"portraits":{}});
+        }
         for (emotion, address) in portraits {
             add_task(
                 &mut tasks,
@@ -339,9 +454,14 @@ pub fn extract(game: &Path, output: &Path, max_size: u32) -> Result<Value> {
     }
     let mut failures = vec![];
     let mut succeeded = 0;
+    let mut reused = 0;
     let total = tasks.len();
     let mut cache: Vec<(String, Studio)> = vec![];
     for (i, ((address, portrait), (relative, targets))) in tasks.into_iter().enumerate() {
+        if reuse_targets(&mut map, &previous, existing.as_deref(), &targets)? {
+            reused += 1;
+            continue;
+        }
         let result = (|| -> Result<()> {
             let entry = addresses
                 .get(&address)
@@ -361,11 +481,7 @@ pub fn extract(game: &Path, output: &Path, max_size: u32) -> Result<Value> {
             let image = decode(environment, sprite(environment, &entry.internal)?, portrait)?;
             save(&image, &output.join(&relative), Some(max_size))?;
             for (group, id, key) in targets {
-                if group == "character" {
-                    map["characters"][&id]["portraits"][&key] = json!(relative);
-                } else {
-                    map[&group][&key] = json!(relative);
-                }
+                set_target(&mut map, &group, &id, &key, &relative);
             }
             Ok(())
         })();
@@ -382,16 +498,24 @@ pub fn extract(game: &Path, output: &Path, max_size: u32) -> Result<Value> {
     }
     drop(cache);
     let inventory = unity::open(&data.join("globalgamemanagers.assets"))?;
-    let icons = inventory_pictures(&inventory, &output, max_size)?;
+    let (icons, icons_reused) = inventory_pictures(
+        &inventory,
+        &output,
+        max_size,
+        existing.as_deref(),
+        &previous["pictures"],
+    )?;
+    reused += icons_reused;
+    succeeded += icons.as_object().unwrap().len() - icons_reused;
     for (key, relative) in icons.as_object().unwrap() {
         map["pictures"][key] = relative.clone();
-        map["picture_catalog"].as_array_mut().unwrap().push(
-            json!({"key":key,"category":if key.starts_with("item:book:") {"Book"} else {"Items"}}),
-        );
-        succeeded += 1;
+        let catalog = map["picture_catalog"].as_array_mut().unwrap();
+        if !catalog.iter().any(|row| row["key"] == *key) {
+            catalog.push(json!({"key":key,"category":if key.starts_with("item:book:") {"Book"} else {"Items"}}));
+        }
     }
     ensure!(
-        succeeded > 0,
+        succeeded + reused > 0,
         "未能导出任何游戏图片：{}",
         failures
             .iter()
@@ -411,6 +535,9 @@ pub fn extract(game: &Path, output: &Path, max_size: u32) -> Result<Value> {
         map["characters"].as_object_mut().unwrap().remove(id);
     }
     for (name, color) in [("black", 0), ("white", 255)] {
+        if cached_file(existing.as_deref(), &previous["views"][name])?.is_some() {
+            continue;
+        }
         let relative = format!("assets/views/{name}.png");
         save(
             &RgbaImage::from_pixel(1920, 1080, Rgba([color, color, color, 255])),
@@ -423,15 +550,22 @@ pub fn extract(game: &Path, output: &Path, max_size: u32) -> Result<Value> {
         "progress",
         json!({"message":"正在导出气泡动画与人物气泡位置","done":0,"total":0}),
     );
-    map["moods"] = crate::moods::extract(&studio, &output)?;
-    let book = unity::unique(&studio, 213, "pic_book_1")?;
-    save(
-        &decode(&studio, book, false)?,
-        &output.join("assets/ui/event_book.png"),
-        None,
-    )?;
-    map["event_book"] = json!("assets/ui/event_book.png");
-    let report = json!({"exported":succeeded,"failed":failures.len(),"failures":failures,"resource_platform":bundles.file_name().unwrap().to_string_lossy(),"unavailable_characters":unavailable,
+    let moods =
+        crate::moods::extract_cached(&studio, &output, existing.as_deref(), &previous["moods"])?;
+    map["moods"]
+        .as_object_mut()
+        .unwrap()
+        .extend(moods.as_object().unwrap().clone());
+    if cached_file(existing.as_deref(), &previous["event_book"])?.is_none() {
+        let book = unity::unique(&studio, 213, "pic_book_1")?;
+        save(
+            &decode(&studio, book, false)?,
+            &output.join("assets/ui/event_book.png"),
+            None,
+        )?;
+        map["event_book"] = json!("assets/ui/event_book.png");
+    }
+    let report = json!({"exported":succeeded,"reused":reused,"incremental":existing.is_some(),"failed":failures.len(),"failures":failures,"resource_platform":bundles.file_name().unwrap().to_string_lossy(),"unavailable_characters":unavailable,
         "characters":map["characters"].as_object().unwrap().len(),"views":map["views"].as_object().unwrap().len(),"pictures":map["pictures"].as_object().unwrap().len(),"moods":map["moods"].as_object().unwrap().len(),"game_tested":false,"engine":"rust"});
     fs::write(
         output.join("preview_map.json"),
@@ -443,7 +577,13 @@ pub fn extract(game: &Path, output: &Path, max_size: u32) -> Result<Value> {
     )?;
     Ok(report)
 }
-pub(crate) fn inventory_pictures(studio: &Studio, output: &Path, max_size: u32) -> Result<Value> {
+pub(crate) fn inventory_pictures(
+    studio: &Studio,
+    output: &Path,
+    max_size: u32,
+    existing: Option<&Path>,
+    previous: &Value,
+) -> Result<(Value, usize)> {
     let catalog: Value = serde_json::from_str(include_str!("../../../data/picture_keys.json"))?;
     let requested: std::collections::BTreeSet<_> = catalog["pictures"]
         .as_array()
@@ -470,6 +610,7 @@ pub(crate) fn inventory_pictures(studio: &Studio, output: &Path, max_size: u32) 
     reader.string()?;
     let mut map = json!({});
     let mut files: BTreeMap<(usize, i64), String> = BTreeMap::new();
+    let mut records = vec![];
     for category in ["book", "misc", "special", "consumable"] {
         let collection = unity::resolve(studio, database, reader.ptr()?)?;
         let bytes = unity::raw(collection)?;
@@ -489,26 +630,47 @@ pub(crate) fn inventory_pictures(studio: &Studio, output: &Path, max_size: u32) 
             let pointer = fields.ptr()?;
             let icon = unity::resolve(studio, item, pointer)?;
             let identity = (icon.file_index(), pointer.path_id);
-            let relative = if let Some(relative) = files.get(&identity) {
-                relative.clone()
-            } else {
-                let relative = format!("assets/pictures/item_{category}_{id}.png");
-                save(
-                    &decode(studio, icon, false)?,
-                    &output.join(&relative),
-                    Some(max_size),
-                )?;
-                files.insert(identity, relative.clone());
-                relative
-            };
-            map[&key] = json!(relative);
+            if let Some(relative) = cached_file(existing, &previous[&key])? {
+                files.entry(identity).or_insert(relative.clone());
+                map[&key] = json!(relative);
+            }
+            records.push((
+                key,
+                identity,
+                icon,
+                format!("assets/pictures/item_{category}_{id}.png"),
+            ));
         }
         items.end()?;
+    }
+    // Seed all cached aliases before decoding: an earlier missing key may share
+    // its Sprite with a later key whose PNG is already in the library.
+    let cached_identities: std::collections::BTreeSet<_> = files.keys().copied().collect();
+    let mut reused = 0;
+    for (key, identity, icon, generated) in records {
+        if cached_identities.contains(&identity) {
+            reused += 1;
+        }
+        if map.get(&key).is_some() {
+            continue;
+        }
+        let relative = if let Some(relative) = files.get(&identity) {
+            relative.clone()
+        } else {
+            save(
+                &decode(studio, icon, false)?,
+                &output.join(&generated),
+                Some(max_size),
+            )?;
+            files.insert(identity, generated.clone());
+            generated
+        };
+        map[&key] = json!(relative);
     }
     for key in requested {
         ensure!(map.get(key).is_some(), "原版物品图标未找到：{key}");
     }
-    Ok(map)
+    Ok((map, reused))
 }
 
 type Tasks = BTreeMap<(String, bool), (String, Vec<(String, String, String)>)>;
@@ -525,4 +687,53 @@ fn add_task(
         .or_insert_with(|| (format!("assets/{folder}/{digest}.png"), vec![]))
         .1
         .push(target);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cached_aliases_keep_their_paths_and_new_aliases_share_the_png() {
+        let root = tempfile::tempdir().unwrap();
+        fs::create_dir(root.path().join("assets")).unwrap();
+        fs::write(root.path().join("assets/normal.png"), b"original normal").unwrap();
+        fs::write(root.path().join("assets/alias.png"), b"original alias").unwrap();
+        let previous = json!({"characters":{"player":{"first":"normal","portraits":{"normal":"assets/normal.png","alias":"assets/alias.png","missing":"assets/missing.png"}}}});
+        let mut map = previous.clone();
+        let targets = ["normal", "alias", "missing", "new"]
+            .map(|key| ("character".into(), "player".into(), key.into()));
+        assert!(reuse_targets(&mut map, &previous, Some(root.path()), &targets).unwrap());
+        let portraits = &map["characters"]["player"]["portraits"];
+        assert_eq!(portraits["normal"], "assets/normal.png");
+        assert_eq!(portraits["alias"], "assets/alias.png");
+        assert_eq!(portraits["missing"], "assets/normal.png");
+        assert_eq!(portraits["new"], "assets/normal.png");
+        assert_eq!(
+            fs::read(root.path().join("assets/normal.png")).unwrap(),
+            b"original normal"
+        );
+        assert_eq!(fs::read_dir(root.path().join("assets")).unwrap().count(), 2);
+    }
+
+    #[test]
+    fn missing_cached_images_are_extracted_again_and_unsafe_paths_are_errors() {
+        let root = tempfile::tempdir().unwrap();
+        assert!(cached_file(Some(root.path()), &json!("assets/missing.png"))
+            .unwrap()
+            .is_none());
+        for unsafe_name in [
+            "../outside.png",
+            "assets/../outside.png",
+            "C:/outside.png",
+            "outside.png",
+        ] {
+            assert!(
+                cached_file(Some(root.path()), &json!(unsafe_name)).is_err(),
+                "{unsafe_name}"
+            );
+        }
+        fs::create_dir(root.path().join("assets")).unwrap();
+        assert!(cached_file(Some(root.path()), &json!("assets")).is_err());
+    }
 }

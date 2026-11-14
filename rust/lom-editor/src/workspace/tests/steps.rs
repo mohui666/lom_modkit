@@ -27,7 +27,10 @@ fn step_rows_show_notes_or_ids_alongside_the_existing_summary() {
         .filter_map(|(_, node)| node.label().map(str::to_owned))
         .collect();
     assert!(labels.iter().any(|text| text.contains("开场备注")));
-    let id = app.story()["nodes"][1]["id"].as_str().unwrap().to_owned();
+    let id = app.story().clone()["nodes"][1]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
     assert!(labels
         .iter()
         .any(|text| text.contains(&id) && text.contains("返回自由模式")));
@@ -121,9 +124,9 @@ fn full_original_import_button_preserves_source_undo_and_editable_step_defaults(
             },
         )],
     );
-    assert!(app.story().get("vanilla_patch").is_none());
+    assert!(app.story().clone().get("vanilla_patch").is_none());
     assert_eq!(
-        lom_core::vanilla_import::parse(&app.story())
+        lom_core::vanilla_import::parse(&app.story().clone())
             .unwrap()
             .unwrap()
             .source(),
@@ -134,7 +137,7 @@ fn full_original_import_button_preserves_source_undo_and_editable_step_defaults(
     assert!(snapshot(&app.project) == before);
     app.redo();
     assert!(snapshot(&app.project) == imported);
-    app.selected = app.story()["nodes"]
+    app.selected = app.story().clone()["nodes"]
         .as_array()
         .unwrap()
         .iter()
@@ -146,16 +149,22 @@ fn full_original_import_button_preserves_source_undo_and_editable_step_defaults(
         "Opening an imported step must not rewrite its baseline fields"
     );
     app.add_node("say");
-    assert_eq!(app.story()["nodes"][app.selected]["inherit_dialog"], true);
+    assert_eq!(
+        app.story().clone()["nodes"][app.selected]["inherit_dialog"],
+        true
+    );
     app.project.stories.get_mut("main").unwrap()["nodes"][app.selected]["text"] = json!("新增对白");
     app.copy();
     app.paste();
-    assert!(app.story()["nodes"][app.selected]["_editor"]
+    assert!(app.story().clone()["nodes"][app.selected]["_editor"]
         .get("vanilla_origin")
         .is_none());
     app.add_node("end");
-    assert_eq!(app.story()["nodes"][app.selected]["resume_original"], true);
-    lom_core::validate::validate_story(&app.story()).unwrap();
+    assert_eq!(
+        app.story().clone()["nodes"][app.selected]["resume_original"],
+        true
+    );
+    lom_core::validate::validate_story(&app.story().clone()).unwrap();
 }
 #[test]
 fn whole_segment_buttons_copy_a_chapter_and_undo_as_one_edit() {
@@ -216,7 +225,7 @@ fn whole_segment_buttons_copy_a_chapter_and_undo_as_one_edit() {
         );
         let after = draw(&mut app, vec![]);
         assert!(
-            app.story().get("vanilla_patch").is_none(),
+            app.story().clone().get("vanilla_patch").is_none(),
             "{:?}",
             after
                 .platform_output
@@ -227,11 +236,14 @@ fn whole_segment_buttons_copy_a_chapter_and_undo_as_one_edit() {
                 .filter_map(|(_, node)| node.label().or(node.value()))
                 .collect::<Vec<_>>()
         );
-        assert_eq!(app.story()["nodes"][app.selected]["text"], "整段开场");
+        assert_eq!(
+            app.story().clone()["nodes"][app.selected]["text"],
+            "整段开场"
+        );
         assert_eq!(app.multiselect.len(), 3);
         assert_eq!(app.project.stories["extra"], extra);
         assert_eq!(
-            lom_core::vanilla_import::parse(&app.story())
+            lom_core::vanilla_import::parse(&app.story().clone())
                 .unwrap()
                 .unwrap()
                 .source(),
@@ -260,62 +272,65 @@ fn structured_branch_app() -> App {
 #[test]
 fn structured_additions_follow_the_true_branch_and_resume_its_original_target() {
     let mut app = structured_branch_app();
-    app.selected = app.story()["nodes"]
+    app.selected = app.story().clone()["nodes"]
         .as_array()
         .unwrap()
         .iter()
         .position(|node| node["type"] == "native_branch")
         .unwrap();
     let branch_index = app.selected;
-    let before = app.story()["nodes"][branch_index].clone();
+    let before = app.story().clone()["nodes"][branch_index].clone();
     app.add_node("say");
-    let added = app.story()["nodes"][app.selected].clone();
-    assert_eq!(app.story()["nodes"][branch_index]["success"], added["id"]);
+    let added = app.story().clone()["nodes"][app.selected].clone();
     assert_eq!(
-        app.story()["nodes"][branch_index]["failure"],
+        app.story().clone()["nodes"][branch_index]["success"],
+        added["id"]
+    );
+    assert_eq!(
+        app.story().clone()["nodes"][branch_index]["failure"],
         before["failure"]
     );
     assert_eq!(added["goto"], before["success"]);
     app.project.stories.get_mut("main").unwrap()["nodes"][app.selected]["text"] =
         json!("新增真支对白");
 
-    app.selected = app.story()["nodes"]
+    app.selected = app.story().clone()["nodes"]
         .as_array()
         .unwrap()
         .iter()
         .position(|node| node["text"] == "真支原文")
         .unwrap();
     let tail = app.selected;
-    let original_next = app.story()["nodes"][tail]["goto"].clone();
+    let original_next = app.story().clone()["nodes"][tail]["goto"].clone();
     app.add_node("end");
-    let end = app.story()["nodes"][app.selected].clone();
+    let end = app.story().clone()["nodes"][app.selected].clone();
     assert_eq!(end["resume_original"], true);
     assert_eq!(end["resume_node"], original_next);
-    assert_eq!(app.story()["nodes"][tail]["goto"], end["id"]);
+    assert_eq!(app.story().clone()["nodes"][tail]["goto"], end["id"]);
     assert_eq!(
-        lom_core::analysis::successors(&app.story(), app.selected),
+        lom_core::analysis::successors(&app.story().clone(), app.selected),
         vec![original_next.as_str().unwrap().to_owned()]
     );
-    lom_core::validate::validate_story(&app.story()).unwrap();
-    compile_with_assets(&app.project, &app.story()).unwrap();
+    lom_core::validate::validate_story(&app.story().clone()).unwrap();
+    compile_with_assets(&app.project, &app.story().clone()).unwrap();
 }
 #[test]
 fn structured_paste_preserves_internal_links_and_reconnects_the_external_exit() {
     let mut app = structured_branch_app();
-    app.selected = app.story()["nodes"]
+    app.selected = app.story().clone()["nodes"]
         .as_array()
         .unwrap()
         .iter()
         .position(|node| node["text"] == "真支原文")
         .unwrap();
     let anchor = app.selected;
-    let continuation = app.story()["nodes"][anchor]["goto"].clone();
+    let continuation = app.story().clone()["nodes"][anchor]["goto"].clone();
     app.clipboard = vec![
         json!({"id":"copy_a","type":"say","text":"新增甲","inherit_dialog":true,"goto":"copy_b","_editor":{"vanilla_origin":1}}),
         json!({"id":"copy_b","type":"say","text":"新增乙","inherit_dialog":true,"goto":"other_chapter_exit"}),
     ];
     app.paste();
-    let story = app.story();
+    let story = app.story().clone();
     let first = &story["nodes"][app.selected];
     let last = &story["nodes"][app.selected + 1];
     assert_eq!(story["nodes"][anchor]["goto"], first["id"]);
@@ -328,16 +343,16 @@ fn structured_paste_preserves_internal_links_and_reconnects_the_external_exit() 
 #[test]
 fn structured_delete_reconnects_single_successors_and_keeps_ambiguous_branches() {
     let mut app = structured_branch_app();
-    app.selected = app.story()["nodes"]
+    app.selected = app.story().clone()["nodes"]
         .as_array()
         .unwrap()
         .iter()
         .position(|node| node["text"] == "真支原文")
         .unwrap();
-    let removed = app.story()["nodes"][app.selected].clone();
+    let removed = app.story().clone()["nodes"][app.selected].clone();
     app.delete();
     assert!(app.error.is_none());
-    let story = app.story();
+    let story = app.story().clone();
     assert!(!story["nodes"]
         .as_array()
         .unwrap()
@@ -362,14 +377,14 @@ fn structured_delete_reconnects_single_successors_and_keeps_ambiguous_branches()
 #[test]
 fn structured_template_insertion_reuses_the_connected_paste_path() {
     let mut app = structured_branch_app();
-    app.selected = app.story()["nodes"]
+    app.selected = app.story().clone()["nodes"]
         .as_array()
         .unwrap()
         .iter()
         .position(|node| node["text"] == "真支原文")
         .unwrap();
     let anchor = app.selected;
-    let continuation = app.story()["nodes"][anchor]["goto"].clone();
+    let continuation = app.story().clone()["nodes"][anchor]["goto"].clone();
     app.pending_template = Some((
         vec![
             json!({"id":"template_say","type":"say","text":"模板对白","inherit_dialog":true,"goto":"outside"}),
@@ -402,7 +417,7 @@ fn structured_template_insertion_reuses_the_connected_paste_path() {
         |context| app.dialogs(context),
     );
     assert!(app.pending_template.is_none());
-    let story = app.story();
+    let story = app.story().clone();
     assert_eq!(
         story["nodes"][anchor]["goto"],
         story["nodes"][app.selected]["id"]
@@ -472,7 +487,7 @@ fn legacy_original_conversion_button_is_transactional_and_undoable() {
             assert!(snapshot(&app.project) == before);
             assert!(app.error.as_ref().unwrap().contains("高级 Lua 已修改"));
         } else {
-            assert_eq!(app.story()["vanilla_import"]["schema"], 2);
+            assert_eq!(app.story().clone()["vanilla_import"]["schema"], 2);
             app.track();
             app.flush();
             let upgraded = snapshot(&app.project);
@@ -486,15 +501,15 @@ fn legacy_original_conversion_button_is_transactional_and_undoable() {
 #[test]
 fn moving_front_follows_only_a_front_entry() {
     let mut app = app();
-    let first = app.story()["nodes"][0]["id"].clone();
-    let last = app.story()["nodes"][1]["id"].clone();
+    let first = app.story().clone()["nodes"][0]["id"].clone();
+    let last = app.story().clone()["nodes"][1]["id"].clone();
     app.selected = 1;
     app.move_node(0);
-    assert_eq!(app.story()["start"], last);
+    assert_eq!(app.story().clone()["start"], last);
     app.project.stories.get_mut("main").unwrap()["start"] = first.clone();
     app.selected = 1;
     app.move_node(0);
-    assert_eq!(app.story()["start"], first);
+    assert_eq!(app.story().clone()["start"], first);
 }
 #[test]
 fn batch_step_moves_keep_order_links_selection_and_undo() {
@@ -507,14 +522,14 @@ fn batch_step_moves_keep_order_links_selection_and_undo() {
         {"id":"e","type":"end"}
     ]);
     app.project.stories.get_mut("main").unwrap()["start"] = json!("a");
-    let original = app.story();
+    let original = app.story().clone();
     app.last = snapshot(&app.project);
     app.mark_saved();
     app.select_step(1, false, false);
     app.select_step(3, false, true);
     app.move_steps(&app.selected_indices(), 0);
     let ids = |app: &App| {
-        app.story()["nodes"]
+        app.story().clone()["nodes"]
             .as_array()
             .unwrap()
             .iter()
@@ -522,24 +537,24 @@ fn batch_step_moves_keep_order_links_selection_and_undo() {
             .collect::<Vec<_>>()
     };
     assert_eq!(ids(&app), ["b", "d", "a", "c", "e"]);
-    assert_eq!(app.story()["start"], "b");
+    assert_eq!(app.story().clone()["start"], "b");
     assert_eq!(app.selected, 1);
     assert_eq!(app.selected_indices(), [0, 1]);
-    assert_eq!(app.story()["nodes"][2], original["nodes"][0]);
-    assert_eq!(app.story()["nodes"][3], original["nodes"][2]);
+    assert_eq!(app.story().clone()["nodes"][2], original["nodes"][0]);
+    assert_eq!(app.story().clone()["nodes"][3], original["nodes"][2]);
     app.track();
     app.flush();
     app.undo();
-    assert_eq!(app.story(), original);
+    assert_eq!(app.story().clone(), original);
     app.redo();
     assert_eq!(ids(&app), ["b", "d", "a", "c", "e"]);
     // Contiguous downward drop uses an insertion boundary from the original list.
     app.move_steps(&[0, 1], 5);
     assert_eq!(ids(&app), ["a", "c", "e", "b", "d"]);
     assert_eq!(app.selected_indices(), [3, 4]);
-    let before = app.story();
+    let before = app.story().clone();
     app.move_steps(&[3, 4], 4);
-    assert_eq!(app.story(), before);
+    assert_eq!(app.story().clone(), before);
 }
 #[test]
 fn batch_step_selection_extends_from_anchor_and_buttons_move_whole_block() {
@@ -559,11 +574,11 @@ fn batch_step_selection_extends_from_anchor_and_buttons_move_whole_block() {
     app.select_step(1, false, false);
     app.select_step(2, true, false);
     app.move_node(app.selected + 1);
-    assert_eq!(app.story()["nodes"][1]["id"], "d");
+    assert_eq!(app.story().clone()["nodes"][1]["id"], "d");
     assert_eq!(app.selected_indices(), [2, 3]);
     app.move_node(app.selected - 1);
-    assert_eq!(app.story()["nodes"][1]["id"], "b");
-    assert_eq!(app.story()["nodes"][2]["id"], "c");
+    assert_eq!(app.story().clone()["nodes"][1]["id"], "b");
+    assert_eq!(app.story().clone()["nodes"][2]["id"], "c");
 }
 #[test]
 fn step_drag_edge_scrolling_only_runs_inside_top_and_bottom_edges() {
@@ -581,7 +596,7 @@ fn step_drag_stationary_edge_pointer_scrolls_virtual_list_without_reordering() {
         .collect::<Vec<_>>());
     app.project.stories.get_mut("main").unwrap()["start"] = json!("n0");
     app.multiselect = [0, 1].into();
-    let before = app.story();
+    let before = app.story().clone();
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
     let draw = |app: &mut App, events| {
@@ -640,7 +655,7 @@ fn step_drag_stationary_edge_pointer_scrolls_virtual_list_without_reordering() {
         "stationary drag must reveal later rows: {initial:?} -> {scrolled:?}"
     );
     assert_eq!(
-        app.story(),
+        app.story().clone(),
         before,
         "hover scrolling must not move steps before drop"
     );
@@ -667,7 +682,7 @@ fn step_drag_stationary_edge_pointer_scrolls_virtual_list_without_reordering() {
         }],
     );
     assert!(!egui::DragAndDrop::has_payload_of_type::<StepDrag>(&ctx));
-    assert_eq!(app.story(), before);
+    assert_eq!(app.story().clone(), before);
 }
 #[test]
 fn deleting_dragged_offsets_preserves_branches_parallel_actions_and_nonadjacent_targets() {
@@ -709,7 +724,7 @@ fn deleting_dragged_offsets_preserves_branches_parallel_actions_and_nonadjacent_
             .unwrap();
         }
         app.project.stories.insert("main".into(), story);
-        app.multiselect = app.story()["nodes"]
+        app.multiselect = app.story().clone()["nodes"]
             .as_array()
             .unwrap()
             .iter()
@@ -717,8 +732,8 @@ fn deleting_dragged_offsets_preserves_branches_parallel_actions_and_nonadjacent_
             .filter_map(|(i, node)| (node["type"] == "offset").then_some(i))
             .collect();
         app.delete();
-        assert_eq!(app.story(), original);
-        assert!(preview::route(&app.story(), "end").is_some());
+        assert_eq!(app.story().clone(), original);
+        assert!(preview::route(&app.story().clone(), "end").is_some());
     }
 }
 #[test]
@@ -736,7 +751,7 @@ fn deleting_offsets_reconnects_incoming_choice_dice_and_check_targets() {
     app.project.stories.insert("main".into(), original.clone());
     app.multiselect = BTreeSet::from([3, 4]);
     app.delete();
-    let result = app.story();
+    let result = app.story().clone();
     assert_eq!(result["start"], "line");
     assert_eq!(result["nodes"][0]["options"][0]["goto"], "line");
     assert_eq!(result["nodes"][0]["options"][0]["text"], "offset1");
@@ -773,7 +788,7 @@ fn deleting_a_final_drag_offset_restores_the_end_and_ambiguous_deletion_changes_
     app.project.stories.insert("main".into(), story);
     app.selected = 1;
     app.delete();
-    assert_eq!(app.story(), original);
+    assert_eq!(app.story().clone(), original);
 
     let ambiguous = json!({"story_schema":2,"id":"main","start":"show","nodes":[
         {"id":"show","type":"show","character":"player","goto":"offset1"},
@@ -784,7 +799,7 @@ fn deleting_a_final_drag_offset_restores_the_end_and_ambiguous_deletion_changes_
     app.project.stories.insert("main".into(), ambiguous.clone());
     app.multiselect = BTreeSet::from([1, 2]);
     app.delete();
-    assert_eq!(app.story(), ambiguous);
+    assert_eq!(app.story().clone(), ambiguous);
     assert!(app.error.as_ref().unwrap().contains("位移后续不明确"));
 }
 #[test]
@@ -794,7 +809,7 @@ fn deleting_nodes_repairs_sections_groups_and_localizations_without_rewriting_li
     app.project.stories.insert("main".into(), story);
     app.selected = 0;
     app.delete();
-    let result = app.story();
+    let result = app.story().clone();
     assert_eq!(result["start"], "b");
     assert_eq!(result["_editor"]["sections"][0]["start"], "b");
     assert!(result["_editor"]["sections"][0]["groups"]

@@ -235,7 +235,7 @@ mod tests {
         app.chapter_dialog.as_mut().unwrap().name = "整段草稿".into();
         app.commit_chapter().unwrap();
         let segment = app.current.clone();
-        let source = app.story();
+        let source = app.story().clone();
         assert!(source.get("vanilla_patch").is_none());
         app.open_original_content(&ctx);
         let output = draw(&mut app, vec![]);

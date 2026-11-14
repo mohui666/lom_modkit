@@ -12,7 +12,7 @@ fn project() -> Project {
             "target".into(),
             json!({"id":"target","start":"say1","nodes":[{"id":"say1","type":"say","text":"existing"},{"id":"end1","type":"end"}]}),
         ),
-    ]);
+    ]).into();
     p
 }
 #[test]

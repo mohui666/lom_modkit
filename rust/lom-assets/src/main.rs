@@ -62,7 +62,12 @@ fn run() -> Result<()> {
             .map(|x| x.parse())
             .transpose()?
             .unwrap_or(1024);
-        images::extract(game, output, max)?
+        images::extract(
+            game,
+            output,
+            max,
+            args.get("--existing-library").map(Path::new),
+        )?
     };
     emit("result", result);
     Ok(())

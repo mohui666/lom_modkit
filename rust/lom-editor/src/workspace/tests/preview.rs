@@ -1,6 +1,40 @@
 use super::*;
 
 #[test]
+fn cached_preview_switches_chapters_without_reusing_the_previous_dialogue() {
+    let mut app = app();
+    let mut project = Project::new();
+    let mut other = project.stories["main"].clone();
+    other["id"] = json!("other");
+    other["nodes"][0]["text"] = json!("另一章的对白");
+    project.stories.insert("other".into(), other);
+    app.install(project);
+    app.sync_preview_selection();
+    let main_revision = app.document_revision;
+    let original = app
+        .preview
+        .state_versioned(&app.project.stories["main"], "say1", main_revision)["dialog"]["text"]
+        .clone();
+    app.current = "other".into();
+    app.sync_preview_selection();
+    assert_ne!(app.document_revision, main_revision);
+    assert_eq!(
+        app.preview
+            .state_versioned(&app.project.stories["other"], "say1", app.document_revision)
+            ["dialog"]["text"],
+        "另一章的对白"
+    );
+    app.current = "main".into();
+    app.sync_preview_selection();
+    assert_eq!(
+        app.preview
+            .state_versioned(&app.project.stories["main"], "say1", app.document_revision)["dialog"]
+            ["text"],
+        original
+    );
+}
+
+#[test]
 #[cfg(windows)]
 fn preview_audio_waits_for_preparation_and_follows_transport_without_changing_the_project() {
     let mut app = app();
@@ -9,7 +43,7 @@ fn preview_audio_waits_for_preparation_and_follows_transport_without_changing_th
             .unwrap(),
     );
     app.current = "main".into();
-    app.selected = app.story()["nodes"]
+    app.selected = app.story().clone()["nodes"]
         .as_array()
         .unwrap()
         .iter()
@@ -82,7 +116,7 @@ fn preview_choices_resume_playback_through_consecutive_branches() {
     }
     app.last_step = Instant::now() - Duration::from_secs(60);
     app.advance_preview();
-    assert_eq!(app.story()["nodes"][app.selected]["id"], "end1");
+    assert_eq!(app.story().clone()["nodes"][app.selected]["id"], "end1");
     app.last_step = Instant::now() - Duration::from_secs(60);
     app.advance_preview();
     assert!(!app.auto);
@@ -206,7 +240,7 @@ fn preview_drag_and_corner_resize_commit_one_undo_each() {
     app.center = Center::Node;
     app.last = snapshot(&app.project);
     let original = snapshot(&app.project);
-    let earlier = preview::simulate(&app.story(), "early")["actors"].clone();
+    let earlier = preview::simulate(&app.story().clone(), "early")["actors"].clone();
     let ctx = egui::Context::default();
     let draw = |app: &mut App, events| {
         ctx.run(
@@ -250,18 +284,21 @@ fn preview_drag_and_corner_resize_commit_one_undo_each() {
     );
     draw(&mut app, vec![egui::Event::PointerMoved(moved)]);
     assert_eq!(
-        app.story()["nodes"].as_array().unwrap().len(),
+        app.story().clone()["nodes"].as_array().unwrap().len(),
         4,
         "live dragging is a draft"
     );
     draw(&mut app, vec![pointer(moved, false)]);
-    let offset = app.story()["nodes"][3].clone();
+    let offset = app.story().clone()["nodes"][3].clone();
     assert_eq!(offset["type"], "offset");
     assert_eq!(offset["absolute"], true);
     assert!(offset["x"].as_f64().unwrap() > 30.0);
     assert!(offset["y"].as_f64().unwrap() > 20.0);
-    assert_eq!(app.story()["nodes"][app.selected]["id"], "offset1");
-    assert_eq!(preview::simulate(&app.story(), "early")["actors"], earlier);
+    assert_eq!(app.story().clone()["nodes"][app.selected]["id"], "offset1");
+    assert_eq!(
+        preview::simulate(&app.story().clone(), "early")["actors"],
+        earlier
+    );
     assert_eq!(app.undo.len(), 1);
     app.undo();
     assert!(snapshot(&app.project) == original);
@@ -294,9 +331,9 @@ fn preview_drag_and_corner_resize_commit_one_undo_each() {
             pointer(larger, false),
         ],
     );
-    let scaled = app.story()["nodes"][3].clone();
+    let scaled = app.story().clone()["nodes"][3].clone();
     assert_eq!(
-        app.story()["nodes"].as_array().unwrap().len(),
+        app.story().clone()["nodes"].as_array().unwrap().len(),
         5,
         "a second gesture reuses the layout step"
     );
@@ -371,7 +408,7 @@ fn preview_drag_and_corner_resize_commit_one_undo_each() {
     app.selected = 3;
     app.delete();
     app.track();
-    let deleted = app.story();
+    let deleted = app.story().clone();
     assert_eq!(deleted["nodes"][0]["goto"], "early");
     assert_eq!(deleted["nodes"][1]["goto"], "line");
     assert!(preview::route(&deleted, "line").is_some());
@@ -379,5 +416,5 @@ fn preview_drag_and_corner_resize_commit_one_undo_each() {
     app.undo();
     assert!(snapshot(&app.project) == moved_snapshot);
     app.redo();
-    assert_eq!(app.story(), deleted);
+    assert_eq!(app.story().clone(), deleted);
 }

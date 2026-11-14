@@ -2,6 +2,35 @@
 use super::*;
 
 impl App {
+    pub(super) fn project_dialog_directory(&self) -> Option<&Path> {
+        crate::file_dialog::project_directory(&self.project).or_else(|| {
+            self.recent.iter().find_map(|source| {
+                let directory = if source.is_dir() {
+                    source.as_path()
+                } else {
+                    source.parent()?
+                };
+                directory.is_dir().then_some(directory)
+            })
+        })
+    }
+
+    pub(super) fn project_dialog(&self) -> rfd::FileDialog {
+        crate::file_dialog::at(self.project_dialog_directory())
+    }
+
+    pub(super) fn export_dialog_directory(&self) -> Option<&Path> {
+        self.usability
+            .export_directory
+            .as_deref()
+            .filter(|directory| directory.is_dir())
+            .or_else(|| self.project_dialog_directory())
+    }
+
+    pub(super) fn export_dialog(&self) -> rfd::FileDialog {
+        crate::file_dialog::at(self.export_dialog_directory())
+    }
+
     pub(super) fn merge_project_at(&mut self, path: &Path) {
         if !self.apply_pending_drafts() {
             return;
@@ -56,7 +85,7 @@ impl App {
                 story["title"].as_str().unwrap_or(&self.current),
                 tr("的副本")
             );
-            (ChapterAction::Duplicate(story), name)
+            (ChapterAction::Duplicate(story.clone()), name)
         } else {
             (ChapterAction::New, tr("新章节"))
         };
@@ -363,16 +392,39 @@ impl App {
         Ok(())
     }
     pub(super) fn request(&mut self, p: Pending, ctx: &egui::Context) {
+        // Downloading only prepares the update. Ask about unsaved work once,
+        // immediately before installation and exit, including any newer edits.
+        if matches!(p, Pending::EditorUpdate) {
+            if self.updater.ready_to_install() {
+                self.request(Pending::InstallEditorUpdate, ctx);
+            } else {
+                self.updater.download(ctx);
+            }
+            return;
+        }
+        self.track();
         self.flush();
-        if self.dirty() {
-            self.pending = Some(p);
+        if self.dirty() || self.saving() {
+            self.begin_pending_action(p);
         } else {
             self.perform(p, ctx);
         }
     }
     pub(super) fn perform(&mut self, pending: Pending, ctx: &egui::Context) {
         match pending {
-            Pending::EditorUpdate => self.updater.download(ctx),
+            Pending::EditorUpdate => self.request(Pending::EditorUpdate, ctx),
+            Pending::InstallEditorUpdate => {
+                match self.updater.install(self.project.source.as_deref()) {
+                    Ok(()) => {
+                        self.allow_close = true;
+                        self.clear_recovery();
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                    }
+                    Err(error) => {
+                        self.error = Some(format!("更新未完成，编辑器尚未退出。\n{error:#}"));
+                    }
+                }
+            }
             Pending::Quit => {
                 self.allow_close = true;
                 self.clear_recovery();
@@ -511,8 +563,10 @@ impl App {
     }
     pub(super) fn install(&mut self, p: Project) {
         self.preview.cancel_layout_drag();
+        self.reset_save_project();
         self.clear_recovery();
         self.project = p;
+        self.document_revision = self.document_revision.wrapping_add(1);
         self.last_auto_save = Instant::now();
         self.center = Center::Node;
         self.scenario_selection = Default::default();
@@ -570,7 +624,7 @@ impl App {
         self.flush();
         let path = if as_new { None } else { self.save_target() };
         let path = path.or_else(|| {
-            rfd::FileDialog::new()
+            self.project_dialog()
                 .set_title("选择项目保存目录（保存全部章节与素材）")
                 .pick_folder()
         });
@@ -584,52 +638,7 @@ impl App {
         })
     }
     pub(super) fn save_at(&mut self, path: &Path, automatic: bool) -> bool {
-        match crate::persistence::save_project(
-            &mut self.project,
-            &path,
-            self.saved.assets.as_ref(),
-            &self.saved.stories,
-            &self.saved.paths,
-        ) {
-            Ok(()) => {
-                self.remember_source();
-                self.last = snapshot(&self.project);
-                self.mark_saved();
-                self.asset_dirty = false;
-                self.last_auto_save = Instant::now();
-                self.clear_recovery();
-                self.status = if automatic {
-                    crate::i18n::message(
-                        "editor.autosave.saved",
-                        &[
-                            ("count", self.project.stories.len().to_string()),
-                            ("path", path.display().to_string()),
-                        ],
-                    )
-                } else {
-                    format!(
-                        "已保存全部 {} 个章节 · {}",
-                        self.project.stories.len(),
-                        path.display()
-                    )
-                };
-                true
-            }
-            Err(e) => {
-                self.error = Some(if automatic {
-                    crate::i18n::message(
-                        "editor.autosave.failed",
-                        &[
-                            ("path", path.display().to_string()),
-                            ("error", crate::error_ui::capture(e)),
-                        ],
-                    )
-                } else {
-                    format!("保存失败；修改仍保留在编辑器中。\n{e:#}")
-                });
-                false
-            }
-        }
+        self.queue_project_save(path, automatic)
     }
     pub(super) fn export(&mut self) {
         if !self.apply_pending_drafts() {
@@ -638,10 +647,7 @@ impl App {
         if !self.check_before_run_or_export() {
             return;
         }
-        let mut dialog = rfd::FileDialog::new().add_filter("活侠传 Mod", &["lommod"]);
-        if let Some(directory) = &self.usability.export_directory {
-            dialog = dialog.set_directory(directory);
-        }
+        let dialog = self.export_dialog().add_filter("活侠传 Mod", &["lommod"]);
         if let Some(path) = dialog
             .set_file_name(format!(
                 "{}.lommod",
@@ -661,9 +667,10 @@ impl App {
     pub(super) fn export_play_bundle(&mut self) {
         if self.apply_pending_drafts() && self.check_before_run_or_export() {
             self.flush();
+            let directory = self.export_dialog_directory().map(Path::to_path_buf);
             if let Some(path) = self
                 .tools_panel
-                .export_play_bundle_in(&self.project, self.usability.export_directory.as_deref())
+                .export_play_bundle_in(&self.project, directory.as_deref())
             {
                 self.remember_export_directory(&path);
             }

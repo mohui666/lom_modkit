@@ -112,6 +112,7 @@ pub(crate) fn execute(command: &str, request: &Value, base: &Path) -> Result<Val
             &crate::components::extractor()?,
             &file(base, request, "game")?,
             &file(base, request, "output")?,
+            None,
             Arc::new(AtomicBool::new(false)),
             |event| eprintln!("{event}"),
         ),

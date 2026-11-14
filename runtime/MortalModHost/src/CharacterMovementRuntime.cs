@@ -11,6 +11,7 @@ namespace MortalModHost
         internal static void CancelStageMovement(Transform holder)
         {
             if (holder == null) return;
+            CharacterShockRuntime.Forget(holder);
             foreach (LTDescr tween in LeanTween.descriptions(holder.gameObject))
                 if (tween.type == TweenAction.MOVE) LeanTween.cancel(tween.uniqueId);
         }

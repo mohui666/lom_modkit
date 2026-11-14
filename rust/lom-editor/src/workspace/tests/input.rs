@@ -126,7 +126,7 @@ fn duplicate_shortcut_keeps_internal_edges_clipboard_and_one_undo() {
         app.track();
         app.flush();
         assert_eq!(app.clipboard, clipboard);
-        let story = app.story();
+        let story = app.story().clone();
         let nodes = story["nodes"].as_array().unwrap();
         assert_eq!(nodes.len(), 5);
         assert_eq!(nodes[0]["goto"], "b");
@@ -147,7 +147,7 @@ fn authoring_shortcuts_move_select_and_add_steps_without_changing_existing_conte
         {"id":"a","type":"wait","seconds":0.1},{"id":"b","type":"wait","seconds":0.2},
         {"id":"c","type":"wait","seconds":0.3},{"id":"done","type":"end"}]}),
     );
-    let original = app.story();
+    let original = app.story().clone();
     app.selected = 2;
     app.multiselect = [1, 2].into();
     let ctx = egui::Context::default();
@@ -161,15 +161,15 @@ fn authoring_shortcuts_move_select_and_add_steps_without_changing_existing_conte
         );
     };
     press(&mut app, egui::Key::ArrowUp, egui::Modifiers::ALT);
-    assert_eq!(app.story()["nodes"][0]["id"], "b");
-    assert_eq!(app.story()["nodes"][1]["id"], "c");
+    assert_eq!(app.story().clone()["nodes"][0]["id"], "b");
+    assert_eq!(app.story().clone()["nodes"][1]["id"], "c");
     press(&mut app, egui::Key::ArrowDown, egui::Modifiers::ALT);
-    assert_eq!(app.story(), original);
+    assert_eq!(app.story().clone(), original);
     press(&mut app, egui::Key::A, egui::Modifiers::COMMAND);
     assert_eq!(app.multiselect.len(), 4);
     press(&mut app, egui::Key::Enter, egui::Modifiers::COMMAND);
-    assert_eq!(app.story()["nodes"].as_array().unwrap().len(), 5);
-    assert_eq!(app.story()["nodes"][app.selected]["type"], "say");
+    assert_eq!(app.story().clone()["nodes"].as_array().unwrap().len(), 5);
+    assert_eq!(app.story().clone()["nodes"][app.selected]["type"], "say");
 }
 
 #[test]
@@ -316,7 +316,7 @@ fn space_shortcut_pauses_and_resumes_editor_preview_without_launching_the_game()
 #[test]
 fn system_clipboard_events_copy_and_paste_steps_once() {
     let mut app = app();
-    let original_count = app.story()["nodes"].as_array().unwrap().len();
+    let original_count = app.story().clone()["nodes"].as_array().unwrap().len();
     let ctx = egui::Context::default();
     let _ = ctx.run(
         egui::RawInput {
@@ -340,7 +340,7 @@ fn system_clipboard_events_copy_and_paste_steps_once() {
         |ctx| app.shortcuts(ctx),
     );
     assert_eq!(
-        app.story()["nodes"].as_array().unwrap().len(),
+        app.story().clone()["nodes"].as_array().unwrap().len(),
         original_count + 1
     );
 }
