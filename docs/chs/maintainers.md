@@ -91,6 +91,8 @@ Windows 工作文件位于 `%LOCALAPPDATA%\lom_modkit\cache\work`，每次操作
 
 ## 原生离线验证入口
 
+仓库通过 `rust-toolchain.toml` 固定为 `nightly-2026-11-14`，常规 Cargo 命令自动使用该工具链。沿用 nightly 默认的编译元数据拆分以减少中间产物；构建脚本从 Cargo 最终产物目录取文件，不依赖内部构建目录布局。有关默认优化见 [Rust 官方说明](https://blog.rust-lang.org/inside-rust/2026/08/18/reducing-target-dir-size-on-nightly/)。发布配置使用体积优化级别 `s`、ThinLTO、单个代码生成单元及符号剥离，保留 panic 展开行为。
+
 以下均在仓库根目录执行；本次执行结果见版本记录：
 
 ```sh
