@@ -28,11 +28,15 @@ namespace MortalModHost
                 LeanTween.Add(image, TweenAction.CANVAS_ALPHA, 0.5f);
                 LeanTween.Add(other.State.holder.gameObject, TweenAction.MOVE, 90f);
                 var prefix = patch.GetMethod("Prefix", BindingFlags.NonPublic | BindingFlags.Static);
+                CharacterShockRuntime.Forgotten = null;
                 ModOverlay.CurrentPackage = null;
                 prefix.Invoke(null, new object[] { actor });
-                if (LeanTween.Count != 4) throw new Exception("vanilla movement was intercepted");
+                if (LeanTween.Count != 4 || CharacterShockRuntime.Forgotten != null)
+                    throw new Exception("vanilla movement was intercepted");
                 ModOverlay.CurrentPackage = new object();
                 prefix.Invoke(null, new object[] { actor });
+                if (CharacterShockRuntime.Forgotten != actor.State.holder)
+                    throw new Exception("offset did not release its holder's active shock");
                 actor.State.holder.gameObject.Position = 50f;
                 LeanTween.Tick();
                 if (actor.State.holder.gameObject.Position != 50f) throw new Exception("pending stage tween overwrote offset");
@@ -47,6 +51,14 @@ namespace MortalModHost
             ModOverlay.CurrentPackage = null;
             Console.WriteLine("PASS offset cancels pending stage movement, preserves other actors/alpha/rotation and vanilla scope (offline)");
         }
+    }
+
+    // The native iTween runtime is exercised in Unity; this records the
+    // cancellation seam used by the production movement patches here.
+    internal static class CharacterShockRuntime
+    {
+        internal static Transform Forgotten;
+        internal static void Forget(Transform holder) { Forgotten = holder; }
     }
 }
 

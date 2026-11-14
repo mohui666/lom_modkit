@@ -407,6 +407,13 @@ fn verify_story_lua_pairs(entries: &Entries, manifest: &Value) -> Result<()> {
         let matches = generated
             .as_ref()
             .is_ok_and(|lua| lua.as_bytes() == packaged)
+            || crate::codegen::compile_story_previous_parallel_shock(
+                story,
+                Some(manifest),
+                Some(&source),
+                Some(resources.path()),
+            )
+            .is_ok_and(|expected| expected.as_bytes() == packaged)
             || crate::codegen::compile_story_previous_big_picture_fades(
                 story,
                 Some(manifest),
@@ -1083,14 +1090,41 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
         || stories
             .values()
             .any(|story| story["vanilla_import"]["schema"] == 2);
-    if requires_149 || requires_dialogue_mood || requires_hide_all || requires_extended_import {
+    let requires_presentation_1520 = stories.values().any(|story| {
+        story["nodes"].as_array().into_iter().flatten().any(|node| {
+            (node["type"] == "say"
+                && node["mode"] == "narrative"
+                && node["inherit_dialog"] != true
+                && node["highlight_characters"]
+                    .as_array()
+                    .is_some_and(|ids| !ids.is_empty()))
+                || (node["type"] == "parallel"
+                    && crate::parallel::actions(node).iter().any(|action| {
+                        action["type"] == "shock"
+                            && !action["character"]
+                                .as_str()
+                                .unwrap_or("")
+                                .starts_with("user:")
+                            || action["type"] == "sound"
+                                && action["name"].as_str().unwrap_or("").starts_with("user:")
+                    }))
+        })
+    });
+    if requires_149
+        || requires_dialogue_mood
+        || requires_hide_all
+        || requires_extended_import
+        || requires_presentation_1520
+    {
         let version = manifest["min_host_version"].as_str().unwrap_or("0.0.0");
         let core = version
             .split(['.', '-', '+'])
             .take(3)
             .map(|n| n.parse::<u32>().unwrap_or(0))
             .collect::<Vec<_>>();
-        let minimum = if requires_timed_hide_all {
+        let minimum = if requires_presentation_1520 {
+            [1, 5, 20]
+        } else if requires_timed_hide_all {
             [1, 4, 15]
         } else if requires_extended_import || requires_hide_all {
             [1, 4, 11]
@@ -1103,7 +1137,9 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
             || core.as_slice() == minimum.as_slice()
                 && version.split('+').next().unwrap_or(version).contains('-')
         {
-            manifest["min_host_version"] = json!(if requires_timed_hide_all {
+            manifest["min_host_version"] = json!(if requires_presentation_1520 {
+                "1.5.20"
+            } else if requires_timed_hide_all {
                 "1.4.15"
             } else if requires_extended_import || requires_hide_all {
                 "1.4.11"

@@ -162,11 +162,12 @@ impl App {
                 egui::Key::O,
             )
         }) {
-            if let Some(path) = rfd::FileDialog::new().pick_folder() {
+            if let Some(path) = self.project_dialog().pick_folder() {
                 self.request(Pending::Open(path), ctx);
             }
         } else if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::O)) {
-            if let Some(path) = rfd::FileDialog::new()
+            if let Some(path) = self
+                .project_dialog()
                 .add_filter("剧情、Lua 或 Mod 包", &["json", "lua", "lommod"])
                 .pick_file()
             {
@@ -186,7 +187,7 @@ impl App {
         let shortcut =
             |modifiers, key| ctx.format_shortcut(&egui::KeyboardShortcut::new(modifiers, key));
         egui::TopBottomPanel::top("commands")
-            .frame(surface(false))
+            .frame(surface(ctx, false))
             .show(ctx, |ui| {
                 ui.horizontal_wrapped(|ui| {
                     #[cfg(not(target_os = "macos"))]
@@ -229,14 +230,14 @@ impl App {
                         if ui.add(egui::Button::new(tr("打开目录…"))
                             .shortcut_text(shortcut(egui::Modifiers::COMMAND | egui::Modifiers::SHIFT, egui::Key::O))).clicked() {
                             ui.close();
-                            if let Some(path) = rfd::FileDialog::new().pick_folder() {
+                            if let Some(path) = self.project_dialog().pick_folder() {
                                 self.request(Pending::Open(path), ctx);
                             }
                         }
                         if ui.add(egui::Button::new(tr("打开 JSON / Mod 包…"))
                             .shortcut_text(shortcut(egui::Modifiers::COMMAND, egui::Key::O))).clicked() {
                             ui.close();
-                            if let Some(path) = rfd::FileDialog::new()
+                            if let Some(path) = self.project_dialog()
                                 .add_filter("剧情、Lua 或 Mod 包", &["json", "lua", "lommod"])
                                 .pick_file()
                             {
@@ -246,11 +247,11 @@ impl App {
                         ui.menu_button(crate::i18n::key("editor.merge.menu"), |ui| {
                             if ui.button(crate::i18n::key("editor.merge.folder")).clicked() {
                                 ui.close();
-                                if let Some(path) = rfd::FileDialog::new().pick_folder() { self.merge_project_at(&path); }
+                                if let Some(path) = self.project_dialog().pick_folder() { self.merge_project_at(&path); }
                             }
                             if ui.button(crate::i18n::key("editor.merge.package")).clicked() {
                                 ui.close();
-                                if let Some(path) = rfd::FileDialog::new().add_filter("LoM Modkit", &["json", "lommod"]).pick_file() { self.merge_project_at(&path); }
+                                if let Some(path) = self.project_dialog().add_filter("LoM Modkit", &["json", "lommod"]).pick_file() { self.merge_project_at(&path); }
                             }
                         });
                         ui.menu_button(tr("最近打开"), |ui| {
@@ -490,7 +491,7 @@ impl App {
                         if ui
                             .add(
                                 egui::Button::new(crate::i18n::key("usability.export.title"))
-                                    .fill(Color32::from_rgb(213, 231, 247)),
+                                    .fill(ui.visuals().selection.bg_fill),
                             )
                             .clicked()
                         {
@@ -592,7 +593,8 @@ impl App {
             Destination::ExistingPreviewLibrary => self.choose_preview_library(),
             Destination::Settings => self.settings_open = true,
             Destination::Open => {
-                if let Some(path) = rfd::FileDialog::new()
+                if let Some(path) = self
+                    .project_dialog()
                     .add_filter("作品、剧情或脚本", &["json", "lua", "lommod"])
                     .pick_file()
                 {

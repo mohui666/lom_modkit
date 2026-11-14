@@ -1,10 +1,29 @@
 //! User preference changes.
 use super::*;
 
+pub(super) fn save_legacy_character_rotation(
+    preview: &mut Preview,
+    legacy: bool,
+    path: &Path,
+) -> anyhow::Result<()> {
+    let mut prefs = if path.exists() {
+        lom_core::load_json(path)?
+    } else {
+        json!({})
+    };
+    anyhow::ensure!(prefs.is_object(), "个人设置格式无效，未修改旋转选项");
+    prefs["legacy_character_rotation"] = json!(legacy);
+    lom_core::project::atomic_write(path, &lom_core::stable_json(&prefs)?)?;
+    preview.cancel_layout_drag();
+    preview.legacy_character_rotation = legacy;
+    Ok(())
+}
+
 impl App {
-    pub(super) fn set_legacy_character_rotation(
+    pub(super) fn set_interface_theme(
         &mut self,
-        legacy: bool,
+        ctx: &egui::Context,
+        theme: shell::Theme,
         path: &Path,
     ) -> anyhow::Result<()> {
         let mut prefs = if path.exists() {
@@ -12,12 +31,20 @@ impl App {
         } else {
             json!({})
         };
-        anyhow::ensure!(prefs.is_object(), "个人设置格式无效，未修改旋转选项");
-        prefs["legacy_character_rotation"] = json!(legacy);
+        anyhow::ensure!(prefs.is_object(), "个人设置格式无效，未修改主题");
+        prefs["ui_theme"] = json!(theme.id());
         lom_core::project::atomic_write(path, &lom_core::stable_json(&prefs)?)?;
-        self.preview.cancel_layout_drag();
-        self.preview.legacy_character_rotation = legacy;
+        shell::apply_theme(ctx, theme);
+        self.theme = theme;
+        ctx.request_repaint();
         Ok(())
+    }
+    pub(super) fn set_legacy_character_rotation(
+        &mut self,
+        legacy: bool,
+        path: &Path,
+    ) -> anyhow::Result<()> {
+        save_legacy_character_rotation(&mut self.preview, legacy, path)
     }
     pub(super) fn set_startup_update_check(
         &mut self,

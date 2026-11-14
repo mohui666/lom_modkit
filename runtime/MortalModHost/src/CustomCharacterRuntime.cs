@@ -60,6 +60,7 @@ namespace MortalModHost
         public static void Init(MonoBehaviour host)
         {
             _host = host;
+            CharacterShockRuntime.Init(host);
         }
 
         public static void ClearAll()
@@ -74,6 +75,7 @@ namespace MortalModHost
             CharacterDimming.Clear();
             CharacterLayoutRuntime.Clear();
             CharacterRotationRuntime.Clear();
+            CharacterShockRuntime.Clear();
             EffectRuntime.Clear();
             EffectPreviewCapture.Cancel();
             MoodControl.ClearOverrides();
@@ -371,6 +373,8 @@ namespace MortalModHost
         /// <summary>对立绘子层做衰减抖动，结束时精确恢复位置。</summary>
         public static bool Shock(string raw, float duration)
         {
+            if (string.IsNullOrEmpty(raw)) return false;
+            if (!ContentRef.IsUserRef(raw)) return CharacterShockRuntime.Shock(raw, duration);
             Actor actor;
             if (!Actors.TryGetValue(raw ?? "", out actor) || actor == null
                 || actor.ImageRect == null || !actor.Visible)
@@ -386,6 +390,15 @@ namespace MortalModHost
         }
 
         /// <summary>使用当前官方舞台的 DimColor / FadeDuration 压暗立绘。</summary>
+        internal static Dictionary<string, bool> CaptureVisibleDimming()
+        {
+            var snapshot = new Dictionary<string, bool>(StringComparer.Ordinal);
+            foreach (var pair in Actors)
+                if (pair.Value != null && pair.Value.Visible && pair.Value.Image != null)
+                    snapshot.Add(pair.Key, pair.Value.Dimmed);
+            return snapshot;
+        }
+
         public static bool Dim(string raw, bool dimmed)
         {
             Actor actor;

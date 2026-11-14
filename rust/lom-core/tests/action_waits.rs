@@ -8,8 +8,15 @@ fn official_shock_finishes_before_following_actions_and_parallel_join() {
         action.clone(),
         json!({"type":"parallel","actions":[action,{"type":"wait","seconds":0.3}]}),
     ] {
+        let parallel = node["type"] == "parallel";
         let lua = codegen::compile_story(&story(node), None, None, None).unwrap();
-        let shock = lua.find("runblock(flowcharts.common, \"shock\")").unwrap();
+        let shock = lua
+            .find(if parallel {
+                "mod_char_shock(\"player\", 0.8)"
+            } else {
+                "runblock(flowcharts.common, \"shock\")"
+            })
+            .unwrap();
         let following = &lua[shock..];
         assert!(following.find("wait(0.8)").unwrap() < following.find("wait(0.2)").unwrap());
     }

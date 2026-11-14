@@ -1,5 +1,5 @@
 //! Native Story → Lua compiler. Calls and argument ordering preserve the v3 Host contract.
-use anyhow::{bail, Result};
+use anyhow::{bail, ensure, Result};
 use serde_json::{json, Value};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -132,6 +132,7 @@ struct Context<'a> {
     previous_visual_calls: bool,
     previous_stat_sets: bool,
     previous_shock_wait: bool,
+    previous_parallel_shock: bool,
     character_layout: bool,
     character_scaling: bool,
     parallel_transform: bool,
@@ -381,6 +382,10 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
             out.push("\t__lom_parallel({".into());
             for action in crate::parallel::actions(node) {
                 out.push("\t\tfunction()".into());
+                let delay = crate::parallel::start_delay(action);
+                if delay > 0.0 {
+                    out.push(format!("\t\t{}", wait(delay.to_string())));
+                }
                 let child = Context {
                     preloaded: true,
                     parallel_transform: crate::parallel::independent_transforms(
@@ -768,6 +773,16 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
             } else {
                 "\tmod_stop_voice()".into()
             });
+            let highlights = arr(node, "highlight_characters");
+            let highlighted = mode == "narrative" && !highlights.is_empty();
+            if highlighted {
+                let ids = highlights
+                    .iter()
+                    .map(|id| lua_str(id.as_str().unwrap_or("")))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                out.push(call("mod_begin_say_highlights", &[format!("{{{ids}}}")]));
+            }
             if ["narrative", "center", "offscreen"].contains(&mode) {
                 let dialog = if mode == "offscreen" {
                     "character"
@@ -831,6 +846,9 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
                 out.push("\tmod_narrative_left(true)".into());
             }
             out.extend(scoped_dialogue_line(node, ctx));
+            if highlighted {
+                out.push("\tmod_end_say_highlights()".into());
+            }
             if !ctx.mood {
                 out.push("\tmod_hide_mood()".into());
             }
@@ -866,7 +884,7 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
         }
         "shock" => {
             let d = n(node, "duration", json!(0.5));
-            if user {
+            if user || ctx.preloaded && !ctx.previous_parallel_shock {
                 out.push(call("mod_char_shock", &[c, d.clone()]));
                 out.push(wait(d));
             } else {
@@ -1969,6 +1987,7 @@ pub fn compile_story(
         false,
         false,
         false,
+        false,
     )
 }
 // Exact <=1.5.18 output for the formerly ignored big-picture hide duration.
@@ -1991,7 +2010,7 @@ pub(crate) fn compile_story_previous_big_picture_fades(
             node.as_object_mut().unwrap().remove("fade_out");
         }
     }
-    compile_story(&historical, mod_info, source, content_root)
+    compile_story_previous_parallel_shock(&historical, mod_info, source, content_root)
 }
 
 // Exact <=1.5.8 output, including author-entered fields that the older emitter
@@ -2011,6 +2030,7 @@ pub(crate) fn compile_story_previous_big_pictures(
         false,
         false,
         false,
+        true,
     )
 }
 // Only used to verify already-published v3 packages. Raw code is never rewritten;
@@ -2026,6 +2046,7 @@ pub(crate) fn compile_story_previous_visual_calls(
         mod_info,
         source,
         content_root,
+        true,
         true,
         true,
         true,
@@ -2049,6 +2070,7 @@ pub(crate) fn compile_story_previous_stat_sets(
         false,
         true,
         true,
+        true,
     )
 }
 // Verify released <=1.4.16 output without changing newly exported scripts.
@@ -2067,6 +2089,26 @@ pub(crate) fn compile_story_previous_shock_wait(
         false,
         false,
         true,
+        true,
+    )
+}
+// Exact <=1.5.19 parallel shock output, solely for source/Lua ownership checks.
+pub(crate) fn compile_story_previous_parallel_shock(
+    story: &Value,
+    mod_info: Option<&Value>,
+    source: Option<&str>,
+    content_root: Option<&Path>,
+) -> Result<String> {
+    compile_story_impl(
+        story,
+        mod_info,
+        source,
+        content_root,
+        false,
+        false,
+        false,
+        false,
+        true,
     )
 }
 fn compile_story_impl(
@@ -2078,7 +2120,29 @@ fn compile_story_impl(
     previous_visual_calls: bool,
     previous_stat_sets: bool,
     previous_shock_wait: bool,
+    previous_parallel_shock: bool,
 ) -> Result<String> {
+    if previous_parallel_shock {
+        for node in arr(story, "nodes") {
+            ensure!(
+                node.get("highlight_characters").is_none()
+                    && crate::parallel::actions(node)
+                        .iter()
+                        .all(|a| a.get("start_delay").is_none()),
+                "历史编译器不支持旁白高亮或同时动作开始延迟"
+            );
+            ensure!(
+                node["type"] != "parallel"
+                    || crate::parallel::actions(node)
+                        .iter()
+                        .filter(|action| action["type"] == "shock"
+                            && !s(action, "character").starts_with("user:"))
+                        .count()
+                        <= 1,
+                "历史编译器不支持多个原版人物同时震动"
+            );
+        }
+    }
     // <=1.5.8 accepted fade_in on big pictures but ignored its value. Keep such
     // source editable; current compilation still diagnoses invalid durations.
     let mut historical_validation;
@@ -2120,6 +2184,7 @@ fn compile_story_impl(
         previous_visual_calls,
         previous_stat_sets,
         previous_shock_wait,
+        previous_parallel_shock,
     )?;
     if warnings.is_empty() {
         Ok(lua)
@@ -2149,6 +2214,7 @@ pub fn story_to_lua(
         false,
         false,
         false,
+        false,
     )
 }
 fn story_to_lua_impl(
@@ -2160,6 +2226,7 @@ fn story_to_lua_impl(
     previous_visual_calls: bool,
     previous_stat_sets: bool,
     previous_shock_wait: bool,
+    previous_parallel_shock: bool,
 ) -> Result<String> {
     let default_root = crate::content::default_repository_root();
     let root = content_root.unwrap_or(&default_root);
@@ -2170,7 +2237,15 @@ fn story_to_lua_impl(
     let fallback = format!("story/{id}.json");
     let src = source.filter(|x| !x.is_empty()).unwrap_or(&fallback);
     if let Some(imported) = crate::vanilla_import::parse(story)? {
-        return imported_story_to_lua(story, info, src, root, &imported, previous_shock_wait);
+        return imported_story_to_lua(
+            story,
+            info,
+            src,
+            root,
+            &imported,
+            previous_shock_wait,
+            previous_parallel_shock,
+        );
     }
     if let Some(patch) = crate::vanilla_patch::parse(story)? {
         let edits: Vec<_> = patch
@@ -2254,6 +2329,7 @@ fn story_to_lua_impl(
             previous_visual_calls,
             previous_stat_sets,
             previous_shock_wait,
+            previous_parallel_shock,
             character_layout,
             character_scaling: uses_character_scaling(story),
             parallel_transform: false,
@@ -2318,10 +2394,19 @@ fn imported_story_to_lua(
     root: &Path,
     imported: &crate::vanilla_import::Imported,
     previous_shock_wait: bool,
+    previous_parallel_shock: bool,
 ) -> Result<String> {
     let nodes = arr(story, "nodes");
     if imported.schema == 2 {
-        return structured_import_to_lua(story, info, source, root, imported, previous_shock_wait);
+        return structured_import_to_lua(
+            story,
+            info,
+            source,
+            root,
+            imported,
+            previous_shock_wait,
+            previous_parallel_shock,
+        );
     }
     let origins = imported.associations(nodes);
     let mut lua = format!("{GENERATED_MARK}\n-- Source: {source}\nmodflags = modflags or {{}}\nmod_begin_vanilla_import({})\nlocal mod_vanilla_terminal = {{}}\n", q(story,"id"));
@@ -2381,6 +2466,7 @@ fn imported_story_to_lua(
                     previous_visual_calls: false,
                     previous_stat_sets: false,
                     previous_shock_wait,
+                    previous_parallel_shock,
                     character_layout: true,
                     character_scaling: uses_character_scaling(story),
                     parallel_transform: false,
@@ -2471,6 +2557,7 @@ fn structured_import_to_lua(
     root: &Path,
     imported: &crate::vanilla_import::Imported,
     previous_shock_wait: bool,
+    previous_parallel_shock: bool,
 ) -> Result<String> {
     let nodes = arr(story, "nodes");
     let origins = imported.associations(nodes);
@@ -2536,6 +2623,7 @@ fn structured_import_to_lua(
             previous_visual_calls: false,
             previous_stat_sets: false,
             previous_shock_wait,
+            previous_parallel_shock,
             character_layout: true,
             character_scaling: uses_character_scaling(story),
             parallel_transform: false,

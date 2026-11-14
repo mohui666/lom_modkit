@@ -168,6 +168,7 @@
         "portrait": "str",
         "mode": "mode",
         "voice": "str",
+        "highlight_characters": "list",
         "font_size": "say_font_size",
         "mood_icon": "dialogue_mood_icon",
         "mood_character": "str",

@@ -534,7 +534,14 @@ fn released_1_4_14_packages_open_edit_export_and_reopen_without_rewriting_the_so
             let lines: Vec<_> = lua.lines().collect();
             let shock = lines
                 .iter()
-                .position(|line| line.trim() == "runblock(flowcharts.common, \"shock\")")
+                .position(|line| {
+                    line.trim()
+                        == if case["name"] == "parallel_shock" {
+                            "mod_char_shock(\"player\", 0.5)"
+                        } else {
+                            "runblock(flowcharts.common, \"shock\")"
+                        }
+                })
                 .unwrap();
             assert_eq!(lines[shock + 1].trim(), "wait(0.5)");
         }
@@ -555,6 +562,36 @@ fn released_1_4_14_packages_open_edit_export_and_reopen_without_rewriting_the_so
             .to_string()
             .contains("不是由对应"));
     }
+}
+
+#[test]
+fn new_multi_actor_shocks_cannot_claim_a_historical_shared_flowchart_emitter() {
+    let mut project = lom_core::project::Project::new();
+    project.stories.clear();
+    project.manifest["entry"] = json!("main");
+    project.stories.insert(
+        "main".into(),
+        json!({"id":"main","story_schema":2,"start":"group","nodes":[
+            {"id":"group","type":"parallel","actions":[
+                {"type":"shock","character":"player","duration":0.5},
+                {"type":"shock","character":"brother1","duration":0.5}
+            ]}, {"id":"done","type":"end"}
+        ]}),
+    );
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("new.lommod");
+    project.export(&path).unwrap();
+    let mut entries = package::read_package(&path).unwrap();
+    let mut lua = String::from_utf8(entries["lua/main.lua"].clone()).unwrap();
+    for character in ["player", "brother1"] {
+        let current = format!("mod_char_shock(\"{character}\", 0.5)");
+        assert!(lua.contains(&current));
+        lua = lua.replace(&current, &format!("getvar(flowcharts.common, \"ShockPosition\").value = characters.Get(\"{character}\").State.holder.gameObject\n\t\t\tgetvar(flowcharts.common, \"ShockDuration\").value = 0.5\n\t\t\trunblock(flowcharts.common, \"shock\")"));
+    }
+    entries.insert("lua/main.lua".into(), lua.into_bytes());
+    let substituted = directory.path().join("invalid-historical.lommod");
+    rewritten_hashes(entries, &substituted);
+    assert!(package::read_package(&substituted).is_err());
 }
 
 #[test]

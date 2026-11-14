@@ -13,7 +13,7 @@ impl App {
             return;
         }
         egui::SidePanel::left("step-palette")
-            .frame(surface(true))
+            .frame(surface(ctx, true))
             .default_width(168.0)
             .min_width(140.0)
             .max_width(260.0)
@@ -117,7 +117,7 @@ impl App {
     }
     pub(super) fn sidebar(&mut self, ctx: &egui::Context) {
         let panel = egui::SidePanel::left("chapters")
-            .frame(surface(true))
+            .frame(surface(ctx, true))
             .default_width(self.usability.widths[0])
             .min_width(180.0)
             .max_width((ctx.available_rect().width() - 620.0).max(180.0))
@@ -480,8 +480,7 @@ impl App {
                         }
                     });
                 }
-                let story = self.story();
-                if let Some(patch) = story.get("vanilla_patch") {
+                if let Some(patch) = self.story().get("vanilla_patch") {
                     ui.strong(crate::i18n::key("editor.patch.title"));
                     ui.label(crate::i18n::message(
                         "editor.patch.chapter",
@@ -556,53 +555,56 @@ impl App {
                 ui.visuals_mut().widgets.inactive.bg_fill = Color32::TRANSPARENT;
                 ui.visuals_mut().widgets.inactive.bg_stroke = egui::Stroke::NONE;
                 if !self.search.is_empty() {
+                    let results = self.step_search(&self.search.to_lowercase());
                     egui::ScrollArea::vertical()
                         .id_salt("step-search")
                         .auto_shrink([false, false])
-                        .show(ui, |ui| {
-                            let query = self.search.to_lowercase();
-                            for (sid, s) in self.project.stories.clone() {
-                                for (index, node) in
-                                    s["nodes"].as_array().into_iter().flatten().enumerate()
-                                {
-                                    if node.to_string().to_lowercase().contains(&query)
-                                        && ui
-                                            .selectable_label(
-                                                self.current == sid && self.selected == index,
-                                                format!(
-                                                    "{} · {:02} {} · {}",
-                                                    s["title"].as_str().unwrap_or(&sid),
-                                                    index + 1,
-                                                    self.catalog
-                                                        .label(node["type"].as_str().unwrap_or("")),
-                                                    short(node["text"].as_str().unwrap_or(""), 22)
-                                                ),
-                                            )
-                                            .on_hover_text(format!(
-                                                "{sid} / {}",
-                                                node["id"].as_str().unwrap_or("")
-                                            ))
-                                            .clicked()
+                        .show_rows(
+                            ui,
+                            ui.text_style_height(&egui::TextStyle::Body) + 6.0,
+                            results.len(),
+                            |ui, range| {
+                                for (sid, index) in &results[range] {
+                                    let s = &self.project.stories[sid];
+                                    let node = &s["nodes"][*index];
+                                    if ui
+                                        .selectable_label(
+                                            self.current == *sid && self.selected == *index,
+                                            format!(
+                                                "{} · {:02} {} · {}",
+                                                s["title"].as_str().unwrap_or(&sid),
+                                                index + 1,
+                                                self.catalog
+                                                    .label(node["type"].as_str().unwrap_or("")),
+                                                short(node["text"].as_str().unwrap_or(""), 22)
+                                            ),
+                                        )
+                                        .on_hover_text(format!(
+                                            "{sid} / {}",
+                                            node["id"].as_str().unwrap_or("")
+                                        ))
+                                        .clicked()
                                     {
                                         self.multiselect.clear();
                                         self.current = sid.clone();
-                                        self.selected = index;
+                                        self.selected = *index;
                                         self.center = Center::Node;
                                         self.needs_compile = true;
-                                        if let Some(s) = self.project.stories.get_mut(&sid) {
-                                            authoring::expand_for_node(s, index);
+                                        if let Some(s) = self.project.stories.get_mut(sid) {
+                                            authoring::expand_for_node(s, *index);
                                         }
                                     }
                                 }
-                            }
-                        });
+                            },
+                        );
                     return;
                 }
-                if let Err(error) = authoring::validate_sections(&story) {
-                    crate::error_ui::show_with_actions(ui, &crate::error_ui::capture(error));
+                self.step_search = None;
+                let chapter_view = self.chapter_view();
+                if let Some(error) = &chapter_view.sections_error {
+                    crate::error_ui::show_with_actions(ui, error);
                 }
-                let nodes = story["nodes"].as_array().map(Vec::as_slice).unwrap_or(&[]);
-                let rows = authoring::section_rows(&story);
+                let rows = &chapter_view.rows;
                 let row_height = 44.0;
                 let mut scroll = egui::ScrollArea::vertical()
                     .id_salt("steps")
@@ -621,7 +623,24 @@ impl App {
                 }
                 let mut output = scroll.show_rows(ui, row_height, rows.len(), |ui, visible| {
                     let mut drop_to = None;
-                    for row in rows.into_iter().skip(visible.start).take(visible.len()) {
+                    // Row actions can reorder or delete nodes. Capture just the
+                    // visible rows before handling input so the rest of this
+                    // frame continues to display the same document revision.
+                    let visible_rows: Vec<_> = rows
+                        .iter()
+                        .skip(visible.start)
+                        .take(visible.len())
+                        .cloned()
+                        .map(|row| {
+                            let node = if let authoring::Row::Node { index, .. } = &row {
+                                self.story()["nodes"].get(*index).cloned()
+                            } else {
+                                None
+                            };
+                            (row, node)
+                        })
+                        .collect();
+                    for (row, node) in visible_rows {
                         let (index, depth) = match row {
                             authoring::Row::Header {
                                 section,
@@ -657,12 +676,14 @@ impl App {
                             }
                             authoring::Row::Node { index, depth } => (index, depth),
                         };
-                        let node = &nodes[index];
+                        let Some(node) = node else {
+                            continue;
+                        };
                         let summary = if matches!(
                             node["type"].as_str(),
                             Some("native_action" | "native_branch")
                         ) {
-                            crate::native_forms::summary(node)
+                            crate::native_forms::summary(&node)
                         } else if node["type"] == "parallel" {
                             format!(
                                 "{} {}",
@@ -746,9 +767,9 @@ impl App {
                                 let secondary = egui::TextFormat {
                                     font_id: egui::FontId::proportional(12.0),
                                     color: if selected {
-                                        Color32::from_rgb(70, 96, 120)
+                                        ui.visuals().selection.stroke.color
                                     } else {
-                                        Color32::from_rgb(103, 113, 125)
+                                        ui.visuals().weak_text_color()
                                     },
                                     ..Default::default()
                                 };
@@ -851,7 +872,7 @@ impl App {
                                 ui.painter().hline(
                                     response.rect.x_range(),
                                     y,
-                                    egui::Stroke::new(2.0_f32, crate::shell::ACCENT),
+                                    egui::Stroke::new(2.0_f32, crate::shell::accent_for(ctx)),
                                 );
                             }
                         }

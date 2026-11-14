@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using BepInEx.Logging;
 using Mortal.Core;
 using UnityEngine;
@@ -16,11 +17,12 @@ namespace MortalModHost
 
         private static MonoBehaviour _host;
         private static NativePcmPlayer _music;
-        private static NativePcmPlayer _sfx;
+        private static readonly List<NativePcmPlayer> Sounds = new List<NativePcmPlayer>();
         private static NativePcmPlayer _env;
         private static NativePcmPlayer _voice;
         private static Coroutine _musicFade;
         private static Coroutine _envFade;
+        private static Coroutine _soundCleanup;
         private static string _currentMusic = "";
         private static string _currentVoice = "";
 
@@ -44,7 +46,6 @@ namespace MortalModHost
         {
             _host = host;
             if (_music == null) _music = new NativePcmPlayer();
-            if (_sfx == null) _sfx = new NativePcmPlayer();
             if (_env == null) _env = new NativePcmPlayer();
             if (_voice == null) _voice = new NativePcmPlayer();
         }
@@ -55,10 +56,12 @@ namespace MortalModHost
             {
                 StopCoroutine(ref _musicFade);
                 StopCoroutine(ref _envFade);
+                StopCoroutine(ref _soundCleanup);
                 if (_music != null) _music.Stop();
                 _currentMusic = "";
                 if (_env != null) _env.Stop();
-                if (_sfx != null) _sfx.Stop();
+                foreach (NativePcmPlayer sound in Sounds) sound.Dispose();
+                Sounds.Clear();
             }
             catch (Exception ex)
             {
@@ -107,7 +110,41 @@ namespace MortalModHost
 
         public static bool PlaySound(string name)
         {
-            return PlayKeyed(name, _sfx, loop: false, isMusic: false);
+            // A one-shot owns its playback instance: replaying the same clip
+            // must not call NativePcmPlayer.Play/Stop on an earlier instance.
+            CollectFinishedSounds();
+            var player = new NativePcmPlayer();
+            if (!PlayKeyed(name, player, loop: false, isMusic: false))
+            {
+                player.Dispose();
+                return false;
+            }
+            Sounds.Add(player);
+            if (_host != null && _soundCleanup == null)
+                _soundCleanup = _host.StartCoroutine(CleanupSounds());
+            return true;
+        }
+
+        private static IEnumerator CleanupSounds()
+        {
+            // Assign the coroutine handle before it can finish synchronously.
+            yield return null;
+            while (Sounds.Count > 0)
+            {
+                CollectFinishedSounds();
+                if (Sounds.Count > 0) yield return null;
+            }
+            _soundCleanup = null;
+        }
+
+        private static void CollectFinishedSounds()
+        {
+            for (int index = Sounds.Count - 1; index >= 0; --index)
+            {
+                if (Sounds[index].IsPlaying) continue;
+                Sounds[index].Dispose();
+                Sounds.RemoveAt(index);
+            }
         }
 
         public static bool PlayEnv(string name)

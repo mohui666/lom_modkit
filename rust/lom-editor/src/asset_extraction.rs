@@ -35,20 +35,35 @@ pub fn validate_game(root: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Output is a fresh private cache. A failure/cancellation never replaces the
-/// active preview library; only a finished mapping can be selected by the UI.
+/// New images stay in a private staging directory. Incremental extraction only
+/// publishes their references after the complete mapping has been validated.
 pub fn extract(
     helper: &Path,
     game: &Path,
     cache: &Path,
+    existing: Option<&Path>,
     cancel: Arc<AtomicBool>,
     progress: impl Fn(Value) + Send + 'static,
 ) -> Result<Value> {
     validate_game(game)?;
-    std::fs::create_dir_all(cache)?;
-    let output = tempfile::Builder::new()
-        .prefix("extracted-")
-        .tempdir_in(cache)?;
+    let existing = existing.map(Path::canonicalize).transpose()?;
+    let output = if let Some(root) = &existing {
+        lom_core::package::resolve_confined_file(root, &root.join("preview_map.json"))?;
+        let assets = root.join("assets");
+        std::fs::create_dir_all(&assets)?;
+        ensure!(
+            assets.canonicalize()?.starts_with(root),
+            "素材缓存目录指向已有素材库之外"
+        );
+        tempfile::Builder::new()
+            .prefix("supplement-")
+            .tempdir_in(assets)?
+    } else {
+        std::fs::create_dir_all(cache)?;
+        tempfile::Builder::new()
+            .prefix("extracted-")
+            .tempdir_in(cache)?
+    };
     ensure!(
         !output
             .path()
@@ -66,6 +81,9 @@ pub fn extract(
         .arg("1024")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+    if let Some(root) = &existing {
+        command.arg("--existing-library").arg(root);
+    }
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
@@ -130,17 +148,47 @@ pub fn extract(
     let mut report = event
         .filter(|v| v["event"] == "result")
         .context("提取组件没有返回完成结果，原素材库保持不变")?;
-    let mapping = lom_core::load_json(output.path().join("preview_map.json"))?;
-    validate_mapping(output.path(), &mapping)?;
     ensure!(
-        report["exported"].as_u64().unwrap_or(0) > 0,
+        report["exported"].as_u64().unwrap_or(0) + report["reused"].as_u64().unwrap_or(0) > 0,
         "未能提取任何游戏图片"
     );
-    report["output_dir"] = serde_json::json!(output.keep());
+    let mut mapping = lom_core::load_json(output.path().join("preview_map.json"))?;
+    if let Some(root) = existing {
+        let details = report["failures"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .take(3)
+            .map(|failure| {
+                format!(
+                    "{}：{}",
+                    failure["address"].as_str().unwrap_or("图片"),
+                    failure["error"].as_str().unwrap_or("提取失败")
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("；");
+        ensure!(
+            report["failed"].as_u64().unwrap_or(0) == 0,
+            "本次补充有图片提取失败，原素材库保持不变：{details}"
+        );
+        let has_new_files = publish_incremental(&root, output.path(), &mut mapping, &cancel)?;
+        if has_new_files {
+            let _ = output.keep();
+        }
+        report["output_dir"] = serde_json::json!(root);
+    } else {
+        validate_mapping(output.path(), &mapping)?;
+        ensure!(
+            !cancel.load(Ordering::Relaxed),
+            "提取已取消，原素材库保持不变"
+        );
+        report["output_dir"] = serde_json::json!(output.keep());
+    }
     Ok(report)
 }
 
-pub(crate) fn validate_mapping(root: &Path, mapping: &Value) -> Result<()> {
+fn mapping_files(mapping: &Value) -> Result<Vec<&Value>> {
     ensure!(
         mapping["characters"].is_object() && mapping["views"].is_object(),
         "提取映射不完整"
@@ -191,7 +239,11 @@ pub(crate) fn validate_mapping(root: &Path, mapping: &Value) -> Result<()> {
             }
         }
     }
-    for value in files {
+    Ok(files)
+}
+
+pub(crate) fn validate_mapping(root: &Path, mapping: &Value) -> Result<()> {
+    for value in mapping_files(mapping)? {
         let name = value.as_str().context("图片路径格式不正确")?;
         lom_core::package::canonical_archive_name(name)?;
         ensure!(name.starts_with("assets/"), "图片路径超出素材目录");
@@ -201,10 +253,229 @@ pub(crate) fn validate_mapping(root: &Path, mapping: &Value) -> Result<()> {
     Ok(())
 }
 
+fn publish_incremental(
+    root: &Path,
+    staging: &Path,
+    mapping: &mut Value,
+    cancel: &AtomicBool,
+) -> Result<bool> {
+    let prefix = staging
+        .strip_prefix(root)?
+        .to_str()
+        .context("素材缓存路径无效")?
+        .replace('\\', "/");
+    lom_core::package::canonical_archive_name(&prefix)?;
+    ensure!(
+        prefix.starts_with("assets/"),
+        "新增图片必须保存在已有素材库中"
+    );
+    let previous = lom_core::load_json(root.join("preview_map.json"))?;
+    let mut paths = std::collections::BTreeMap::new();
+    for value in mapping_files(mapping)? {
+        let name = value.as_str().context("图片路径格式不正确")?;
+        lom_core::package::canonical_archive_name(name)?;
+        ensure!(name.starts_with("assets/"), "图片路径超出素材目录");
+        if staging.join(name).try_exists()? {
+            lom_core::package::resolve_confined_file(staging, &staging.join(name))?;
+            paths.insert(name.to_owned(), format!("{prefix}/{name}"));
+        } else {
+            lom_core::package::resolve_confined_file(root, &root.join(name))?;
+        }
+    }
+    let mut changed_files = 0;
+    let mut remap = |value: &mut Value, old: &Value| {
+        // A generated file may use the same conventional name as a cached
+        // alias. Retain that alias's original reference and rebase only the
+        // new/missing entry that actually needs the staged image.
+        if &*value == old && value.as_str().is_some_and(|name| root.join(name).is_file()) {
+            return;
+        }
+        if let Some(rebased) = value.as_str().and_then(|name| paths.get(name)) {
+            *value = Value::String(rebased.clone());
+            changed_files += 1;
+        }
+    };
+    for (id, character) in mapping["characters"].as_object_mut().unwrap() {
+        for (key, file) in character["portraits"].as_object_mut().unwrap() {
+            remap(file, &previous["characters"][id]["portraits"][key]);
+        }
+    }
+    for group in ["views", "pictures"] {
+        if let Some(entries) = mapping.get_mut(group).and_then(Value::as_object_mut) {
+            for (key, file) in entries {
+                remap(file, &previous[group][key]);
+            }
+        }
+    }
+    if let Some(file) = mapping.get_mut("event_book") {
+        remap(file, &previous["event_book"]);
+    }
+    if let Some(moods) = mapping.get_mut("moods").and_then(Value::as_object_mut) {
+        for (key, mood) in moods {
+            for facing in ["left", "right"] {
+                for (index, frame) in mood[facing]["frames"]
+                    .as_array_mut()
+                    .unwrap()
+                    .iter_mut()
+                    .enumerate()
+                {
+                    remap(
+                        &mut frame["file"],
+                        &previous["moods"][key][facing]["frames"][index]["file"],
+                    );
+                }
+            }
+        }
+    }
+    validate_mapping(root, mapping)?;
+    ensure!(
+        !cancel.load(Ordering::Relaxed),
+        "提取已取消，原素材库保持不变"
+    );
+    // This is the sole publication point. Until here the old mapping and every
+    // referenced old image remain untouched; TempDir removes new files on error.
+    lom_core::project::atomic_write(
+        &root.join("preview_map.json"),
+        &lom_core::stable_json(mapping)?,
+    )?;
+    Ok(changed_files > 0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
+
+    fn incremental_fixture(root: &Path) -> Value {
+        std::fs::create_dir_all(root.join("assets")).unwrap();
+        std::fs::write(root.join("assets/old.png"), b"keep original image").unwrap();
+        let mapping = json!({"portrait_canvas":"sprite_rect","characters":{"player":{"name":"assets/new.png","first":"normal","portraits":{"normal":"assets/old.png"}}},"views":{"old":"assets/old.png"},"pictures":{}});
+        std::fs::write(
+            root.join("preview_map.json"),
+            lom_core::stable_json(&mapping).unwrap(),
+        )
+        .unwrap();
+        mapping
+    }
+
+    #[test]
+    fn incremental_publish_reuses_old_images_and_rebases_only_new_file_references() {
+        let root = tempfile::tempdir().unwrap();
+        let mut mapping = incremental_fixture(root.path());
+        let staging = tempfile::Builder::new()
+            .prefix("supplement-")
+            .tempdir_in(root.path().join("assets"))
+            .unwrap();
+        std::fs::create_dir(staging.path().join("assets")).unwrap();
+        std::fs::write(staging.path().join("assets/new.png"), b"new image").unwrap();
+        std::fs::write(
+            staging.path().join("assets/old.png"),
+            b"new conventional name",
+        )
+        .unwrap();
+        mapping["pictures"]["new"] = json!("assets/new.png");
+        mapping["pictures"]["same_file_name"] = json!("assets/old.png");
+        mapping["event_book"] = json!("assets/new.png");
+        let animation = json!({"frames":[{"time":0.0,"file":"assets/new.png"}],"duration":1.0});
+        mapping["moods"] = json!({"happy":{"left":animation,"right":animation}});
+        assert!(publish_incremental(
+            root.path(),
+            staging.path(),
+            &mut mapping,
+            &AtomicBool::new(false)
+        )
+        .unwrap());
+        validate_mapping(root.path(), &mapping).unwrap();
+        assert_eq!(
+            mapping["characters"]["player"]["portraits"]["normal"],
+            "assets/old.png"
+        );
+        assert_eq!(mapping["characters"]["player"]["name"], "assets/new.png");
+        let new = mapping["pictures"]["new"].as_str().unwrap();
+        assert!(new.starts_with("assets/supplement-"));
+        assert_eq!(mapping["views"]["old"], "assets/old.png");
+        assert_ne!(mapping["pictures"]["same_file_name"], "assets/old.png");
+        assert_eq!(mapping["event_book"], new);
+        assert_eq!(mapping["moods"]["happy"]["left"]["frames"][0]["file"], new);
+        assert_eq!(
+            std::fs::read(root.path().join("assets/old.png")).unwrap(),
+            b"keep original image"
+        );
+        assert_eq!(
+            lom_core::load_json(root.path().join("preview_map.json")).unwrap(),
+            mapping
+        );
+    }
+
+    #[test]
+    fn incremental_failure_and_cancellation_keep_old_mapping_and_remove_staging() {
+        let root = tempfile::tempdir().unwrap();
+        let original = incremental_fixture(root.path());
+        let original_bytes = std::fs::read(root.path().join("preview_map.json")).unwrap();
+        for cancelled in [false, true] {
+            let staging = tempfile::Builder::new()
+                .prefix("supplement-")
+                .tempdir_in(root.path().join("assets"))
+                .unwrap();
+            let stage_path = staging.path().to_path_buf();
+            std::fs::create_dir(staging.path().join("assets")).unwrap();
+            std::fs::write(staging.path().join("assets/new.png"), b"new image").unwrap();
+            let mut mapping = original.clone();
+            mapping["pictures"]["new"] = json!("assets/new.png");
+            if !cancelled {
+                mapping["views"]["missing"] = json!("assets/unavailable.png");
+            }
+            assert!(publish_incremental(
+                root.path(),
+                staging.path(),
+                &mut mapping,
+                &AtomicBool::new(cancelled)
+            )
+            .is_err());
+            assert_eq!(
+                std::fs::read(root.path().join("preview_map.json")).unwrap(),
+                original_bytes
+            );
+            assert_eq!(
+                std::fs::read(root.path().join("assets/old.png")).unwrap(),
+                b"keep original image"
+            );
+            drop(staging);
+            assert!(!stage_path.exists());
+        }
+        assert_eq!(
+            std::fs::read_dir(root.path().join("assets"))
+                .unwrap()
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn incremental_complete_cache_needs_no_new_image_directory() {
+        let root = tempfile::tempdir().unwrap();
+        let mut mapping = incremental_fixture(root.path());
+        mapping["pictures"]["new_alias"] = json!("assets/old.png");
+        let staging = tempfile::Builder::new()
+            .prefix("supplement-")
+            .tempdir_in(root.path().join("assets"))
+            .unwrap();
+        assert!(!publish_incremental(
+            root.path(),
+            staging.path(),
+            &mut mapping,
+            &AtomicBool::new(false)
+        )
+        .unwrap());
+        drop(staging);
+        validate_mapping(root.path(), &mapping).unwrap();
+        assert_eq!(
+            std::fs::read_dir(root.path().join("assets"))
+                .unwrap()
+                .count(),
+            1
+        );
+    }
     #[test]
     fn accepts_both_installed_game_platform_layouts() {
         for platform in ["StandaloneWindows64", "StandaloneWindows"] {
@@ -267,6 +538,7 @@ printf '%s\n' '{"event":"progress","done":1,"total":1}' '{"event":"result","expo
             &helper,
             &game,
             &cache,
+            None,
             Arc::new(AtomicBool::new(false)),
             move |v| {
                 tx.send(v).unwrap();
@@ -294,6 +566,7 @@ printf '%s\n' '{"event":"progress","done":1,"total":1}' '{"event":"result","expo
             &helper,
             &game,
             &cache,
+            None,
             Arc::new(AtomicBool::new(false)),
             |_| {},
         )
@@ -307,7 +580,7 @@ printf '%s\n' '{"event":"progress","done":1,"total":1}' '{"event":"result","expo
             std::thread::sleep(Duration::from_millis(30));
             signal.store(true, Ordering::Relaxed);
         });
-        let error = extract(&helper, &game, &cache, cancel, |_| {}).unwrap_err();
+        let error = extract(&helper, &game, &cache, None, cancel, |_| {}).unwrap_err();
         thread.join().unwrap();
         assert!(error.to_string().contains("取消"));
         assert_eq!(std::fs::read_dir(cache).unwrap().count(), 0);

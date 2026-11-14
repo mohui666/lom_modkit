@@ -8,12 +8,14 @@ use std::{
     io::Write,
     path::{Path, PathBuf},
 };
+mod stories;
+pub use stories::Stories;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Project {
     pub manifest: Value,
     pub scenario: Option<Value>,
-    pub stories: BTreeMap<String, Value>,
+    pub stories: Stories,
     /// Story ID -> original filename relative to story/ (or standalone parent).
     pub paths: BTreeMap<String, PathBuf>,
     pub source: Option<PathBuf>,
@@ -68,7 +70,7 @@ impl Project {
         Self {
             scenario: None,
             manifest: json!({"format":3,"package_format":3,"story_schema":2,"content_schema":1,"id":"my_mod","name":"新的作品","version":"1.0.0","author":"作者","description":"原创剧情","entry":"main","campaign":{"new_game":true,"triggers":[]}}),
-            stories: BTreeMap::from([("main".into(), story)]),
+            stories: BTreeMap::from([("main".into(), story)]).into(),
             paths: BTreeMap::new(),
             source: None,
             assets: BTreeMap::new(),
@@ -217,7 +219,7 @@ impl Project {
         let imported = crate::lua_import::import_external(source, "main", title)?;
         let mut project = Self::new();
         project.manifest["name"] = json!(title);
-        project.stories = BTreeMap::from([("main".into(), imported.story)]);
+        project.stories = BTreeMap::from([("main".into(), imported.story)]).into();
         project
             .assets
             .insert("assets/imported/source.lua".into(), bytes);

@@ -56,7 +56,7 @@ impl App {
             let mut issue_location = None;
             let destination = crate::error_location::resolve(&message, &self.project);
             egui::Modal::new(egui::Id::new("operation-error"))
-                .frame(shell::dialog_frame())
+                .frame(shell::dialog_frame_for(ctx))
                 .show(ctx, |ui| {
                     ui.set_width(460.0_f32.min(ctx.content_rect().width() - 80.0));
                     close |= shell::dialog_header(ui, &crate::error_ui::title(&message));
@@ -141,6 +141,7 @@ impl App {
         if self.settings_open {
             let mut close = false;
             let mut selected = None;
+            let mut theme = self.theme;
             let mut startup = self.check_updates_on_startup;
             let mut startup_changed = false;
             let mut auto_save = self.auto_save_project;
@@ -150,7 +151,7 @@ impl App {
             let mut extract_library = false;
             let mut resolution_changed = false;
             egui::Modal::new(egui::Id::new("application-settings"))
-                .frame(shell::dialog_frame())
+                .frame(shell::dialog_frame_for(ctx))
                 .show(ctx, |ui| {
                     ui.set_width(520.0_f32.min(ctx.content_rect().width() - 60.0));
                     close |= shell::dialog_header(ui, &tr("设置"));
@@ -167,6 +168,13 @@ impl App {
                         .show(ui, |ui| {
                     match self.settings_page {
                         0 => {
+                            ui.strong(tr("界面主题"));
+                            ui.horizontal_wrapped(|ui| {
+                                for choice in shell::Theme::ALL {
+                                    ui.selectable_value(&mut theme, choice, tr(choice.label()));
+                                }
+                            });
+                            ui.add_space(12.0);
                             ui.strong(tr("界面语言"));
                             for (locale, name) in crate::i18n::LOCALES.into_iter().zip(crate::i18n::NAMES) {
                                 if ui.radio(crate::i18n::locale() == locale, name).clicked() { selected = Some(locale); }
@@ -212,6 +220,12 @@ impl App {
                     shell::dialog_buttons(ui, |ui| { close |= ui.add_sized([80.0,30.0],egui::Button::new(tr("完成"))).clicked(); });
                 });
             let prefs = user_root().join("rust/preferences.json");
+            if theme != self.theme {
+                self.settings_error = self
+                    .set_interface_theme(ctx, theme, &prefs)
+                    .err()
+                    .map(crate::error_ui::capture);
+            }
             if auto_save_changed {
                 self.settings_error = self
                     .set_auto_save(auto_save, auto_save_seconds, &prefs)
@@ -261,7 +275,7 @@ impl App {
                 .data_mut(|data| data.get_temp::<String>(prefix_id))
                 .unwrap_or_default();
             egui::Modal::new(egui::Id::new("asset-import"))
-                .frame(shell::dialog_frame())
+                .frame(shell::dialog_frame_for(ctx))
                 .show(ctx, |ui| {
                     ui.set_width(380.0);
                     cancel |= shell::dialog_header(ui, &tr("导入素材"));
@@ -384,33 +398,43 @@ impl App {
                 self.asset_import_dialog = None;
                 self.image_import_target = None;
             } else if choose_folder {
-                if let Some(folder) = rfd::FileDialog::new().pick_folder() {
-                    match crate::content_panel::portrait_files(&folder, &folder_prefix) {
-                        Ok(paths) => draft.select_files(paths),
-                        Err(error) => draft.error = Some(crate::error_ui::capture(error)),
+                match crate::file_dialog::asset_folder() {
+                    Ok(Some(folder)) => {
+                        match crate::content_panel::portrait_files(&folder, &folder_prefix) {
+                            Ok(paths) => draft.select_files(paths),
+                            Err(error) => draft.error = Some(crate::error_ui::capture(error)),
+                        }
                     }
+                    Ok(None) => {}
+                    Err(error) => draft.error = Some(crate::error_ui::capture(error)),
                 }
             } else if choose_files {
-                let dialog = rfd::FileDialog::new();
+                let library = (self.image_import_target.is_some()
+                    && self.preview.library.join("preview_map.json").is_file())
+                .then_some(self.preview.library.as_path());
                 let paths = if draft.kind == 8 {
-                    dialog.add_filter("PNG 动画帧", &["png"]).pick_files()
+                    crate::file_dialog::asset_files_in("PNG 动画帧", &["png"], true, library)
                 } else if draft.kind == 1 {
-                    dialog
-                        .add_filter("PNG / JPEG", &["png", "jpg", "jpeg"])
-                        .pick_files()
+                    crate::file_dialog::asset_files_in(
+                        "PNG / JPEG",
+                        &["png", "jpg", "jpeg"],
+                        true,
+                        library,
+                    )
                 } else if draft.kind == 0 || draft.kind >= 5 {
-                    dialog
-                        .add_filter("PNG / JPEG", &["png", "jpg", "jpeg"])
-                        .pick_file()
-                        .map(|path| vec![path])
+                    crate::file_dialog::asset_files_in(
+                        "PNG / JPEG",
+                        &["png", "jpg", "jpeg"],
+                        false,
+                        library,
+                    )
                 } else {
-                    dialog
-                        .add_filter("WAV / OGG", &["wav", "ogg"])
-                        .pick_file()
-                        .map(|path| vec![path])
+                    crate::file_dialog::asset_files_in("WAV / OGG", &["wav", "ogg"], false, library)
                 };
-                if let Some(paths) = paths {
-                    draft.select_files(paths);
+                match paths {
+                    Ok(Some(paths)) => draft.select_files(paths),
+                    Ok(None) => {}
+                    Err(error) => draft.error = Some(crate::error_ui::capture(error)),
                 }
             } else if submit {
                 if let Err(error) = self.commit_asset_import() {
@@ -447,7 +471,7 @@ impl App {
             let mut submit = false;
             let mut cancel = false;
             egui::Modal::new(egui::Id::new("chapter-delete"))
-                .frame(shell::dialog_frame())
+                .frame(shell::dialog_frame_for(ctx))
                 .show(ctx, |ui| {
                     ui.set_width(440.0_f32.min(ctx.content_rect().width() - 60.0));
                     cancel |= shell::dialog_header(ui, &tr("删除章节"));
@@ -525,7 +549,7 @@ impl App {
                 ChapterAction::NewGroup | ChapterAction::RenameGroup(_)
             );
             egui::Modal::new(egui::Id::new("chapter-create"))
-                .frame(shell::dialog_frame())
+                .frame(shell::dialog_frame_for(ctx))
                 .show(ctx, |ui| {
                     ui.set_width(360.0);
                     cancel |= shell::dialog_header(ui, &tr(title));
@@ -581,7 +605,7 @@ impl App {
                 RenameTarget::Chapter(_) => "修改章节标识",
             };
             egui::Modal::new(egui::Id::new("advanced-rename"))
-                .frame(shell::dialog_frame())
+                .frame(shell::dialog_frame_for(ctx))
                 .show(ctx, |ui| {
                     ui.set_width(380.0);
                     cancel |= shell::dialog_header(ui, &tr(title));
@@ -620,7 +644,7 @@ impl App {
             let mut insert = false;
             let structured = self.story()["vanilla_import"]["schema"] == 2;
             egui::Modal::new(egui::Id::new("template-boundary"))
-                .frame(shell::dialog_frame())
+                .frame(shell::dialog_frame_for(ctx))
                 .show(ctx, |ui| {
                     ui.set_width(460.0);
                     cancel |= shell::dialog_header(ui, &tr("模板边界引用"));
@@ -668,44 +692,62 @@ impl App {
             let mut cancel = false;
             let mut save = false;
             let mut discard = false;
+            let waiting = self.waiting_to_continue();
             egui::Modal::new(egui::Id::new("unsaved-changes"))
-                .frame(shell::dialog_frame())
+                .frame(shell::dialog_frame_for(ctx))
                 .show(ctx, |ui| {
                     ui.set_width(420.0);
                     cancel |= shell::dialog_header(ui, &tr("尚有未保存修改"));
-                    ui.label(tr("保存整个项目后再继续，或放弃本次修改。"));
+                    if waiting {
+                        ui.horizontal(|ui| {
+                            ui.spinner();
+                            ui.label(tr("正在完成保存，请稍候。"));
+                        });
+                    } else {
+                        ui.label(tr("保存整个项目后再继续，或放弃本次修改。"));
+                    }
                     ui.add_space(20.0);
                     shell::dialog_buttons(ui, |ui| {
                         save = ui
-                            .add_sized(
-                                [108.0, 30.0],
-                                egui::Button::new(
-                                    RichText::new(tr("保存并继续")).color(Color32::WHITE),
+                            .add_enabled_ui(!waiting, |ui| {
+                                ui.add_sized(
+                                    [108.0, 30.0],
+                                    egui::Button::new(RichText::new(tr("保存并继续")).color(
+                                        if ui.visuals().dark_mode {
+                                            Color32::from_rgb(20, 26, 34)
+                                        } else {
+                                            Color32::WHITE
+                                        },
+                                    ))
+                                    .fill(shell::accent_for(ctx)),
                                 )
-                                .fill(ACCENT),
-                            )
+                            })
+                            .inner
                             .clicked();
                         cancel |= ui
                             .add_sized([80.0, 30.0], egui::Button::new(tr("取消")))
                             .clicked();
                         discard = ui
-                            .add_sized([96.0, 30.0], egui::Button::new(tr("放弃修改")))
+                            .add_enabled_ui(!waiting, |ui| {
+                                ui.add_sized([96.0, 30.0], egui::Button::new(tr("放弃修改")))
+                            })
+                            .inner
                             .clicked();
                     });
                 });
             if cancel || escape_pressed {
-                self.pending = None;
-            } else if discard || (save && self.save(false)) {
-                if let Some(action) = self.pending.take() {
-                    self.perform(action, ctx);
-                }
+                self.cancel_pending_action();
+            } else if discard {
+                self.discard_and_continue(ctx);
+            } else if save {
+                self.save_and_continue();
             }
             return;
         }
         if !self.recovery_candidates.is_empty() && self.screenshot.is_none() {
             let mut close = false;
             egui::Modal::new(egui::Id::new("recovery-candidates"))
-                .frame(shell::dialog_frame())
+                .frame(shell::dialog_frame_for(ctx))
                 .show(ctx, |ui| {
                     ui.set_width(500.0_f32.min(ctx.content_rect().width() - 80.0));
                     close |=

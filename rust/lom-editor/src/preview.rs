@@ -17,6 +17,8 @@ mod flow_graph;
 #[path = "preview_handles.rs"]
 mod handles;
 use handles::{opaque_bounds, LayoutClipboard, LayoutCommand, LayoutDrag, LayoutObject};
+#[path = "preview_simulation.rs"]
+mod simulation;
 #[path = "preview/stage_inspector.rs"]
 mod stage_inspector;
 #[cfg(test)]
@@ -159,15 +161,19 @@ fn portrait_action(node: &Value, selected: Option<usize>) -> Option<usize> {
         })
 }
 
+#[cfg(test)]
 fn portrait_preview_node(story: &Value, selected: usize, action: Option<usize>) -> Value {
     let parent = &story["nodes"][selected];
+    let state = simulate(story, text(parent, "id"));
+    portrait_node_with_state(parent, action, &state)
+}
+fn portrait_node_with_state(parent: &Value, action: Option<usize>, state: &Value) -> Value {
     let mut node = portrait_action(parent, action)
         .and_then(|index| lom_core::parallel::actions(parent).get(index))
         .unwrap_or(parent)
         .clone();
     let cid = text(&node, "character").to_owned();
     if !cid.is_empty() {
-        let state = simulate(story, text(parent, "id"));
         if let Some(actor) = state["actors"]
             .get(&cid)
             .or_else(|| state["hidden_actors"].get(&cid))
@@ -215,7 +221,7 @@ fn highlight_editing_character(
         actor["dimmed"] = json!(false);
     }
 }
-fn simulate_until(story: &Value, target: &str, include_target: bool) -> Value {
+fn initial_state(story: &Value) -> Value {
     let mut state = json!({"actors":{},"dimming":{},"overlays":{},"official_pictures":{},"background":null,"view":null,"custom_cg":null,"dialog":null,"choice":null,"blackout":{"amount":0.0,"dir":"lr"},"reached":false,"steps":0});
     state["hidden_actors"] = json!({});
     state["dimming_modes"] = json!({});
@@ -225,6 +231,10 @@ fn simulate_until(story: &Value, target: &str, include_target: bool) -> Value {
     state["camera_filters"] = json!({});
     state["camera_filter_exclusions"] = json!({});
     state["render_priorities"] = json!([]);
+    state
+}
+fn simulate_until(story: &Value, target: &str, include_target: bool) -> Value {
+    let mut state = initial_state(story);
     let Some(ns) = story["nodes"].as_array() else {
         return state;
     };
@@ -250,7 +260,8 @@ fn simulate_until(story: &Value, target: &str, include_target: bool) -> Value {
     state
 }
 pub fn build_playtest_prelude(story: &Value, target: &str) -> Vec<Value> {
-    let state = simulate_until(story, target, false);
+    let mut state = simulate_until(story, target, false);
+    restore_narration_highlight(&mut state);
     let mut nodes = Vec::new();
     nodes.extend(
         state["render_priorities"]
@@ -399,10 +410,54 @@ pub fn build_playtest_prelude(story: &Value, target: &str) -> Vec<Value> {
     }
     nodes
 }
+fn restore_narration_highlight(state: &mut Value) {
+    let Some(previous) = state
+        .as_object_mut()
+        .and_then(|state| state.remove("_narration_dimmed"))
+    else {
+        return;
+    };
+    for (id, dimmed) in previous.as_object().into_iter().flatten() {
+        if let Some(actor) = state["actors"].get_mut(id) {
+            actor["dimmed"] = dimmed.clone();
+        }
+    }
+}
+
+fn begin_step(state: &mut Value) {
+    restore_narration_highlight(state);
+    state["dialog"] = Value::Null;
+    state["choice"] = Value::Null;
+    state["dialogue_mood"] = Value::Null;
+}
+
+fn apply_narration_highlight(state: &mut Value, node: &Value) -> bool {
+    if node["mode"] != "narrative" {
+        return false;
+    }
+    let ids: Vec<_> = node["highlight_characters"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .filter(|id| !id.is_empty())
+        .collect();
+    if ids.is_empty() {
+        return false;
+    }
+    let mut previous = serde_json::Map::new();
+    for (id, actor) in state["actors"].as_object_mut().into_iter().flatten() {
+        previous.insert(id.clone(), actor["dimmed"].clone());
+        actor["dimmed"] = json!(!ids.iter().any(|selected| *selected == id.as_str()));
+    }
+    state["_narration_dimmed"] = Value::Object(previous);
+    state["speaker"] = json!("");
+    state["dialog"] = node.clone();
+    true
+}
+
 fn apply(s: &mut Value, n: &Value) {
-    s["dialog"] = Value::Null;
-    s["choice"] = Value::Null;
-    s["dialogue_mood"] = Value::Null;
+    begin_step(s);
     let kind = text(n, "type");
     let cid = if kind == "say" && n["mode"] == "offscreen" {
         ""
@@ -480,8 +535,23 @@ fn apply(s: &mut Value, n: &Value) {
             s["raw_preview"] = json!(report);
         }
         "parallel" => {
-            for action in lom_core::parallel::actions(n) {
-                apply(s, action);
+            let actions = lom_core::parallel::actions(n);
+            if actions
+                .iter()
+                .any(|action| lom_core::parallel::start_delay(action) > 0.0)
+            {
+                let mut ordered: Vec<_> = actions.iter().collect();
+                ordered.sort_by(|left, right| {
+                    lom_core::parallel::start_delay(left)
+                        .total_cmp(&lom_core::parallel::start_delay(right))
+                });
+                for action in ordered {
+                    apply(s, action);
+                }
+            } else {
+                for action in actions {
+                    apply(s, action);
+                }
             }
         }
         "transition" => {
@@ -646,6 +716,9 @@ fn apply(s: &mut Value, n: &Value) {
             }
         }
         "say" => {
+            if apply_narration_highlight(s, n) {
+                return;
+            }
             if !cid.is_empty()
                 && matches!(
                     n["mode"].as_str().unwrap_or("character"),
@@ -759,11 +832,15 @@ pub(crate) fn action_duration(action: &Value) -> f64 {
         + number(action, "wait_after", 0.0).max(0.0)
 }
 
+pub(crate) fn parallel_action_duration(action: &Value) -> f64 {
+    lom_core::parallel::start_delay(action) + action_duration(action)
+}
+
 pub fn playback_duration(node: &Value) -> f64 {
     if node["type"] == "parallel" {
         lom_core::parallel::actions(node)
             .iter()
-            .map(action_duration)
+            .map(parallel_action_duration)
             .fold(0.0, f64::max)
             .max(0.1)
     } else {
@@ -795,8 +872,8 @@ fn position(positions: &Value, name: &str) -> (f64, f64) {
     (number(entry, "x", 0.5), number(entry, "feet", 1.003))
 }
 
-/// All children read the same elapsed time. Each retains its own duration;
-/// a short movement reaches its endpoint while its sibling keeps moving.
+/// Actions use the group clock minus their own start delay; shorter animations
+/// still reach their endpoints while later siblings keep moving.
 #[cfg(test)]
 fn simulate_frame(story: &Value, target: &str, elapsed: f64, positions: &Value) -> Value {
     let mut state = simulate(story, target);
@@ -813,193 +890,241 @@ fn simulate_frame(story: &Value, target: &str, elapsed: f64, positions: &Value) 
 }
 
 fn animate_frame(state: &mut Value, before: &Value, node: &Value, elapsed: f64, positions: &Value) {
-    for action in lom_core::parallel::actions(node) {
-        if action["type"] == "cg" && action["kind"] == "big" {
-            let ease = |t: f64| {
-                let t = t.clamp(0.0, 1.0);
-                1.0 - (1.0 - t) * (1.0 - t)
-            };
-            if action["action"] == "hide" {
-                let fade = number(action, "fade_out", 1.0);
-                if elapsed < fade && fade > 0.0 {
-                    state["official_pictures"]["big"] = before["official_pictures"]["big"].clone();
-                    state["official_pictures"]["big"]["preview_opacity"] =
-                        json!(1.0 - ease(elapsed / fade));
-                }
-            } else {
-                let fade = number(action, "fade_in", 1.0);
-                state["official_pictures"]["big"]["preview_opacity"] = json!(if fade > 0.0 {
-                    ease(elapsed / fade)
-                } else {
-                    1.0
-                });
-                state["official_pictures"]["big"]["preview_image_opacity"] = json!(if fade > 0.0 {
-                    ease((elapsed - fade) / fade)
-                } else {
-                    1.0
-                });
+    let restored;
+    let before = if before.get("_narration_dimmed").is_some() {
+        let mut value = before.clone();
+        restore_narration_highlight(&mut value);
+        restored = value;
+        &restored
+    } else {
+        before
+    };
+    let actions = lom_core::parallel::actions(node);
+    if node["type"] == "parallel"
+        && actions
+            .iter()
+            .any(|action| lom_core::parallel::start_delay(action) > 0.0)
+    {
+        let mut ordered: Vec<_> = actions.iter().collect();
+        ordered.sort_by(|left, right| {
+            lom_core::parallel::start_delay(left).total_cmp(&lom_core::parallel::start_delay(right))
+        });
+        let mut partial = before.clone();
+        begin_step(&mut partial);
+        for action in &ordered {
+            if elapsed >= lom_core::parallel::start_delay(action) {
+                apply(&mut partial, action);
             }
-            continue;
         }
-        if action["type"] == "hide_all" {
-            let fade = number(action, "fadeDuration", 0.0);
-            if fade > elapsed && fade > 0.0 {
-                for (cid, actor) in before["actors"].as_object().into_iter().flatten() {
-                    state["actors"][cid] = actor.clone();
-                    state["actors"][cid]["preview_opacity"] =
-                        (1.0 - elapsed / fade).clamp(0.0, 1.0).into();
-                    state["actors"][cid]["preview_hide_mood"] = true.into();
-                }
+        for field in ["reached", "steps", "effects"] {
+            partial[field] = state[field].clone();
+        }
+        *state = partial;
+        for action in ordered {
+            let local = elapsed - lom_core::parallel::start_delay(action);
+            if local >= 0.0 {
+                animate_action(state, before, node, action, local, positions);
             }
-            continue;
         }
-        if action["type"] == "transition" {
-            let from = number(&before["blackout"], "amount", 0.0);
-            let to = if action["phase"] == "in" { 1.0 } else { 0.0 };
-            let progress = (elapsed / PREVIEW_TRANSITION_SECONDS).clamp(0.0, 1.0);
-            state["blackout"]["amount"] = (from + (to - from) * progress).into();
-            continue;
+    } else {
+        for action in actions {
+            animate_action(state, before, node, action, elapsed, positions);
         }
-        if let Some(picture) =
-            crate::preview_event_fade::fading_event_picture(before, action, elapsed)
-        {
-            state["official_pictures"]["event"] = picture;
-            continue;
-        }
-        if action["type"] == "cg" && action["kind"] == "event" && action["action"] == "show" {
-            let fade = number(action, "fade_in", 0.0);
-            state["official_pictures"]["event"]["preview_opacity"] = if fade > 0.0 {
-                (elapsed / fade).clamp(0.0, 1.0)
-            } else {
-                1.0
-            }
-            .into();
-            if elapsed < fade {
-                state["dialog"] = before["dialog"].clone();
-            }
-            continue;
-        }
-        if action["type"] == "camera" {
-            let name = text(action, "name");
-            let duration = number(action, "duration", 0.0);
-            let progress = if duration <= 0.0 {
-                1.0
-            } else {
-                (elapsed / duration).clamp(0.0, 1.0)
-            };
-            let progress = 1.0 - (1.0 - progress).powi(2);
-            let from = if before["camera_filters"][name] == true {
-                1.0
-            } else {
-                0.0
-            };
-            let to = if action["active"] == true { 1.0 } else { 0.0 };
-            let weight = from + (to - from) * progress;
-            state["camera_filter_weights"][name] = json!(weight);
-            state["camera_filters"][name] = json!(weight > 0.0);
-            if action["active"] == false && progress < 1.0 {
-                if let Some(ids) = before["camera_filter_exclusions"].get(name) {
-                    state["camera_filter_exclusions"][name] = ids.clone();
-                }
-            }
-            continue;
-        }
-        let cid = text(action, "character");
-        if cid.is_empty() {
-            continue;
-        }
-        let old = &before["actors"][cid];
-        let progress = |duration: f64| {
-            if duration <= 0.0 {
-                1.0
-            } else {
-                (elapsed / duration).clamp(0.0, 1.0)
-            }
+    }
+}
+
+fn animate_action(
+    state: &mut Value,
+    before: &Value,
+    node: &Value,
+    action: &Value,
+    elapsed: f64,
+    positions: &Value,
+) {
+    if action["type"] == "cg" && action["kind"] == "big" {
+        let ease = |t: f64| {
+            let t = t.clamp(0.0, 1.0);
+            1.0 - (1.0 - t) * (1.0 - t)
         };
-        match text(action, "type") {
-            "hide" if old.is_object() => {
-                let alpha = 1.0 - progress(number(action, "fadeDuration", 0.0));
-                if alpha > 0.0 {
-                    state["actors"][cid] = old.clone();
-                    state["actors"][cid]["preview_opacity"] = alpha.into();
-                    state["actors"][cid]["preview_hide_mood"] = true.into();
-                }
+        if action["action"] == "hide" {
+            let fade = number(action, "fade_out", 1.0);
+            if elapsed < fade && fade > 0.0 {
+                state["official_pictures"]["big"] = before["official_pictures"]["big"].clone();
+                state["official_pictures"]["big"]["preview_opacity"] =
+                    json!(1.0 - ease(elapsed / fade));
             }
-            "portrait" if old.is_object() => {
-                let fade_out = number(action, "fade_out", 0.5);
-                let fade_in = number(action, "fade_in", 1.5);
-                let alpha = if elapsed < fade_out {
-                    let explicit_dimming = lom_core::parallel::actions(node)
-                        .iter()
-                        .any(|other| other["type"] == "dim" && text(other, "character") == cid);
-                    let dimmed = state["actors"][cid]["dimmed"].clone();
-                    state["actors"][cid] = old.clone();
-                    if explicit_dimming {
-                        state["actors"][cid]["dimmed"] = dimmed;
-                    }
-                    1.0 - progress(fade_out)
-                } else if fade_in > 0.0 {
-                    ((elapsed - fade_out) / fade_in).clamp(0.0, 1.0)
-                } else {
-                    1.0
-                };
-                state["actors"][cid]["preview_opacity"] = alpha.into();
-                state["actors"][cid]["preview_hide_mood"] = (elapsed < fade_out + fade_in).into();
-            }
-            "show" => {
-                if state["actors"][cid].is_object() {
-                    state["actors"][cid]["preview_opacity"] =
-                        progress(number(action, "fadeDuration", 0.0)).into();
-                }
-            }
-            "move" if old.is_object() => {
-                let from = if cid.starts_with("user:") {
-                    // CustomCharacterRuntime.Move starts a visible actor at
-                    // its current location, including an earlier offset.
-                    let base = position(positions, text(old, "position"));
-                    (
-                        base.0 + number(old, "offset_x", 0.0) / 1920.0,
-                        base.1 - number(old, "offset_y", 0.0) / 1080.0,
-                    )
-                } else {
-                    position(
-                        positions,
-                        action["from"].as_str().unwrap_or(text(old, "position")),
-                    )
-                };
-                let to = position(positions, text(action, "to"));
-                let p = progress(number(action, "duration", 1.0));
-                state["actors"][cid]["preview_x"] = (from.0 + (to.0 - from.0) * p).into();
-                state["actors"][cid]["preview_feet"] = (from.1 + (to.1 - from.1) * p).into();
-            }
-            "shock" if old.is_object() => {
-                let duration = number(action, "duration", 0.5);
-                if elapsed > 0.0 && elapsed < duration {
-                    // A diminishing preview, without persisting motion into the layout.
-                    // The official flowchart uses iTween; the custom actor uses this
-                    // sine/cosine envelope. This is an editor illustration, not its RNG.
-                    let strength = 12.0 * (1.0 - elapsed / duration);
-                    let phase = elapsed * 70.0;
-                    state["actors"][cid]["preview_shock_x"] = (phase.sin() * strength).into();
-                    state["actors"][cid]["preview_shock_y"] =
-                        ((phase * 0.73).cos() * strength * 0.45).into();
-                }
-            }
-            "offset" | "rotate" if old.is_object() => {
-                let p = progress(number(action, "duration", 0.0));
-                let fields: &[&str] = if action["type"] == "rotate" {
-                    &["rotation"]
-                } else {
-                    &["offset_x", "offset_y"]
-                };
-                for field in fields {
-                    let start = number(old, field, 0.0);
-                    let end = number(&state["actors"][cid], field, start);
-                    state["actors"][cid][*field] = (start + (end - start) * p).into();
-                }
-            }
-            _ => {}
+        } else {
+            let fade = number(action, "fade_in", 1.0);
+            state["official_pictures"]["big"]["preview_opacity"] = json!(if fade > 0.0 {
+                ease(elapsed / fade)
+            } else {
+                1.0
+            });
+            state["official_pictures"]["big"]["preview_image_opacity"] = json!(if fade > 0.0 {
+                ease((elapsed - fade) / fade)
+            } else {
+                1.0
+            });
         }
+        return;
+    }
+    if action["type"] == "hide_all" {
+        let fade = number(action, "fadeDuration", 0.0);
+        if fade > elapsed && fade > 0.0 {
+            for (cid, actor) in before["actors"].as_object().into_iter().flatten() {
+                state["actors"][cid] = actor.clone();
+                state["actors"][cid]["preview_opacity"] =
+                    (1.0 - elapsed / fade).clamp(0.0, 1.0).into();
+                state["actors"][cid]["preview_hide_mood"] = true.into();
+            }
+        }
+        return;
+    }
+    if action["type"] == "transition" {
+        let from = number(&before["blackout"], "amount", 0.0);
+        let to = if action["phase"] == "in" { 1.0 } else { 0.0 };
+        let progress = (elapsed / PREVIEW_TRANSITION_SECONDS).clamp(0.0, 1.0);
+        state["blackout"]["amount"] = (from + (to - from) * progress).into();
+        return;
+    }
+    if let Some(picture) = crate::preview_event_fade::fading_event_picture(before, action, elapsed)
+    {
+        state["official_pictures"]["event"] = picture;
+        return;
+    }
+    if action["type"] == "cg" && action["kind"] == "event" && action["action"] == "show" {
+        let fade = number(action, "fade_in", 0.0);
+        state["official_pictures"]["event"]["preview_opacity"] = if fade > 0.0 {
+            (elapsed / fade).clamp(0.0, 1.0)
+        } else {
+            1.0
+        }
+        .into();
+        if elapsed < fade {
+            state["dialog"] = before["dialog"].clone();
+        }
+        return;
+    }
+    if action["type"] == "camera" {
+        let name = text(action, "name");
+        let duration = number(action, "duration", 0.0);
+        let progress = if duration <= 0.0 {
+            1.0
+        } else {
+            (elapsed / duration).clamp(0.0, 1.0)
+        };
+        let progress = 1.0 - (1.0 - progress).powi(2);
+        let from = if before["camera_filters"][name] == true {
+            1.0
+        } else {
+            0.0
+        };
+        let to = if action["active"] == true { 1.0 } else { 0.0 };
+        let weight = from + (to - from) * progress;
+        state["camera_filter_weights"][name] = json!(weight);
+        state["camera_filters"][name] = json!(weight > 0.0);
+        if action["active"] == false && progress < 1.0 {
+            if let Some(ids) = before["camera_filter_exclusions"].get(name) {
+                state["camera_filter_exclusions"][name] = ids.clone();
+            }
+        }
+        return;
+    }
+    let cid = text(action, "character");
+    if cid.is_empty() {
+        return;
+    }
+    let old = &before["actors"][cid];
+    let progress = |duration: f64| {
+        if duration <= 0.0 {
+            1.0
+        } else {
+            (elapsed / duration).clamp(0.0, 1.0)
+        }
+    };
+    match text(action, "type") {
+        "hide" if old.is_object() => {
+            let alpha = 1.0 - progress(number(action, "fadeDuration", 0.0));
+            if alpha > 0.0 {
+                state["actors"][cid] = old.clone();
+                state["actors"][cid]["preview_opacity"] = alpha.into();
+                state["actors"][cid]["preview_hide_mood"] = true.into();
+            }
+        }
+        "portrait" if old.is_object() => {
+            let fade_out = number(action, "fade_out", 0.5);
+            let fade_in = number(action, "fade_in", 1.5);
+            let alpha = if elapsed < fade_out {
+                let explicit_dimming = lom_core::parallel::actions(node)
+                    .iter()
+                    .any(|other| other["type"] == "dim" && text(other, "character") == cid);
+                let dimmed = state["actors"][cid]["dimmed"].clone();
+                state["actors"][cid] = old.clone();
+                if explicit_dimming {
+                    state["actors"][cid]["dimmed"] = dimmed;
+                }
+                1.0 - progress(fade_out)
+            } else if fade_in > 0.0 {
+                ((elapsed - fade_out) / fade_in).clamp(0.0, 1.0)
+            } else {
+                1.0
+            };
+            state["actors"][cid]["preview_opacity"] = alpha.into();
+            state["actors"][cid]["preview_hide_mood"] = (elapsed < fade_out + fade_in).into();
+        }
+        "show" => {
+            if state["actors"][cid].is_object() {
+                state["actors"][cid]["preview_opacity"] =
+                    progress(number(action, "fadeDuration", 0.0)).into();
+            }
+        }
+        "move" if old.is_object() => {
+            let from = if cid.starts_with("user:") {
+                // CustomCharacterRuntime.Move starts a visible actor at
+                // its current location, including an earlier offset.
+                let base = position(positions, text(old, "position"));
+                (
+                    base.0 + number(old, "offset_x", 0.0) / 1920.0,
+                    base.1 - number(old, "offset_y", 0.0) / 1080.0,
+                )
+            } else {
+                position(
+                    positions,
+                    action["from"].as_str().unwrap_or(text(old, "position")),
+                )
+            };
+            let to = position(positions, text(action, "to"));
+            let p = progress(number(action, "duration", 1.0));
+            state["actors"][cid]["preview_x"] = (from.0 + (to.0 - from.0) * p).into();
+            state["actors"][cid]["preview_feet"] = (from.1 + (to.1 - from.1) * p).into();
+        }
+        "shock" if old.is_object() => {
+            let duration = number(action, "duration", 0.5);
+            if elapsed > 0.0 && elapsed < duration {
+                // A diminishing preview, without persisting motion into the layout.
+                // The official flowchart uses iTween; the custom actor uses this
+                // sine/cosine envelope. This is an editor illustration, not its RNG.
+                let strength = 12.0 * (1.0 - elapsed / duration);
+                let phase = elapsed * 70.0;
+                state["actors"][cid]["preview_shock_x"] = (phase.sin() * strength).into();
+                state["actors"][cid]["preview_shock_y"] =
+                    ((phase * 0.73).cos() * strength * 0.45).into();
+            }
+        }
+        "offset" | "rotate" if old.is_object() => {
+            let p = progress(number(action, "duration", 0.0));
+            let fields: &[&str] = if action["type"] == "rotate" {
+                &["rotation"]
+            } else {
+                &["offset_x", "offset_y"]
+            };
+            for field in fields {
+                let start = number(old, field, 0.0);
+                let end = number(&state["actors"][cid], field, start);
+                state["actors"][cid][*field] = (start + (end - start) * p).into();
+            }
+        }
+        _ => {}
     }
 }
 
@@ -1123,7 +1248,6 @@ enum AssetSource<'a> {
     Library(PathBuf),
 }
 struct Simulation {
-    story: Value,
     target: String,
     before: Value,
     after: Value,
@@ -1164,6 +1288,7 @@ pub struct Preview {
     pub library: PathBuf,
     positions: Value,
     simulation: Option<Simulation>,
+    simulation_cache: simulation::Cache,
     cache: BTreeMap<String, Cached>,
     tick: u64,
     mood_clocks: BTreeMap<String, (String, f64)>,
@@ -1225,6 +1350,7 @@ impl Preview {
             library,
             positions,
             simulation: None,
+            simulation_cache: simulation::Cache::default(),
             cache: BTreeMap::new(),
             tick: 0,
             mood_clocks: BTreeMap::new(),
@@ -1263,6 +1389,7 @@ impl Preview {
                 self.effect_library = Some(std::sync::Arc::new(library));
                 self.effect_library_error = None;
                 self.simulation = None;
+                self.simulation_cache = simulation::Cache::default();
                 Ok(())
             }
             Err(error) => {
@@ -1273,24 +1400,44 @@ impl Preview {
     }
 
     pub fn state(&mut self, story: &Value, target: &str) -> &Value {
-        if self.simulation.as_ref().is_none_or(|cached| {
-            cached.target != target || !crate::json::same(&cached.story, story)
-        }) {
-            self.simulation = Some(Simulation {
-                story: story.clone(),
-                target: target.to_owned(),
-                before: simulate_until(story, target, false),
-                after: simulate(story, target),
-                has_effects: lom_core::parallel::story_actions(story)
-                    .any(|(_, node)| node["type"] == "effect"),
-                effects: effects::prepare(story, target, true, self.effect_library.as_deref()),
-            });
+        self.state_with_revision(story, target, None)
+    }
+
+    /// The caller must change the revision whenever the selected story changes,
+    /// including chapter switches, undo and project loading.
+    pub fn state_versioned(&mut self, story: &Value, target: &str, revision: u64) -> &Value {
+        self.state_with_revision(story, target, Some(revision))
+    }
+
+    fn state_with_revision(
+        &mut self,
+        story: &Value,
+        target: &str,
+        revision: Option<u64>,
+    ) -> &Value {
+        let changed = self.simulation_cache.synchronize(story, revision);
+        if changed
+            || self
+                .simulation
+                .as_ref()
+                .is_none_or(|cached| cached.target != target)
+        {
+            self.simulation = Some(self.simulation_cache.simulate(
+                story,
+                target,
+                self.effect_library.as_deref(),
+            ));
         }
         &self.simulation.as_ref().unwrap().after
     }
 
     pub fn state_before(&mut self, story: &Value, target: &str) -> &Value {
         self.state(story, target);
+        &self.simulation.as_ref().unwrap().before
+    }
+
+    pub fn state_before_versioned(&mut self, story: &Value, target: &str, revision: u64) -> &Value {
+        self.state_versioned(story, target, revision);
         &self.simulation.as_ref().unwrap().before
     }
 
@@ -1868,6 +2015,30 @@ impl Preview {
         index: usize,
         elapsed: Option<f64>,
     ) -> Option<String> {
+        self.show_with_revision(ui, p, story, index, elapsed, None)
+    }
+
+    pub fn show_versioned(
+        &mut self,
+        ui: &mut egui::Ui,
+        p: &Project,
+        story: &Value,
+        index: usize,
+        elapsed: Option<f64>,
+        revision: u64,
+    ) -> Option<String> {
+        self.show_with_revision(ui, p, story, index, elapsed, Some(revision))
+    }
+
+    fn show_with_revision(
+        &mut self,
+        ui: &mut egui::Ui,
+        p: &Project,
+        story: &Value,
+        index: usize,
+        elapsed: Option<f64>,
+        revision: Option<u64>,
+    ) -> Option<String> {
         let ctx = ui.ctx().clone();
         let node = &story["nodes"][index];
         let target = text(node, "id");
@@ -1879,7 +2050,7 @@ impl Preview {
             self.mood_clocks.clear();
             self.layout_context = context;
         }
-        let mut state = self.state(story, target).clone();
+        let mut state = self.state_with_revision(story, target, revision).clone();
         if state["camera_filters"]
             .as_object()
             .is_some_and(|items| items.values().any(|active| active == true))
@@ -3076,6 +3247,28 @@ impl Preview {
         story: &Value,
         selected: usize,
     ) {
+        self.show_portrait_with_revision(ui, project, story, selected, None);
+    }
+
+    pub fn show_portrait_versioned(
+        &mut self,
+        ui: &mut egui::Ui,
+        project: &Project,
+        story: &Value,
+        selected: usize,
+        revision: u64,
+    ) {
+        self.show_portrait_with_revision(ui, project, story, selected, Some(revision));
+    }
+
+    fn show_portrait_with_revision(
+        &mut self,
+        ui: &mut egui::Ui,
+        project: &Project,
+        story: &Value,
+        selected: usize,
+        revision: Option<u64>,
+    ) {
         let parent = &story["nodes"][selected];
         let target = text(parent, "id");
         let selection_id = egui::Id::new("preview-character-action");
@@ -3109,7 +3302,11 @@ impl Preview {
                 });
             }
         }
-        let resolved = portrait_preview_node(story, selected, action);
+        let resolved = portrait_node_with_state(
+            parent,
+            action,
+            self.state_with_revision(story, target, revision),
+        );
         let node = &resolved;
         let cid = text(node, "character");
         if cid.is_empty() {
@@ -4168,7 +4365,12 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let mut preview = Preview::new(Path::new("/not-a-repository"));
         preview.effect_library = None;
+        let story = json!({"start":"rain","nodes":[
+            {"id":"rain","type":"effect","name":"Rain_001"},
+            {"id":"glow","type":"effect","name":"Glow_001"}
+        ]});
         for (index, name) in ["Rain_001", "Glow_001"].iter().enumerate() {
+            preview.state_versioned(&story, "glow", 7);
             let directory = temp.path().join(index.to_string());
             std::fs::create_dir(&directory).unwrap();
             std::fs::write(directory.join("frame.png"), []).unwrap();
@@ -4191,6 +4393,23 @@ mod tests {
             } else {
                 preview.set_effect_library(&directory).unwrap();
             }
+            preview.state_versioned(&story, "glow", 7);
+            let captured = preview
+                .simulation
+                .as_ref()
+                .unwrap()
+                .effects
+                .sample(0.0, preview.effect_library.as_deref());
+            assert_eq!(
+                captured
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .find(|effect| effect["name"] == *name)
+                    .unwrap()["cache_status"],
+                "play",
+                "loading new frames invalidates checkpoints even at the same document revision"
+            );
         }
         let library = preview.effect_library.as_ref().unwrap();
         assert!(library.contains("Rain_001") && library.contains("Glow_001"));
@@ -5115,6 +5334,93 @@ end
         assert_eq!(playback_duration(&story["nodes"][1]), 2.0);
         assert_eq!(simulate(&story, "say")["dialog"]["text"], "两人都已到位");
         assert_eq!(story, original);
+    }
+    #[test]
+    fn parallel_start_delays_preserve_old_stage_until_each_action_begins() {
+        let positions: Value =
+            serde_json::from_str(include_str!("../../../data/stage_positions.json")).unwrap();
+        let story = json!({"start":"enter","nodes":[
+            {"id":"enter","type":"parallel","actions":[
+                {"type":"show","character":"a","position":"L1"},
+                {"type":"show","character":"b","position":"R1"}]},
+            {"id":"delayed","type":"parallel","actions":[
+                {"type":"move","character":"a","from":"L1","to":"R1","duration":1.0,"start_delay":1.0},
+                {"type":"hide","character":"b","fadeDuration":1.0,"start_delay":0.5},
+                {"type":"show","character":"c","position":"M","fadeDuration":1.0,"start_delay":2.0},
+                {"type":"camera","name":"Gray","active":true,"duration":1.0,"start_delay":0.25}]},
+            {"id":"line","type":"say","mode":"narrative","text":"结束"}
+        ]});
+        let original = story.clone();
+        let early = simulate_frame(&story, "delayed", 0.2, &positions);
+        assert_eq!(early["actors"]["a"]["position"], "L1");
+        assert!(early["actors"]["a"].get("preview_x").is_none());
+        assert!(early["actors"].get("b").is_some());
+        assert!(early["actors"].get("c").is_none());
+        assert!(early["camera_filters"].get("Gray").is_none());
+        let first = simulate_frame(&story, "delayed", 0.75, &positions);
+        assert_eq!(first["actors"]["b"]["preview_opacity"], 0.75);
+        assert_eq!(first["camera_filter_weights"]["Gray"], 0.75);
+        assert_eq!(first["actors"]["a"]["position"], "L1");
+        let middle = simulate_frame(&story, "delayed", 1.5, &positions);
+        let from = position(&positions, "L1").0;
+        let to = position(&positions, "R1").0;
+        assert!(
+            (number(&middle["actors"]["a"], "preview_x", 0.0) - (from + to) / 2.0).abs() < 1e-6
+        );
+        assert!(middle["actors"].get("b").is_none());
+        assert!(middle["actors"].get("c").is_none());
+        let late = simulate_frame(&story, "delayed", 2.5, &positions);
+        assert_eq!(late["actors"]["c"]["preview_opacity"], 0.5);
+        assert_eq!(playback_duration(&story["nodes"][1]), 3.0);
+        assert_eq!(simulate(&story, "line")["actors"]["a"]["position"], "R1");
+        assert_eq!(story, original);
+    }
+
+    #[test]
+    fn narrative_character_highlights_are_temporary_and_preserve_explicit_dimming() {
+        let story = json!({"start":"enter","nodes":[
+            {"id":"enter","type":"parallel","actions":[
+                {"type":"show","character":"a"}, {"type":"show","character":"b"},
+                {"type":"show","character":"user:c"},
+                {"type":"dim","character":"a","dimmed":false,"mode":"until_dialogue"},
+                {"type":"dim","character":"b","dimmed":true,"mode":"manual"}]},
+            {"id":"focus","type":"say","mode":"narrative","text":"两人","highlight_characters":["b","user:c"]},
+            {"id":"wait","type":"wait","seconds":1.0},
+            {"id":"line","type":"say","character":"a","text":"下一句"}
+        ]});
+        let focused = simulate(&story, "focus");
+        assert_eq!(focused["actors"]["a"]["dimmed"], true);
+        assert_eq!(focused["actors"]["b"]["dimmed"], false);
+        assert_eq!(focused["actors"]["user:c"]["dimmed"], false);
+        assert_eq!(focused["dimming"]["a"], false);
+        assert_eq!(focused["dimming"]["b"], true);
+        assert_eq!(focused["dimming_modes"]["a"], "until_dialogue");
+        let restored = simulate(&story, "wait");
+        assert_eq!(restored["actors"]["a"]["dimmed"], false);
+        assert_eq!(restored["actors"]["b"]["dimmed"], true);
+        assert!(restored.get("_narration_dimmed").is_none());
+        let spoken = simulate(&story, "line");
+        assert_eq!(spoken["actors"]["a"]["dimmed"], false);
+        assert_eq!(spoken["dimming_modes"]["a"], "auto");
+        assert_eq!(spoken["actors"]["b"]["dimmed"], true);
+        let prelude = build_playtest_prelude(&story, "wait");
+        assert!(prelude.iter().any(|node| node["type"] == "dim"
+            && node["character"] == "b"
+            && node["dimmed"] == true));
+        assert!(!prelude.iter().any(|node| node["type"] == "dim"
+            && node["character"] == "b"
+            && node["dimmed"] == false));
+        let mut empty = story.clone();
+        empty["nodes"][1]["highlight_characters"] = json!([]);
+        let mut absent = empty.clone();
+        absent["nodes"][1]
+            .as_object_mut()
+            .unwrap()
+            .remove("highlight_characters");
+        assert_eq!(
+            simulate(&empty, "focus")["actors"],
+            simulate(&absent, "focus")["actors"]
+        );
     }
     #[test]
     fn parallel_fades_keep_both_actors_until_their_own_fade_finishes() {

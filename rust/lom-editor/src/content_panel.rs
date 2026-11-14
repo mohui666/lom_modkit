@@ -5,6 +5,36 @@ use serde_json::{json, Value};
 use std::collections::BTreeMap;
 #[path = "content_alignment.rs"]
 mod alignment;
+
+/// The content input needed by recovery, without UI state or texture caches.
+pub(crate) struct PendingContentSnapshot {
+    key: String,
+    source: Vec<u8>,
+    draft: Value,
+    files: BTreeMap<String, Vec<u8>>,
+}
+
+impl PendingContentSnapshot {
+    pub(crate) fn apply_to_snapshot(&self, project: &mut Project) -> anyhow::Result<bool> {
+        apply_content_input(project, &self.key, &self.source, &self.draft, &self.files)
+    }
+}
+
+fn apply_content_input(
+    project: &mut Project,
+    key: &str,
+    source: &[u8],
+    draft: &Value,
+    files: &BTreeMap<String, Vec<u8>>,
+) -> anyhow::Result<bool> {
+    anyhow::ensure!(
+        project.assets.get(key).map(Vec::as_slice) == Some(source),
+        "素材已被其他操作修改；请撤销未完成的输入后重试"
+    );
+    content_edit::update(project, key, draft, files)?;
+    Ok(true)
+}
+
 #[derive(Default)]
 pub struct ContentPanel {
     key: String,
@@ -133,12 +163,15 @@ impl ContentPanel {
         if !self.has_pending() {
             return Ok(false);
         }
-        anyhow::ensure!(
-            project.assets.get(&self.key) == Some(&self.source),
-            "素材已被其他操作修改；请撤销未完成的输入后重试"
-        );
-        content_edit::update(project, &self.key, &self.draft, &self.files)?;
-        Ok(true)
+        apply_content_input(project, &self.key, &self.source, &self.draft, &self.files)
+    }
+    pub(crate) fn pending_snapshot(&self) -> Option<PendingContentSnapshot> {
+        self.has_pending().then(|| PendingContentSnapshot {
+            key: self.key.clone(),
+            source: self.source.clone(),
+            draft: self.draft.clone(),
+            files: self.files.clone(),
+        })
     }
     fn select(&mut self, project: &mut Project, selection: &mut String) -> bool {
         let mut changed = false;
@@ -378,10 +411,18 @@ impl ContentPanel {
                 ui.small(crate::i18n::key("workspace.content.portrait_hint"));
             }
             if kind == "character" && ui.button(tr("新增表情立绘…")).clicked() {
-                if let Some(paths) = rfd::FileDialog::new()
-                    .add_filter("立绘图片", &["png", "jpg", "jpeg"])
-                    .pick_files()
-                {
+                let paths = match crate::file_dialog::asset_files(
+                    "立绘图片",
+                    &["png", "jpg", "jpeg"],
+                    true,
+                ) {
+                    Ok(paths) => paths,
+                    Err(error) => {
+                        self.set_message(Err(error));
+                        None
+                    }
+                };
+                if let Some(paths) = paths {
                     let result = self
                         .add_portraits(&paths)
                         .map(|count| format!("已新增 {count} 张表情立绘"));
@@ -397,7 +438,14 @@ impl ContentPanel {
                         .hint_text(tr("文件名前缀（可选，用于文件夹导入）")),
                 );
                 if ui.button(tr("从文件夹批量新增表情…")).clicked() {
-                    if let Some(folder) = rfd::FileDialog::new().pick_folder() {
+                    let folder = match crate::file_dialog::asset_folder() {
+                        Ok(folder) => folder,
+                        Err(error) => {
+                            self.set_message(Err(error));
+                            None
+                        }
+                    };
+                    if let Some(folder) = folder {
                         let result = portrait_files(&folder, &self.portrait_prefix)
                             .and_then(|paths| self.add_portraits(&paths))
                             .map(|count| format!("已新增 {count} 张表情立绘"));
@@ -411,10 +459,14 @@ impl ContentPanel {
                 } else {
                     vec!["png", "jpg", "jpeg"]
                 };
-                if let Some(path) = rfd::FileDialog::new()
-                    .add_filter("素材", &extensions)
-                    .pick_file()
-                {
+                let path = match crate::file_dialog::asset_files("素材", &extensions, false) {
+                    Ok(paths) => paths.and_then(|paths| paths.into_iter().next()),
+                    Err(error) => {
+                        self.set_message(Err(error));
+                        None
+                    }
+                };
+                if let Some(path) = path {
                     let result = (|| -> anyhow::Result<()> {
                         let bytes = std::fs::read(&path)?;
                         let ext = path
@@ -671,10 +723,14 @@ impl ContentPanel {
         ui.separator();
         ui.strong(tr("招式帧动画"));
         if ui.button(tr("导入／追加 PNG 动画帧…")).clicked() {
-            if let Some(paths) = rfd::FileDialog::new()
-                .add_filter("PNG动画帧", &["png"])
-                .pick_files()
-            {
+            let paths = match crate::file_dialog::asset_files("PNG动画帧", &["png"], true) {
+                Ok(paths) => paths,
+                Err(error) => {
+                    self.set_message(Err(error));
+                    None
+                }
+            };
+            if let Some(paths) = paths {
                 let result = self
                     .append_animation_frames(project, &paths)
                     .map(|_| String::new());

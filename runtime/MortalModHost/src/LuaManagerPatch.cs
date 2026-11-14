@@ -1119,8 +1119,8 @@ namespace MortalModHost
             }, "mod_char_offset");
             script.Globals["mod_char_shock"] = new CallbackFunction((ctx, args) =>
             {
-                try { CustomCharacterRuntime.Shock(ArgString(args, 0), ArgFloat(args, 1, 0.5f)); }
-                catch (Exception ex) { Log.LogWarning("mod_char_shock 失败：" + ex.Message); }
+                if (!CustomCharacterRuntime.Shock(ArgString(args, 0), ArgFloat(args, 1, 0.5f)))
+                    throw new InvalidOperationException("震动人物尚未登场：" + ArgString(args, 0));
                 return DynValue.Nil;
             }, "mod_char_shock");
             script.Globals["mod_char_dim"] = new CallbackFunction((ctx, args) =>
@@ -1134,6 +1134,24 @@ namespace MortalModHost
                 CharacterDimming.SetMode(ArgString(args, 0), ArgBool(args, 1, true), ArgString(args, 2, "manual"));
                 return DynValue.Nil;
             }, "mod_char_dim_mode");
+            script.Globals["mod_begin_say_highlights"] = new CallbackFunction((ctx, args) =>
+            {
+                if (args.Count == 0 || args[0].Type != DataType.Table)
+                    throw new ArgumentException("旁白点亮人物必须是字符串数组");
+                var ids = new List<string>();
+                foreach (TablePair pair in args[0].Table.Pairs)
+                {
+                    if (pair.Value.Type != DataType.String) throw new ArgumentException("旁白点亮人物必须是字符串数组");
+                    ids.Add(pair.Value.String);
+                }
+                if (ids.Count > 0) CharacterDimming.BeginHighlights(ids);
+                return DynValue.Nil;
+            }, "mod_begin_say_highlights");
+            script.Globals["mod_end_say_highlights"] = new CallbackFunction((ctx, args) =>
+            {
+                CharacterDimming.EndHighlights();
+                return DynValue.Nil;
+            }, "mod_end_say_highlights");
             script.Globals["mod_camera_filter"] = new CallbackFunction((ctx, args) =>
             {
                 var characters = new List<string>();

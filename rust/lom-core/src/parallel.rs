@@ -31,6 +31,17 @@ pub const ACTION_TYPES: &[&str] = &[
     "render_priority",
 ];
 
+/// Start offset within the current group, measured on the game's clock.
+/// Validation rejects invalid authored values; editor previews tolerate an
+/// unfinished field in the same way as the other presentation durations.
+pub fn start_delay(action: &Value) -> f64 {
+    action["start_delay"]
+        .as_f64()
+        .filter(|value| value.is_finite())
+        .unwrap_or(0.0)
+        .max(0.0)
+}
+
 pub fn actions(node: &Value) -> &[Value] {
     if node["type"] == "parallel" {
         node["actions"].as_array().map(Vec::as_slice).unwrap_or(&[])
@@ -109,7 +120,6 @@ fn channels(node: &Value) -> Vec<String> {
         "music" => result.extend(["背景音乐".into(), "环境音".into()]),
         "sound" if node["kind"] == "env" || node["op"] == "fadeout" => result.push("环境音".into()),
         // The official shock flowchart has one shared Character/Duration pair.
-        "shock" if !character.starts_with("user:") => result.push("原版人物震动流图".into()),
         _ => {}
     }
     result
@@ -191,6 +201,7 @@ pub fn validate_group(node: &Value) -> Result<()> {
             "第 {number} 个同时动作：appearance 仅支持赵活 player 登场时的 game/original/beautified 外观"
         );
         for field in [
+            "start_delay",
             "duration",
             "seconds",
             "fade",

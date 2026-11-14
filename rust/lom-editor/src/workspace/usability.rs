@@ -205,7 +205,7 @@ impl App {
         }
         let mut location = None;
         egui::TopBottomPanel::bottom("project-problems")
-            .frame(surface(true))
+            .frame(surface(ctx, true))
             .default_height(170.0)
             .height_range(85.0..=350.0)
             .resizable(true)

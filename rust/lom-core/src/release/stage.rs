@@ -61,6 +61,13 @@ pub fn find_stage_issues(story: &Value) -> Vec<(String, String)> {
             [n["character"].as_str(), n["mood_character"].as_str()]
                 .into_iter()
                 .flatten()
+                .chain(
+                    n["highlight_characters"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .filter_map(Value::as_str),
+                )
         })
         .filter(|s| !s.is_empty())
         .map(str::to_owned)
@@ -148,6 +155,18 @@ pub fn find_stage_issues(story: &Value) -> Vec<(String, String)> {
                     [speaker, mood]
                         .into_iter()
                         .flatten()
+                        .chain(
+                            action["highlight_characters"]
+                                .as_array()
+                                .into_iter()
+                                .flatten()
+                                .filter_map(Value::as_str)
+                                .filter(|_| {
+                                    action["type"] == "say"
+                                        && action["mode"] == "narrative"
+                                        && action["inherit_dialog"] != true
+                                }),
+                        )
                         .filter(|cid| reachable.contains(id) && !ins[id].contains(*cid))
                         .map(|cid| (id.into(), cid.into()))
                 })

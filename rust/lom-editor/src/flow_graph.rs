@@ -1043,6 +1043,7 @@ pub(super) fn show(
             ("links", layout.links.len().to_string()),
         ],
     ));
+    let classic = ui.visuals().panel_fill == Color32::TRANSPARENT;
     if layout.links.iter().any(|link| link.to.is_none()) {
         let missing: BTreeSet<_> = layout
             .links
@@ -1051,7 +1052,11 @@ pub(super) fn show(
             .map(|link| link.target.as_str())
             .collect();
         ui.colored_label(
-            Color32::DARK_RED,
+            if classic {
+                Color32::DARK_RED
+            } else {
+                ui.visuals().error_fg_color
+            },
             message(
                 "flow_graph.missing_targets",
                 &[(
@@ -1100,13 +1105,23 @@ pub(super) fn show(
                 let active = Some(link.from) == selected_card
                     || link.to == selected_card && selected_card.is_some();
                 let color = if link.to.is_none() {
-                    Color32::DARK_RED
+                    if classic {
+                        Color32::DARK_RED
+                    } else {
+                        ui.visuals().error_fg_color
+                    }
                 } else if active {
-                    crate::shell::ACCENT
+                    crate::shell::accent_for(ui.ctx())
                 } else if link.backward {
-                    Color32::from_rgb(172, 119, 41)
-                } else {
+                    if classic {
+                        Color32::from_rgb(172, 119, 41)
+                    } else {
+                        ui.visuals().warn_fg_color
+                    }
+                } else if classic {
                     Color32::from_rgb(116, 130, 143)
+                } else {
+                    ui.visuals().weak_text_color()
                 };
                 let stroke = Stroke::new(if active { 1.8 } else { 1.2 } * zoom.max(0.6), color);
                 let points: Vec<_> = link.points.iter().copied().map(transform).collect();
@@ -1163,11 +1178,21 @@ pub(super) fn show(
                 );
                 let reached = layout.reachable.contains(&index);
                 let fill = if Some(index) == selected_card {
-                    Color32::from_rgb(224, 239, 250)
+                    if classic {
+                        Color32::from_rgb(224, 239, 250)
+                    } else {
+                        ui.visuals().selection.bg_fill
+                    }
                 } else if response.hovered() {
-                    Color32::from_rgb(238, 244, 247)
-                } else {
+                    if classic {
+                        Color32::from_rgb(238, 244, 247)
+                    } else {
+                        ui.visuals().widgets.hovered.bg_fill
+                    }
+                } else if classic {
                     Color32::from_rgb(252, 252, 251)
+                } else {
+                    ui.visuals().window_fill
                 };
                 painter.rect_filled(card, 6.0, fill);
                 painter.rect_stroke(
@@ -1180,9 +1205,11 @@ pub(super) fn show(
                             1.0_f32
                         },
                         if Some(index) == selected_card {
-                            crate::shell::ACCENT
-                        } else {
+                            crate::shell::accent_for(ui.ctx())
+                        } else if classic {
                             Color32::from_gray(177)
+                        } else {
+                            ui.visuals().widgets.noninteractive.bg_stroke.color
                         },
                     ),
                     egui::StrokeKind::Inside,
@@ -1227,9 +1254,15 @@ pub(super) fn show(
                     )
                 });
                 let color = if reached {
-                    Color32::from_rgb(44, 56, 66)
-                } else {
+                    if classic {
+                        Color32::from_rgb(44, 56, 66)
+                    } else {
+                        ui.visuals().text_color()
+                    }
+                } else if classic {
                     Color32::from_rgb(100, 107, 114)
+                } else {
+                    ui.visuals().weak_text_color()
                 };
                 let padding = 10.0 * zoom;
                 let available = card.width() - padding * 2.0;
@@ -1262,7 +1295,11 @@ pub(super) fn show(
                     },
                     (10.0 * zoom).max(7.0),
                     available,
-                    Color32::GRAY,
+                    if classic {
+                        Color32::GRAY
+                    } else {
+                        ui.visuals().weak_text_color()
+                    },
                 );
                 if response
                     .on_hover_text(format!(
@@ -1297,7 +1334,15 @@ pub(super) fn show(
                     continue;
                 };
                 placed.push(bounds);
-                painter.rect_filled(bounds, 2.0, Color32::from_rgb(249, 249, 247));
+                painter.rect_filled(
+                    bounds,
+                    2.0,
+                    if classic {
+                        Color32::from_rgb(249, 249, 247)
+                    } else {
+                        ui.visuals().window_fill
+                    },
+                );
                 painter.galley(at, galley, color);
                 ui.interact(
                     bounds,

@@ -82,7 +82,7 @@ fn lua_copy_and_export_recompile_instead_of_treating_error_prose_as_a_script() {
         if valid {
             assert_eq!(
                 copied,
-                Some(compile_with_assets(&app.project, &app.story()).unwrap())
+                Some(compile_with_assets(&app.project, &app.story().clone()).unwrap())
             );
             assert!(app.error.is_none());
         } else {

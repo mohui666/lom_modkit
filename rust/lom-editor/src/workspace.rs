@@ -1,5 +1,6 @@
 //! Editor state, initialization and frame composition. See workspace/ for each workflow.
 mod assets;
+mod background_save;
 mod chapter_navigation;
 mod dialogs;
 mod editor_shortcuts;
@@ -44,7 +45,7 @@ use text_edit::{
     story_reference_count, valid_id,
 };
 
-use crate::shell::{self, style, surface, ACCENT};
+use crate::shell::{self, style, surface_for as surface};
 #[derive(Clone, PartialEq)]
 struct Snapshot {
     manifest: Value,
@@ -64,6 +65,7 @@ enum Pending {
     Recover(PathBuf),
     Open(PathBuf),
     EditorUpdate,
+    InstallEditorUpdate,
     Quit,
 }
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -194,6 +196,10 @@ struct App {
     last: Snapshot,
     saved: Snapshot,
     document_dirty: bool,
+    document_revision: u64,
+    chapter_view: Option<std::sync::Arc<history::ChapterView>>,
+    step_search: Option<history::StepSearch>,
+    background_save: background_save::State,
     pending_history: Option<Snapshot>,
     last_edit: Instant,
     clipboard: Vec<Value>,
@@ -214,6 +220,7 @@ struct App {
     rename_dialog: Option<RenameDialog>,
     settings_open: bool,
     settings_page: usize,
+    theme: shell::Theme,
     check_updates_on_startup: bool,
     auto_save_project: bool,
     auto_save_seconds: u64,
@@ -307,12 +314,17 @@ fn restore_saved_preview_library(
 
 fn dialog_actions(ui: &mut egui::Ui, primary: &str, enabled: bool) -> (bool, bool) {
     ui.add_space(16.0);
+    let primary_text = if ui.visuals().dark_mode {
+        Color32::from_rgb(20, 26, 34)
+    } else {
+        Color32::WHITE
+    };
     shell::dialog_buttons(ui, |ui| {
         let submit = ui
             .add_enabled(
                 enabled,
-                egui::Button::new(RichText::new(tr(primary)).color(Color32::WHITE))
-                    .fill(ACCENT)
+                egui::Button::new(RichText::new(tr(primary)).color(primary_text))
+                    .fill(shell::accent_for(ui.ctx()))
                     .min_size(Vec2::new(80.0, 30.0)),
             )
             .clicked();
@@ -543,6 +555,8 @@ impl App {
         let prefs = lom_core::load_json(user_root().join("rust/preferences.json"))
             .or_else(|_| lom_core::load_json(user_root().join("settings.json")))
             .unwrap_or(json!({}));
+        let theme = shell::Theme::from_id(prefs["ui_theme"].as_str().unwrap_or("classic"));
+        shell::apply_theme(&cc.egui_ctx, theme);
         preview.legacy_character_rotation = prefs["legacy_character_rotation"]
             .as_bool()
             .unwrap_or(false);
@@ -588,6 +602,10 @@ impl App {
             last: snap.clone(),
             saved: snap,
             document_dirty: false,
+            document_revision: 0,
+            chapter_view: None,
+            step_search: None,
+            background_save: Default::default(),
             pending_history: None,
             last_edit: Instant::now(),
             clipboard: vec![],
@@ -608,6 +626,7 @@ impl App {
             rename_dialog: None,
             settings_open: false,
             settings_page: 0,
+            theme,
             check_updates_on_startup: prefs["check_updates_on_startup"].as_bool().unwrap_or(true),
             auto_save_project: prefs["auto_save_project"].as_bool().unwrap_or(true),
             auto_save_seconds: prefs["auto_save_seconds"]
@@ -667,21 +686,17 @@ impl eframe::App for App {
     }
 
     fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
-        self.shell.clear_color()
+        self.theme.clear_color()
     }
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         self.shell.apply_layout(ctx);
         if self.updater.poll() {
-            match self.updater.install(self.project.source.as_deref()) {
-                Ok(()) => {
-                    self.allow_close = true;
-                    self.clear_recovery();
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                    return;
-                }
-                Err(error) => self.error = Some(format!("更新未完成，编辑器尚未退出。\n{error:#}")),
-            }
+            self.request(Pending::InstallEditorUpdate, ctx);
         }
+        self.tools_panel
+            .set_export_directory(self.usability.export_directory.clone());
+        self.tools_panel
+            .set_preview_library(Some(self.preview.library.clone()));
         self.tools_panel.poll(ctx);
         if self.tools_panel.take_update_check() {
             self.updater.check(ctx);
@@ -762,11 +777,9 @@ impl eframe::App for App {
             self.settings_error = None;
         }
         if ctx.input(|i| i.viewport().close_requested()) && !self.allow_close {
-            if self.dirty() {
-                ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
-                self.pending = Some(Pending::Quit);
-            } else {
-                self.clear_recovery();
+            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            if self.pending.is_none() {
+                self.request(Pending::Quit, ctx);
             }
         }
         self.shortcuts(ctx);
@@ -788,7 +801,7 @@ impl eframe::App for App {
         }
         self.toolbar(ctx);
         egui::TopBottomPanel::bottom("status")
-            .frame(surface(false))
+            .frame(surface(ctx, false))
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(
@@ -798,9 +811,9 @@ impl eframe::App for App {
                             "已保存"
                         }))
                         .color(if self.dirty() {
-                            ACCENT
+                            shell::accent_for(ctx)
                         } else {
-                            Color32::from_rgb(104, 114, 125)
+                            ui.visuals().weak_text_color()
                         })
                         .small(),
                     );
@@ -829,6 +842,7 @@ impl eframe::App for App {
         if self.story_panels_visible() {
             self.sidebar(ctx);
             self.step_palette(ctx);
+            self.track();
             let story = self.story();
             crate::forms::set_preview_scope(
                 ctx,
@@ -844,6 +858,7 @@ impl eframe::App for App {
         self.quick_tools(ctx);
         self.guided_export(ctx);
         self.dialogs(ctx);
+        self.poll_background_save(ctx);
         self.tools_panel.show_dialog(ctx, &self.project);
         if let Some(message) = ctx
             .data_mut(|data| data.remove_temp::<String>(egui::Id::new("saved-new-step-defaults")))

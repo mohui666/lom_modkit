@@ -21,7 +21,11 @@ impl App {
             return false;
         }
         if self.auto {
-            let story = self.story();
+            let story = self
+                .project
+                .stories
+                .get(&self.current)
+                .unwrap_or(&Value::Null);
             let id = story["nodes"][self.selected]["id"]
                 .as_str()
                 .unwrap_or("")
@@ -46,8 +50,15 @@ impl App {
                 }
             }
         }
-        self.preview_audio
-            .update(&self.project, &self.tools_panel.game_directory(), self.auto);
+        let elapsed = self
+            .preview_buffering
+            .unwrap_or_else(|| self.last_step.elapsed().as_secs_f64());
+        self.preview_audio.update_at(
+            &self.project,
+            &self.tools_panel.game_directory(),
+            self.auto,
+            elapsed,
+        );
         if self.auto && self.preview_audio.buffering() {
             let elapsed = *self
                 .preview_buffering

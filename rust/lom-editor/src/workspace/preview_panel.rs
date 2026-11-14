@@ -134,6 +134,9 @@ impl App {
     pub(super) fn sync_preview_selection(&mut self) {
         let location = (self.current.clone(), self.selected);
         if self.preview_location != location {
+            if self.preview_location.0 != self.current {
+                self.document_revision = self.document_revision.wrapping_add(1);
+            }
             self.preview_audio.stop();
             self.preview_buffering = None;
             self.preview_location = location;
@@ -149,7 +152,11 @@ impl App {
             && self.last_step.elapsed().as_secs_f64()
                 >= preview::playback_duration(&self.story()["nodes"][self.selected])
         {
-            let story = self.story();
+            let story = self
+                .project
+                .stories
+                .get(&self.current)
+                .unwrap_or(&Value::Null);
             let node = &story["nodes"][self.selected];
             let branching = [
                 "choice",
@@ -240,9 +247,13 @@ impl App {
             if self.vanilla.route_open() {
                 return;
             }
-            let story = self.story();
+            let story = self
+                .project
+                .stories
+                .get(&self.current)
+                .unwrap_or(&Value::Null);
             egui::SidePanel::right("vanilla-preview")
-                .frame(surface(true))
+                .frame(surface(ctx, true))
                 .default_width(340.0)
                 .resizable(true)
                 .show(ctx, |ui| {
@@ -259,7 +270,7 @@ impl App {
         ) {
             self.preview.cancel_layout_drag();
             egui::SidePanel::right("scenario_context")
-                .frame(surface(true))
+                .frame(surface(ctx, true))
                 .default_width(300.0)
                 .min_width(280.0)
                 .max_width((ctx.available_rect().width() - 350.0).max(280.0))
@@ -336,8 +347,13 @@ impl App {
             return;
         }
         self.sync_preview_selection();
+        let mut toggle = false;
+        let mut stop = false;
+        let mut check = false;
+        let mut target = None;
+        let mut lua_export = None;
         let panel = egui::SidePanel::right("preview")
-            .frame(surface(true))
+            .frame(surface(ctx, true))
             .default_width(self.usability.widths[1])
             .min_width(320.0)
             .max_width((ctx.available_rect().width() - 300.0).max(320.0))
@@ -365,16 +381,32 @@ impl App {
                     }
                 });
                 ui.separator();
-                let mut story = self.story();
+                let story = self
+                    .project
+                    .stories
+                    .get(&self.current)
+                    .unwrap_or(&Value::Null);
                 let preview_story = crate::forms::preview_story(ctx, &story);
+                let trusted = matches!(preview_story, std::borrow::Cow::Borrowed(_));
                 match self.view {
                     View::Stage => {
-                        if let Some((index, action)) = self.preview.stage_inspector(
-                            ui,
-                            &self.project,
-                            &preview_story,
-                            self.selected,
-                        ) {
+                        let inspection = if trusted {
+                            self.preview.stage_inspector_versioned(
+                                ui,
+                                &self.project,
+                                &preview_story,
+                                self.selected,
+                                self.document_revision,
+                            )
+                        } else {
+                            self.preview.stage_inspector(
+                                ui,
+                                &self.project,
+                                &preview_story,
+                                self.selected,
+                            )
+                        };
+                        if let Some((index, action)) = inspection {
                             self.selected = index;
                             self.multiselect.clear();
                             self.center = Center::Node;
@@ -427,13 +459,13 @@ impl App {
                                         ))
                                         .clicked()
                                     {
-                                        self.toggle_preview();
+                                        toggle = true;
                                     }
                                     if ui
                                         .button(crate::i18n::key("editor.audio.stop_preview"))
                                         .clicked()
                                     {
-                                        self.stop_preview();
+                                        stop = true;
                                     }
                                     if ui
                                         .add_enabled(
@@ -480,10 +512,11 @@ impl App {
                                 let node = &story["nodes"][self.selected];
                                 if node["type"] == "transition" {
                                     ui.label(RichText::new(tr("黑幕转场预览（节奏示意）")).small());
-                                } else if self
-                                    .preview
-                                    .state(&story, node["id"].as_str().unwrap_or(""))["blackout"]
-                                    ["amount"]
+                                } else if self.preview.state_versioned(
+                                    story,
+                                    node["id"].as_str().unwrap_or(""),
+                                    self.document_revision,
+                                )["blackout"]["amount"]
                                     == 1.0
                                 {
                                     ui.label(
@@ -494,7 +527,16 @@ impl App {
                                     ui.label(RichText::new(tr("预览人物移动与淡入淡出")).small());
                                 }
                             });
-                        self.sync_preview_selection();
+                        let location = (self.current.clone(), self.selected);
+                        if self.preview_location != location {
+                            self.preview_audio.stop();
+                            self.preview_buffering = None;
+                            self.preview_location = location;
+                            self.auto = false;
+                            self.preview_waiting_branch = false;
+                            self.preview_elapsed = None;
+                            self.last_step = Instant::now();
+                        }
                         if self.preview.layout_mode {
                             self.auto = false;
                             self.preview_waiting_branch = false;
@@ -505,60 +547,45 @@ impl App {
                         } else {
                             self.preview_elapsed
                         };
-                        if let Some(target) = self.preview.show(
-                            ui,
-                            &self.project,
-                            &preview_story,
-                            self.selected,
-                            elapsed,
-                        ) {
-                            self.follow_preview_target(&target);
-                        }
-                        if let Some(edit) = self.preview.mood_edit.take() {
-                            self.auto = false;
-                            self.preview_waiting_branch = false;
-                            self.preview_elapsed = None;
-                            let node = &mut story["nodes"][self.selected];
-                            let mood = if let Some(action) = edit.action {
-                                &mut node["actions"][action]
-                            } else {
-                                node
-                            };
-                            mood["offset_x"] = json!(edit.x);
-                            mood["offset_y"] = json!(edit.y);
-                            self.project
-                                .stories
-                                .insert(self.current.clone(), story.clone());
-                        }
-                        if let Some(change) = self.preview.layout_edit.take() {
-                            let mut next = story.clone();
-                            match crate::preview_layout::apply(&mut next, self.selected, &change) {
-                                Ok(selected) => {
-                                    self.track();
-                                    self.flush();
-                                    story = next;
-                                    self.project
-                                        .stories
-                                        .insert(self.current.clone(), story.clone());
-                                    self.selected = selected;
-                                    self.multiselect.clear();
-                                    self.auto = false;
-                                    self.preview_elapsed = None;
-                                    self.track();
-                                    self.flush();
-                                    self.status = "已调整画面，可撤销".into();
-                                }
-                                Err(error) => self.error = Some(crate::error_ui::capture(error)),
-                            }
+                        let next = if trusted {
+                            self.preview.show_versioned(
+                                ui,
+                                &self.project,
+                                &preview_story,
+                                self.selected,
+                                elapsed,
+                                self.document_revision,
+                            )
+                        } else {
+                            self.preview.show(
+                                ui,
+                                &self.project,
+                                &preview_story,
+                                self.selected,
+                                elapsed,
+                            )
+                        };
+                        if let Some(next) = next {
+                            target = Some(next);
                         }
                     }
                     View::Portraits => {
-                        self.preview.show_portrait(
-                            ui,
-                            &self.project,
-                            &preview_story,
-                            self.selected,
-                        );
+                        if trusted {
+                            self.preview.show_portrait_versioned(
+                                ui,
+                                &self.project,
+                                &preview_story,
+                                self.selected,
+                                self.document_revision,
+                            );
+                        } else {
+                            self.preview.show_portrait(
+                                ui,
+                                &self.project,
+                                &preview_story,
+                                self.selected,
+                            );
+                        }
                     }
                     View::Graph => {
                         if let Some(i) = preview::graph(ui, &self.project, &story, self.selected) {
@@ -569,7 +596,7 @@ impl App {
                     View::Lua | View::Checks => {
                         ui.horizontal(|ui| {
                             if ui.button(tr("检查项目")).clicked() {
-                                self.compile();
+                                check = true;
                             }
                             if ui.button(tr("复制 Lua")).clicked() {
                                 match compile_with_assets(&self.project, &story) {
@@ -582,17 +609,7 @@ impl App {
                             if ui.button(tr("导出 Lua…")).clicked() {
                                 match compile_with_assets(&self.project, &story) {
                                     Ok(lua) => {
-                                        if let Some(path) = rfd::FileDialog::new()
-                                            .set_file_name(format!("{}.lua", self.current))
-                                            .save_file()
-                                        {
-                                            if let Err(error) = lom_core::project::atomic_write(
-                                                &path,
-                                                lua.as_bytes(),
-                                            ) {
-                                                self.error = Some(crate::error_ui::capture(error));
-                                            }
-                                        }
+                                        lua_export = Some(lua);
                                     }
                                     Err(error) => {
                                         self.error = Some(crate::error_ui::capture(error))
@@ -629,6 +646,65 @@ impl App {
                     }
                 }
             });
+        if let Some(lua) = lua_export {
+            if let Some(path) = self
+                .export_dialog()
+                .set_file_name(format!("{}.lua", self.current))
+                .save_file()
+            {
+                if let Err(error) = lom_core::project::atomic_write(&path, lua.as_bytes()) {
+                    self.error = Some(crate::error_ui::capture(error));
+                }
+            }
+        }
+        if toggle {
+            self.toggle_preview();
+        }
+        if stop {
+            self.stop_preview();
+        }
+        if check {
+            self.compile();
+        }
+        if let Some(target) = target {
+            self.follow_preview_target(&target);
+        }
+        if let Some(edit) = self.preview.mood_edit.take() {
+            self.auto = false;
+            self.preview_waiting_branch = false;
+            self.preview_elapsed = None;
+            if let Some(story) = self.project.stories.get_mut(&self.current) {
+                let node = &mut story["nodes"][self.selected];
+                let mood = if let Some(action) = edit.action {
+                    &mut node["actions"][action]
+                } else {
+                    node
+                };
+                mood["offset_x"] = json!(edit.x);
+                mood["offset_y"] = json!(edit.y);
+            }
+        }
+        if let Some(change) = self.preview.layout_edit.take() {
+            let mut next = self.story().clone();
+            match crate::preview_layout::apply(&mut next, self.selected, &change) {
+                Ok(selected) => {
+                    self.track();
+                    self.flush();
+                    self.project.stories.insert(self.current.clone(), next);
+                    self.selected = selected;
+                    self.multiselect.clear();
+                    self.auto = false;
+                    self.preview_elapsed = None;
+                    self.track();
+                    self.flush();
+                    self.status = "已调整画面，可撤销".into();
+                }
+                Err(error) => self.error = Some(crate::error_ui::capture(error)),
+            }
+        }
+        if toggle || stop {
+            ctx.request_repaint();
+        }
         self.remember_panel_width(ctx, 1, panel.response.rect.width());
     }
 }

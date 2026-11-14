@@ -1524,6 +1524,12 @@
           true
         ],
         [
+          "highlight_characters",
+          "本句变亮人物",
+          "filter_characters",
+          true
+        ],
+        [
           "font_size",
           "字号调节",
           "int",

@@ -438,3 +438,14 @@ Windows 实机还确认 `Mortal.Core.CharacterIntroPanel` 同时提供 `IEnumera
 `Character.Portraits` 的 C# 类型为 `List<Sprite>`。本机 MoonSharp 的 `ClrToScriptConversions.ObjectToDynValue` 将未注册为 userdata 的 `IList` 交给 `TableConversions.ConvertIListToTable`，后者按 `table[i + 1]` 写入。因此本轮实际 Lua 读取首张立绘使用 `Portraits[1]`。已直接加载游戏 DLL 中的 MoonSharp，执行当前 helper 并通过默认、显式立绘、已有立绘、已在舞台及空资源列表五个合成场景。相关编译回归共 14 项通过。
 
 本轮 Windows 游戏实测已从另一 F5 样例热重载进入该章节，`original75` 正常登场并继续到 `original112` 的对白，观察到完整对白框、郁宝花、两名乞丐、实际房间背景及气泡。该次运行没有新增运行异常。另一次旧 MOD 样例切回 scope 样例，读数从 `source=500 session=73 source_unchanged=True` 恢复为 `source=500 session=500 cloned=False`，官方立绘和姓名同时恢复。
+
+
+## 2026-11-14 同时震动、旁白高亮与配音等待
+
+重新只读反编译当前安装的 `release_1.0.6001.0`：`FlowchartPlaceholder.common` 的 `shock` 块使用 `Fungus.ShakePosition.DoTween()`，它读取 `_amount: Vector3Data`、`axis`、`isLocal` 及继承的 `easeType`／`loopType`，调用 `Fungus.iTween.ShakePosition(GameObject, Hashtable)`。组内官方人物改用自己的 `Character.State.holder` 与具名 iTween；`iTween.StopByName(GameObject,string)` 只取消该实例，不改写 common 流图变量或官方资产。单独的历史震动输出仍可识别，重新导出使用当前实现。
+
+旁白高亮沿用 `Fungus.Stage.GetActiveStage()`、`Stage.CharactersOnStage`、`CharacterPlaceholder.Get(string)` 及已有 `SetDimmed`／RGB 补间入口，只覆盖本句的可见人物明暗；结束恢复先前状态，不修改作者的 manual／until_dialogue／auto 策略。
+
+`Fungus.Writer.ProcessTokens(List<TextTagToken>,bool,Action)` 中，`{x}` 的 `Exit` 与 `waitForInput=false` 的自然结束会绕过普通等待输入；当前 Lua 的 `say` 不开启原生 `waitForVO`。Host 仅在自定义语音仍播放时，在这些终点插入 `WaitForVoiceOver`，通过 `Writer.DoWaitVO()` 延长到实际音频结束，保留 inputFlag／exitFlag／instantComplete 的主动跳过。未配音句不改 tokens。
+
+官方 `LuaManager.PlaySound(string)` 经 `SoundManager.PlaySound(string)` 每次调用 `AkSoundEngine.PostEvent(string,GameObject)`；原生 `GetPlayingIDsFromGameObject(GameObject,ref uint,uint[])` 可观察事件 ID，并不证明物理可听声部。隔离测试中同名 `Cymbal_001` 以 0／0.15／0.3 秒启动，观测到三个独立且同时活跃的事件；没有改动 Wwise 资产、声部上限或虚拟化设置。另有生成 Lua 的双人震动、旁白恢复、同一自定义声音叠加和真实 Writer 路径测试，总计 118 项断言通过，演出期间无已记录游戏错误。

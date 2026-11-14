@@ -84,7 +84,7 @@ fn old_project_audio_failure_does_not_block_existing_or_new_nodes() {
         assert!(game.join("Mortal_Data").is_dir(), "游戏目录未配置");
         app.install(Project::open(path).unwrap());
         app.recovery_dir = temp.path().join("recovery");
-        let existing: Vec<_> = app.story()["nodes"]
+        let existing: Vec<_> = app.story().clone()["nodes"]
             .as_array()
             .unwrap()
             .iter()
@@ -112,7 +112,7 @@ fn old_project_audio_failure_does_not_block_existing_or_new_nodes() {
         draw(&mut app, &ctx, vec![event]);
         assert!(app.error.is_none());
         for id in existing {
-            app.selected = app.story()["nodes"]
+            app.selected = app.story().clone()["nodes"]
                 .as_array()
                 .unwrap()
                 .iter()
@@ -190,7 +190,7 @@ fn duplicate_content_names_select_distinct_assets_without_renaming_metadata() {
 #[test]
 fn copied_chapter_preserves_all_content_and_does_not_redirect_explicit_links() {
     let mut app = app();
-    let mut source = app.story();
+    let mut source = app.story().clone();
     source["nodes"][1]["next_script"] = json!("main");
     source["localization"] = json!({"translations":{"cht":{"say1.text":"春日"}}});
     source["_editor"] = json!({"tests":[{"story":"main","name":"本章测试"}],"sections":[{"id":"a","start":"say1","end":"end1"}]});
@@ -205,7 +205,7 @@ fn copied_chapter_preserves_all_content_and_does_not_redirect_explicit_links() {
     let mut expected = source.clone();
     expected["id"] = json!("chapter2");
     expected["title"] = json!("另一段故事");
-    assert_eq!(app.story(), expected);
+    assert_eq!(app.story().clone(), expected);
     assert_eq!(app.project.stories["main"], source);
     assert_eq!(app.project.manifest["entry"], "main");
     app.begin_chapter(true);
@@ -548,7 +548,10 @@ fn imported_step_image_is_applied_and_undone_with_its_asset() {
     std::fs::write(&file, b"fixture image").unwrap();
     for kind in ["overlay", "event", "picture", "item", "big"] {
         let mut app = app();
-        let id = app.story()["nodes"][0]["id"].as_str().unwrap().to_owned();
+        let id = app.story().clone()["nodes"][0]["id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
         let mut node = json!({"id":id,"type":"cg","kind":kind,"action":"show"});
         if kind == "overlay" {
             node = json!({"id":id,"type":"overlay","slot":"main","action":"show"});
@@ -567,11 +570,11 @@ fn imported_step_image_is_applied_and_undone_with_its_asset() {
         });
         app.commit_asset_import().unwrap();
         let field = if kind == "overlay" { "image" } else { "key" };
-        assert!(app.story()["nodes"][0][field]
+        assert!(app.story().clone()["nodes"][0][field]
             .as_str()
             .unwrap()
             .starts_with("user:"));
-        assert!(kind == "overlay" || app.story()["nodes"][0].get("image").is_none());
+        assert!(kind == "overlay" || app.story().clone()["nodes"][0].get("image").is_none());
         assert!(!app.project.assets.is_empty());
         app.undo();
         assert!(snapshot(&app.project) == before);

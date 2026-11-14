@@ -445,6 +445,10 @@ impl Updater {
         }));
     }
 
+    pub fn ready_to_install(&self) -> bool {
+        self.prepared.is_some()
+    }
+
     /// True only after a confirmed update has finished downloading and validating.
     pub fn poll(&mut self) -> bool {
         let Some(rx) = &self.job else { return false };
@@ -562,7 +566,7 @@ impl Updater {
         let mut close = false;
         let mut offered = false;
         egui::Modal::new(egui::Id::new("editor-update"))
-            .frame(crate::shell::dialog_frame())
+            .frame(crate::shell::dialog_frame_for(ctx))
             .show(ctx, |ui| {
                 ui.set_width(480.0_f32.min(ctx.content_rect().width() - 60.0));
                 if self.job.is_some() {

@@ -1,5 +1,6 @@
 use super::*;
 
+#[cfg(test)]
 pub(crate) fn state_origin(
     story: &Value,
     target: &str,
@@ -7,8 +8,21 @@ pub(crate) fn state_origin(
 ) -> Option<(usize, Option<usize>)> {
     let nodes = story["nodes"].as_array()?;
     let path = route(story, target).unwrap_or_else(|| vec![target.to_owned()]);
-    for id in path.iter().rev() {
-        let index = nodes.iter().position(|node| node["id"] == *id)?;
+    let indices: Vec<_> = path
+        .iter()
+        .map(|id| nodes.iter().position(|node| node["id"] == *id))
+        .collect();
+    origin_in_path(story, &indices, predicate)
+}
+
+fn origin_in_path(
+    story: &Value,
+    indices: &[Option<usize>],
+    predicate: impl Fn(&Value) -> bool,
+) -> Option<(usize, Option<usize>)> {
+    let nodes = story["nodes"].as_array()?;
+    for index in indices.iter().rev() {
+        let index = (*index)?;
         let node = &nodes[index];
         if node["type"] == "parallel" {
             if let Some(action) = lom_core::parallel::actions(node)
@@ -51,13 +65,36 @@ impl Preview {
         story: &Value,
         selected: usize,
     ) -> Option<(usize, Option<usize>)> {
+        self.stage_inspector_with_revision(ui, project, story, selected, None)
+    }
+
+    pub(crate) fn stage_inspector_versioned(
+        &mut self,
+        ui: &mut egui::Ui,
+        project: &Project,
+        story: &Value,
+        selected: usize,
+        revision: u64,
+    ) -> Option<(usize, Option<usize>)> {
+        self.stage_inspector_with_revision(ui, project, story, selected, Some(revision))
+    }
+
+    fn stage_inspector_with_revision(
+        &mut self,
+        ui: &mut egui::Ui,
+        project: &Project,
+        story: &Value,
+        selected: usize,
+        revision: Option<u64>,
+    ) -> Option<(usize, Option<usize>)> {
         let node = &story["nodes"][selected];
         let target = text(node, "id");
-        let state = self.state(story, target).clone();
         let mut destination = None;
         egui::CollapsingHeader::new(crate::i18n::key("usability.state.title"))
             .id_salt("stage-state-inspector")
             .show(ui, |ui| {
+                let state = self.state_with_revision(story, target, revision).clone();
+                let path = self.simulation_cache.node_path(target);
                 ui.small(crate::i18n::key("usability.state.hint"));
                 egui::ScrollArea::vertical()
                     .id_salt("stage-state-rows")
@@ -74,7 +111,7 @@ impl Preview {
                             origin_link(
                                 ui,
                                 crate::i18n::key("usability.state.blackout"),
-                                state_origin(story, target, |n| n["type"] == "transition"),
+                                origin_in_path(story, &path, |n| n["type"] == "transition"),
                                 &mut destination,
                             );
                         }
@@ -98,7 +135,7 @@ impl Preview {
                             let actor = &state["actors"][&id];
                             ui.strong(character_display_name(project, &id));
                             if !actor.is_object() {
-                                let origin = state_origin(story, target, |n| {
+                                let origin = origin_in_path(story, &path, |n| {
                                     n["type"] == "hide_all"
                                         || n["character"] == id && n["type"] == "hide"
                                 });
@@ -123,7 +160,7 @@ impl Preview {
                                         number(actor, "offset_x", 0.0),
                                         number(actor, "offset_y", 0.0)
                                     ),
-                                    state_origin(story, target, |n| {
+                                    origin_in_path(story, &path, |n| {
                                         n["character"] == id
                                             && matches!(text(n, "type"), "show" | "move" | "offset")
                                     }),
@@ -132,7 +169,7 @@ impl Preview {
                                 origin_link(
                                     ui,
                                     text(actor, "portrait").to_owned(),
-                                    state_origin(story, target, |n| {
+                                    origin_in_path(story, &path, |n| {
                                         n["character"] == id
                                             && matches!(
                                                 text(n, "type"),
@@ -148,7 +185,7 @@ impl Preview {
                                     } else {
                                         "usability.state.bright"
                                     }),
-                                    state_origin(story, target, |n| {
+                                    origin_in_path(story, &path, |n| {
                                         n["character"] == id
                                             && (n["type"] == "dim"
                                                 || n["type"] == "portrait" && n["brighten"] == true)
@@ -208,7 +245,7 @@ impl Preview {
                                     origin_link(
                                         ui,
                                         crate::i18n::key("usability.state.offscreen"),
-                                        state_origin(story, target, |n| {
+                                        origin_in_path(story, &path, |n| {
                                             n["character"] == id
                                                 && matches!(
                                                     text(n, "type"),
@@ -234,7 +271,7 @@ impl Preview {
                                 "{}: {background}",
                                 crate::i18n::key("usability.state.background")
                             ),
-                            state_origin(story, target, |n| {
+                            origin_in_path(story, &path, |n| {
                                 matches!(text(n, "type"), "scene" | "background" | "combat")
                             }),
                             &mut destination,
@@ -243,7 +280,7 @@ impl Preview {
                             origin_link(
                                 ui,
                                 format!("{slot}: {}", text(item, "image")),
-                                state_origin(story, target, |n| {
+                                origin_in_path(story, &path, |n| {
                                     n["type"] == "overlay"
                                         && n["slot"].as_str().unwrap_or("main") == slot
                                 }),
@@ -256,7 +293,7 @@ impl Preview {
                             origin_link(
                                 ui,
                                 format!("{kind}: {}", text(item, "key")),
-                                state_origin(story, target, |n| {
+                                origin_in_path(story, &path, |n| {
                                     n["type"] == "cg" && n["kind"] == *kind
                                 }),
                                 &mut destination,
@@ -266,7 +303,7 @@ impl Preview {
                             origin_link(
                                 ui,
                                 format!("CG: {}", text(&state["custom_cg"], "image")),
-                                state_origin(story, target, |n| n["type"] == "custom_cg"),
+                                origin_in_path(story, &path, |n| n["type"] == "custom_cg"),
                                 &mut destination,
                             );
                         }
@@ -280,7 +317,7 @@ impl Preview {
                             origin_link(
                                 ui,
                                 format!("{}: {filter}", crate::i18n::key("usability.state.filter")),
-                                state_origin(story, target, |n| {
+                                origin_in_path(story, &path, |n| {
                                     n["type"] == "camera" && n["name"] == *filter
                                 }),
                                 &mut destination,
