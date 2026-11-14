@@ -28,7 +28,7 @@ namespace MortalModHost
     {
         public const string GUID = "com.mohui666.mortalmodhost";
         public const string NAME = "MortalModHost";
-        public const string VERSION = "1.5.18";
+        public const string VERSION = "1.5.19";
 
         internal static Plugin Instance { get; private set; }
 
@@ -717,13 +717,26 @@ namespace MortalModHost
 
             SceneController sceneController = SceneController.Instance;
             string scene = sceneController != null ? sceneController.CurrentScene : "";
-            if (request.FreshCampaign && scene != "Title" && scene != "Free")
+            bool hotReload = !request.FreshCampaign && ModDisclosurePolicy.CanHotReloadDevelopmentPreview(
+                RuntimeTrace.Active, ModDisclosure.Active, ModDisclosure.ModId, request.ModId);
+            if (scene != "Title" && scene != "Free" && !(scene == "Story" && hotReload))
             {
                 // Wait before ReloadMods, which releases the current package's
                 // audio and character/image registrations during a rescan.
                 if (_previewWaitingScene != scene)
-                    Logger.LogInfo("事件测试等待标题或自由场景；不会重置当前剧情中的存档。");
+                    Logger.LogInfo("试玩请求等待标题、自由场景或当前编辑器试玩演出就绪。");
                 _previewWaitingScene = scene;
+                return;
+            }
+
+            // Init starts UnloadLoading on LuaManager. Wait before stopping that
+            // manager's coroutines, or F5 can strand Loading1 and reload it twice.
+            if (!IsSceneReadyForModNavigation(sceneController))
+            {
+                string waitingKey = scene + ":loading";
+                if (_previewWaitingScene != waitingKey)
+                    Logger.LogInfo("试玩请求正在等待原版 " + scene + " 场景撤下读取遮罩。");
+                _previewWaitingScene = waitingKey;
                 return;
             }
 
@@ -733,11 +746,6 @@ namespace MortalModHost
             if (_loadedPreviewStamp != stamp)
             {
                 EventTestRuntime.Clear();
-                bool hotReload = !request.FreshCampaign && ModDisclosurePolicy.CanHotReloadDevelopmentPreview(
-                    RuntimeTrace.Active,
-                    ModDisclosure.Active,
-                    ModDisclosure.ModId,
-                    request.ModId);
                 if (hotReload)
                 {
                     Logger.LogInfo("收到新的 F5 试玩包，清理当前开发演出并从节点 " + request.NodeId + " 重启。");
@@ -772,18 +780,6 @@ namespace MortalModHost
                 return;
             }
 
-            if ((scene == "Title" || scene == "Free")
-                && !IsSceneReadyForModNavigation(sceneController))
-            {
-                string waitingKey = scene + ":loading";
-                if (!string.Equals(_previewWaitingScene, waitingKey, StringComparison.Ordinal))
-                {
-                    _previewWaitingScene = waitingKey;
-                    Logger.LogInfo("试玩请求正在等待原版 " + scene
-                        + " 场景撤下读取遮罩；不会在 Loading1 尚未卸载时重复切场景。");
-                }
-                return;
-            }
             bool reloadCurrentPreview = ModDisclosurePolicy.CanHotReloadDevelopmentPreview(
                     RuntimeTrace.Active,
                     ModDisclosure.Active,
@@ -791,11 +787,6 @@ namespace MortalModHost
                     target.Id)
                 && RuntimeTrace.IsDevelopmentPackage(target)
                 && scene == "Story";
-            if (reloadCurrentPreview && SceneController.Instance != null
-                && (SceneController.Instance.IsPrepare || SceneController.Instance.IsLoading))
-            {
-                return;
-            }
             if (request.FreshCampaign)
             {
                 try { EventTestRuntime.Arm(target, request); }

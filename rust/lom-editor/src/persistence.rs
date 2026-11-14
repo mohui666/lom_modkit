@@ -3,6 +3,7 @@ use anyhow::{ensure, Context, Result};
 use lom_core::{load_json, package, project::Project};
 use serde_json::Value;
 use std::{
+    borrow::Cow,
     collections::{BTreeMap, BTreeSet},
     fs,
     io::ErrorKind,
@@ -11,11 +12,20 @@ use std::{
 
 /// The snapshots must describe the last successful save/open of this project.
 /// Save-as and package export never remove files from the previous source.
-pub fn save_project(
+pub(crate) trait StoryBaseline {
+    fn saved_story(&self) -> Cow<'_, Value>;
+}
+impl StoryBaseline for Value {
+    fn saved_story(&self) -> Cow<'_, Value> {
+        Cow::Borrowed(self)
+    }
+}
+
+pub fn save_project<T: StoryBaseline>(
     project: &mut Project,
     target: &Path,
     saved_assets: &BTreeMap<String, Vec<u8>>,
-    saved_stories: &BTreeMap<String, Value>,
+    saved_stories: &BTreeMap<String, T>,
     saved_paths: &BTreeMap<String, PathBuf>,
 ) -> Result<()> {
     let Some(root) = same_source_root(project, target)? else {
@@ -38,7 +48,10 @@ pub fn save_project(
         verify_story(
             &root,
             &relative,
-            saved_stories.get(id).context("已保存章节快照不完整")?,
+            &saved_stories
+                .get(id)
+                .context("已保存章节快照不完整")?
+                .saved_story(),
         )?;
     }
     let removed_assets: Vec<_> = saved_assets
@@ -76,7 +89,10 @@ pub fn save_project(
             } else {
                 name.to_owned()
             };
-            let expected = saved_stories.get(id).context("已保存章节快照不完整")?;
+            let expected = saved_stories
+                .get(id)
+                .context("已保存章节快照不完整")?
+                .saved_story();
             removed_stories.push((relative, expected));
         }
     }
@@ -97,7 +113,7 @@ pub fn save_project(
         }
     }
     for (name, expected) in removed_stories {
-        if let Some(path) = verify_story(&root, &name, expected)? {
+        if let Some(path) = verify_story(&root, &name, &expected)? {
             remove_owned_file(&path)?;
         }
     }

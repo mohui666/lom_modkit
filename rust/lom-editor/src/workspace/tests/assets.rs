@@ -135,8 +135,11 @@ fn old_project_audio_failure_does_not_block_existing_or_new_nodes() {
         // Playback must leave all existing nodes and assets intact.
         let after = snapshot(&app.project);
         assert_eq!(before.assets, after.assets);
-        for node in before.stories["main"]["nodes"].as_array().unwrap() {
-            assert!(after.stories["main"]["nodes"]
+        for node in before.stories["main"].to_value()["nodes"]
+            .as_array()
+            .unwrap()
+        {
+            assert!(after.stories["main"].to_value()["nodes"]
                 .as_array()
                 .unwrap()
                 .contains(node));

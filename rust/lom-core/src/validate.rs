@@ -102,7 +102,7 @@ fn positive_integer(v: &Value, allow_zero: bool) -> bool {
 fn int_range(v: &Value, low: i64, high: i64) -> bool {
     v.as_i64().is_some_and(|n| n >= low && n <= high)
 }
-fn finite(v: &Value) -> bool {
+pub(crate) fn finite(v: &Value) -> bool {
     integer(v) || v.as_f64().is_some_and(f64::is_finite)
 }
 fn nonempty(v: &Value) -> bool {
@@ -1338,7 +1338,7 @@ fn extra(n: &Value, ntype: &str, catalog: &Value, check_effect_names: bool) -> R
             if matches!(s(n, "kind"), "event" | "big") && s(n, "action") == "show" {
                 range(n, "fade_in", 0.0, f32::MAX as f64)?;
             }
-            if s(n, "kind") == "event" && s(n, "action") == "hide" {
+            if matches!(s(n, "kind"), "event" | "big") && s(n, "action") == "hide" {
                 range(n, "fade_out", 0.0, f32::MAX as f64)?;
             }
             ensure!(

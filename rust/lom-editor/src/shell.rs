@@ -245,26 +245,36 @@ pub fn viewport() -> egui::ViewportBuilder {
         .with_titlebar_shown(true)
         .with_title(crate::i18n::key("app.title"))
 }
-fn append_system_font(fonts: &mut egui::FontDefinitions, name: &str, paths: &[&str]) {
-    for path in paths {
-        if let Ok(bytes) = std::fs::read(path) {
-            fonts
-                .font_data
-                .insert(name.into(), egui::FontData::from_owned(bytes).into());
-            // Keep egui's Latin fonts first; these fonts supply missing scripts only.
-            for family in [egui::FontFamily::Proportional, egui::FontFamily::Monospace] {
-                fonts.families.entry(family).or_default().push(name.into());
-            }
-            break;
+fn append_system_font(
+    fonts: &mut egui::FontDefinitions,
+    cache: &'static std::sync::OnceLock<Option<Vec<u8>>>,
+    name: &str,
+    paths: &[&str],
+) {
+    // egui clones owned font bytes into ab_glyph. A process-lived borrowed
+    // buffer lets both parsers share the same CJK data, including all fallbacks.
+    if let Some(bytes) =
+        cache.get_or_init(|| paths.iter().find_map(|path| std::fs::read(path).ok()))
+    {
+        fonts
+            .font_data
+            .insert(name.into(), egui::FontData::from_static(bytes).into());
+        // Keep egui's Latin fonts first; these fonts supply missing scripts only.
+        for family in [egui::FontFamily::Proportional, egui::FontFamily::Monospace] {
+            fonts.families.entry(family).or_default().push(name.into());
         }
     }
 }
 fn font_definitions() -> egui::FontDefinitions {
+    static CHINESE: std::sync::OnceLock<Option<Vec<u8>>> = std::sync::OnceLock::new();
+    static JAPANESE: std::sync::OnceLock<Option<Vec<u8>>> = std::sync::OnceLock::new();
+    static KOREAN: std::sync::OnceLock<Option<Vec<u8>>> = std::sync::OnceLock::new();
     let mut fonts = egui::FontDefinitions::default();
     #[cfg(target_os = "macos")]
     {
         append_system_font(
             &mut fonts,
+            &CHINESE,
             "system-chinese",
             &[
                 "/System/Library/Fonts/PingFang.ttc",
@@ -275,11 +285,13 @@ fn font_definitions() -> egui::FontDefinitions {
         );
         append_system_font(
             &mut fonts,
+            &JAPANESE,
             "system-japanese",
             &["/System/Library/Fonts/Hiragino Sans GB.ttc"],
         );
         append_system_font(
             &mut fonts,
+            &KOREAN,
             "system-korean",
             &[
                 "/System/Library/Fonts/AppleSDGothicNeo.ttc",
@@ -291,11 +303,13 @@ fn font_definitions() -> egui::FontDefinitions {
     {
         append_system_font(
             &mut fonts,
+            &CHINESE,
             "system-chinese",
             &["C:/Windows/Fonts/msyh.ttc", "C:/Windows/Fonts/msyh.ttf"],
         );
         append_system_font(
             &mut fonts,
+            &JAPANESE,
             "system-japanese",
             &[
                 "C:/Windows/Fonts/YuGothM.ttc",
@@ -304,6 +318,7 @@ fn font_definitions() -> egui::FontDefinitions {
         );
         append_system_font(
             &mut fonts,
+            &KOREAN,
             "system-korean",
             &["C:/Windows/Fonts/malgun.ttf", "C:/Windows/Fonts/gulim.ttc"],
         );
@@ -312,6 +327,7 @@ fn font_definitions() -> egui::FontDefinitions {
     {
         append_system_font(
             &mut fonts,
+            &CHINESE,
             "system-cjk",
             &[
                 "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
@@ -320,6 +336,7 @@ fn font_definitions() -> egui::FontDefinitions {
         );
         append_system_font(
             &mut fonts,
+            &KOREAN,
             "system-korean",
             &["/usr/share/fonts/truetype/nanum/NanumGothic.ttf"],
         );

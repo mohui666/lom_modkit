@@ -743,7 +743,7 @@ pub(crate) fn action_duration(action: &Value) -> f64 {
         }
         "cg" if action["kind"] == "big" => {
             if action["action"] == "hide" {
-                1.0
+                number(action, "fade_out", 1.0)
             } else {
                 number(action, "fade_in", 1.0)
                     * if action["background_only"] == true {
@@ -820,10 +820,11 @@ fn animate_frame(state: &mut Value, before: &Value, node: &Value, elapsed: f64, 
                 1.0 - (1.0 - t) * (1.0 - t)
             };
             if action["action"] == "hide" {
-                if elapsed < 1.0 {
+                let fade = number(action, "fade_out", 1.0);
+                if elapsed < fade && fade > 0.0 {
                     state["official_pictures"]["big"] = before["official_pictures"]["big"].clone();
                     state["official_pictures"]["big"]["preview_opacity"] =
-                        json!(1.0 - ease(elapsed));
+                        json!(1.0 - ease(elapsed / fade));
                 }
             } else {
                 let fade = number(action, "fade_in", 1.0);
@@ -1272,11 +1273,9 @@ impl Preview {
     }
 
     pub fn state(&mut self, story: &Value, target: &str) -> &Value {
-        if self
-            .simulation
-            .as_ref()
-            .is_none_or(|cached| cached.target != target || cached.story != *story)
-        {
+        if self.simulation.as_ref().is_none_or(|cached| {
+            cached.target != target || !crate::json::same(&cached.story, story)
+        }) {
             self.simulation = Some(Simulation {
                 story: story.clone(),
                 target: target.to_owned(),
@@ -3723,6 +3722,28 @@ pub fn graph(
 }
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn big_picture_hide_preview_uses_the_authored_duration_and_zero_is_immediate() {
+        let mut story = json!({"id":"main","start":"show","nodes":[
+            {"id":"show","type":"cg","kind":"big","action":"show","background_only":true,"color":1},
+            {"id":"hide","type":"cg","kind":"big","action":"hide","fade_out":2},
+            {"id":"end","type":"end"}]});
+        assert_eq!(action_duration(&story["nodes"][1]), 2.0);
+        let half = simulate_frame(&story, "hide", 1.0, &json!({}));
+        assert_eq!(half["official_pictures"]["big"]["preview_opacity"], 0.25);
+        assert!(
+            simulate_frame(&story, "hide", 2.0, &json!({}))["official_pictures"]
+                .get("big")
+                .is_none()
+        );
+        story["nodes"][1]["fade_out"] = json!(0);
+        assert!(
+            simulate_frame(&story, "hide", 0.0, &json!({}))["official_pictures"]
+                .get("big")
+                .is_none()
+        );
+    }
+
     #[test]
     fn big_picture_preview_reveals_background_before_image_and_restores_without_replay() {
         let story = json!({"id":"main","start":"big","nodes":[

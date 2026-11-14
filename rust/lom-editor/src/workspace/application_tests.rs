@@ -776,3 +776,5 @@ mod projects_tests;
 mod recovery_tests;
 #[path = "tests/steps.rs"]
 mod steps_tests;
+#[path = "tests/stress.rs"]
+mod stress_tests;

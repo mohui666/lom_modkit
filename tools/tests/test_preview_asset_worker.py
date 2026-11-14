@@ -34,6 +34,9 @@ class PreviewWorkerTest(unittest.TestCase):
         self.assertEqual(stdout.getvalue(), "")
 
     def setUp(self):
+        inventory = patch.object(worker, "extract_inventory_pictures", return_value={})
+        inventory.start()
+        self.addCleanup(inventory.stop)
         patcher = patch.object(worker, "extract_moods", return_value={})
         patcher.start()
         self.addCleanup(patcher.stop)

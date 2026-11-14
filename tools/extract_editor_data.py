@@ -490,9 +490,12 @@ def main():
     # Preserve descriptions refreshed from live FlagData, including value
     # suggestions and direct chapter references, when rebuilding other catalogs.
     flag_metadata = {}
+    effect_metadata = {}
     if os.path.isfile(OUT_PATH):
         with open(OUT_PATH, encoding="utf-8") as f:
-            flag_metadata = {row["id"]: row for row in json.load(f).get("game_flags", [])}
+            current = json.load(f)
+            flag_metadata = {row["id"]: row for row in current.get("game_flags", [])}
+            effect_metadata = {row["id"]: row for row in current.get("effects", [])}
     talent_names = _load_prefixed_kv(CSV_TALENT, RAW_TALENT, "PlayerTalent/Name")
     talent_descs = _load_prefixed_kv(CSV_TALENT, RAW_TALENT, "PlayerTalent/Desc")
     combat_skills = load_combat_skills()
@@ -614,8 +617,10 @@ def main():
         "modes": MODES,
         "menu_dialogs": sorted(menu_dialogs),
         "effects": [
-            {"id": e, "name": e} for e in sorted(effects_found)
-        ],  # 特效 id 即资源名
+            effect_metadata.get(e, {"id": e, "name": e})
+            # This quoted legacy key is not in StoryParticleDataCollection.
+            for e in sorted((effects_found | effect_metadata.keys()) - {"驚訝_001"})
+        ],  # 保留沿原版 StoryParticleDataCollection 核对的非 Lua 字面键
         "dice_checks": sorted(dice_checks),
         "dice_meta": dice_meta,
         "combat_ids": sorted(combat_ids),

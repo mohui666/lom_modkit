@@ -20,6 +20,7 @@ namespace MortalModHost
         private static Texture2D _texture;
         private static AsyncOperationHandle<Sprite> _handle;
         private static float? _nextFade;
+        private static float? _nextHideFade;
         private static float _hideDuration;
         internal static bool Active { get { return _root != null; } }
 
@@ -30,11 +31,19 @@ namespace MortalModHost
             _nextFade = fade;
         }
 
+        internal static void ConfigureHide(float fade)
+        {
+            if (float.IsNaN(fade) || float.IsInfinity(fade) || fade < 0f)
+                throw new ArgumentOutOfRangeException("fade", "大图淡出时间必须为非负有限数值");
+            _nextHideFade = fade;
+        }
+
         internal static bool TryShow(string key, int color, out IEnumerator routine)
         {
             float? fade = _nextFade;
             _nextFade = null;
-            bool extended = fade.HasValue || string.IsNullOrEmpty(key) || key.StartsWith("user:", StringComparison.Ordinal);
+            bool extended = fade.HasValue || string.IsNullOrEmpty(key) || key.StartsWith("user:", StringComparison.Ordinal)
+                || OfficialItemPictureRuntime.IsReference(key);
             routine = extended ? Show(key, color, fade) : null;
             if (!extended) Clear();
             return extended;
@@ -57,6 +66,7 @@ namespace MortalModHost
             {
                 Sprite picture = null;
                 bool custom = !string.IsNullOrEmpty(key) && key.StartsWith("user:", StringComparison.Ordinal);
+                bool inventory = OfficialItemPictureRuntime.TryResolve(key, out picture);
                 if (custom)
                 {
                     UserContent content = CustomGameplayRuntime.ResolveContent(ModOverlay.CurrentPackage, key);
@@ -67,7 +77,7 @@ namespace MortalModHost
                     _texture.filterMode = FilterMode.Bilinear;
                     picture = _sprite = Sprite.Create(_texture, new Rect(0, 0, _texture.width, _texture.height), new Vector2(.5f, .5f));
                 }
-                else if (!string.IsNullOrEmpty(key))
+                else if (!inventory && !string.IsNullOrEmpty(key))
                 {
                     _handle = Addressables.LoadAssetAsync<Sprite>("pic_" + key);
                     picture = _handle.WaitForCompletion();
@@ -94,7 +104,7 @@ namespace MortalModHost
                 image.rectTransform.anchoredPosition = Traverse.Create(original).Field("_originAnchoredPosition").GetValue<Vector2>();
                 if (picture != null)
                 {
-                    if (custom)
+                    if (custom || inventory)
                     {
                         RectTransform frame = _root.GetComponent<RectTransform>();
                         RectTransform viewport = image.canvas.rootCanvas.GetComponent<RectTransform>();
@@ -158,18 +168,44 @@ namespace MortalModHost
             }
         }
 
-        internal static IEnumerator Hide()
+        internal static bool TryHide(StoryMainUI main, out IEnumerator routine)
+        {
+            float? fade = _nextHideFade;
+            _nextHideFade = null;
+            if (Active) { routine = Hide(fade ?? _hideDuration); return true; }
+            routine = null;
+            if (!fade.HasValue) return false;
+            StoryPicture original = Traverse.Create(main).Field("_bigPicture").GetValue<StoryPicture>();
+            if (original == null) throw new InvalidOperationException("当前剧情没有原版大图界面");
+            routine = HideOriginal(original, fade.Value);
+            return true;
+        }
+
+        private static IEnumerator HideOriginal(StoryPicture original, float seconds)
+        {
+            Traverse duration = Traverse.Create(original).Field("_fadeoutDuration");
+            float previous = duration.GetValue<float>();
+            try
+            {
+                duration.SetValue(seconds);
+                yield return original.Hide();
+            }
+            finally { if (original != null) duration.SetValue(previous); }
+        }
+
+        private static IEnumerator Hide(float seconds)
         {
             GameObject shown = _root;
             if (shown == null) yield break;
             CanvasGroup group = shown.GetComponent<CanvasGroup>();
-            yield return Fade(group, group.alpha, 0, _hideDuration);
+            yield return Fade(group, group.alpha, 0, seconds);
             if (_root == shown) Clear();
         }
 
         internal static void Clear()
         {
             _nextFade = null;
+            _nextHideFade = null;
             if (_root != null) { _root.SetActive(false); UObject.Destroy(_root); }
             _root = null;
             if (_sprite != null) UObject.Destroy(_sprite);
@@ -195,10 +231,11 @@ namespace MortalModHost
     [HarmonyPatch(typeof(StoryMainUI), "HideBigPicture")]
     internal static class CustomBigPictureHidePatch
     {
-        private static bool Prefix(ref IEnumerator __result)
+        private static bool Prefix(StoryMainUI __instance, ref IEnumerator __result)
         {
-            if (!BigPictureRuntime.Active) return true;
-            __result = BigPictureRuntime.Hide();
+            IEnumerator routine;
+            if (!BigPictureRuntime.TryHide(__instance, out routine)) return true;
+            __result = routine;
             return false;
         }
     }

@@ -381,6 +381,15 @@ pub fn extract(game: &Path, output: &Path, max_size: u32) -> Result<Value> {
         }
     }
     drop(cache);
+    let inventory = unity::open(&data.join("globalgamemanagers.assets"))?;
+    let icons = inventory_pictures(&inventory, &output, max_size)?;
+    for (key, relative) in icons.as_object().unwrap() {
+        map["pictures"][key] = relative.clone();
+        map["picture_catalog"].as_array_mut().unwrap().push(
+            json!({"key":key,"category":if key.starts_with("item:book:") {"Book"} else {"Items"}}),
+        );
+        succeeded += 1;
+    }
     ensure!(
         succeeded > 0,
         "未能导出任何游戏图片：{}",
@@ -434,6 +443,74 @@ pub fn extract(game: &Path, output: &Path, max_size: u32) -> Result<Value> {
     )?;
     Ok(report)
 }
+pub(crate) fn inventory_pictures(studio: &Studio, output: &Path, max_size: u32) -> Result<Value> {
+    let catalog: Value = serde_json::from_str(include_str!("../../../data/picture_keys.json"))?;
+    let requested: std::collections::BTreeSet<_> = catalog["pictures"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|row| row["key"].as_str().filter(|key| key.starts_with("item:")))
+        .collect();
+    let mut database = None;
+    for object in studio.objects().filter(|object| {
+        object.class_id() == 114
+            && object
+                .name()
+                .is_some_and(|name| name.contains("ItemDatabase"))
+    }) {
+        let kind = unity::script_type(studio, object)?;
+        if kind == ("Mortal.Core".to_owned(), "ItemDatabase".to_owned()) {
+            ensure!(database.is_none(), "原版物品数据库不唯一");
+            database = Some(object);
+        }
+    }
+    let database = database.context("缺少原版 ItemDatabase")?;
+    let bytes = unity::raw(database)?;
+    let mut reader = Reader::at(&bytes, 28);
+    reader.string()?;
+    let mut map = json!({});
+    let mut files: BTreeMap<(usize, i64), String> = BTreeMap::new();
+    for category in ["book", "misc", "special", "consumable"] {
+        let collection = unity::resolve(studio, database, reader.ptr()?)?;
+        let bytes = unity::raw(collection)?;
+        let mut items = Reader::at(&bytes, 28);
+        items.string()?;
+        for _ in 0..items.count(10000)? {
+            let item = unity::resolve(studio, collection, items.ptr()?)?;
+            let bytes = unity::raw(item)?;
+            let mut fields = Reader::at(&bytes, 28);
+            fields.string()?;
+            fields.string()?;
+            let id = fields.string()?;
+            let key = format!("item:{category}:{id}");
+            if !requested.contains(key.as_str()) {
+                continue;
+            }
+            let pointer = fields.ptr()?;
+            let icon = unity::resolve(studio, item, pointer)?;
+            let identity = (icon.file_index(), pointer.path_id);
+            let relative = if let Some(relative) = files.get(&identity) {
+                relative.clone()
+            } else {
+                let relative = format!("assets/pictures/item_{category}_{id}.png");
+                save(
+                    &decode(studio, icon, false)?,
+                    &output.join(&relative),
+                    Some(max_size),
+                )?;
+                files.insert(identity, relative.clone());
+                relative
+            };
+            map[&key] = json!(relative);
+        }
+        items.end()?;
+    }
+    for key in requested {
+        ensure!(map.get(key).is_some(), "原版物品图标未找到：{key}");
+    }
+    Ok(map)
+}
+
 type Tasks = BTreeMap<(String, bool), (String, Vec<(String, String, String)>)>;
 fn add_task(
     tasks: &mut Tasks,

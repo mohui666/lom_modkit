@@ -119,9 +119,12 @@ fn game_bookmarks_locate_dialogue_preserve_edits_and_use_the_unsaved_project_gua
     app.track();
     app.flush();
     assert_eq!(app.project.stories.len(), 2);
-    assert_eq!(app.project.stories["main"], before.stories["main"]);
+    assert_eq!(
+        app.project.stories["main"],
+        before.stories["main"].to_value()
+    );
     app.undo();
-    assert_eq!(app.project.stories, before.stories);
+    assert_eq!(snapshot(&app.project).stories, before.stories);
     app.install(Project::new());
     app.project.stories.get_mut("main").unwrap()["nodes"][0]["text"] = json!("未保存修改");
     app.track();

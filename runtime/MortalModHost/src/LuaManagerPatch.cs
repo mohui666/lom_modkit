@@ -461,7 +461,10 @@ namespace MortalModHost
 
             while (coroutine.Coroutine.State != CoroutineState.Dead)
             {
-                if (RuntimeDebugControl.Paused)
+                // Released scripts use wait(seconds) after starting the book
+                // tween. Keep the node alive until its actual fade completes,
+                // including a speed change while the first image is loading.
+                if (RuntimeDebugControl.Paused || EventPictureRuntime.IsFading)
                 {
                     yield return null;
                     continue;
@@ -843,6 +846,13 @@ namespace MortalModHost
                     BigPictureRuntime.Configure(ArgFloat(args, 0, 1f));
                     return DynValue.Nil;
                 }, "mod_big_picture_configure");
+                script.Globals["mod_big_picture_configure_hide"] = new CallbackFunction((ctx, args) =>
+                {
+                    if (args.Count == 0 || args[0].Type != DataType.Number)
+                        throw new ArgumentException("大图淡出时长必须是非负有限数值");
+                    BigPictureRuntime.ConfigureHide((float)args[0].Number);
+                    return DynValue.Nil;
+                }, "mod_big_picture_configure_hide");
                 script.Globals["mod_event_picture_show"] = new CallbackFunction((ctx, args) =>
                 {
                     EventPictureRuntime.Show(ArgString(args, 0), ArgString(args, 1, "事件"));
@@ -855,7 +865,7 @@ namespace MortalModHost
                 }, "mod_event_picture_show_fade");
                 script.Globals["mod_event_picture_hide"] = new CallbackFunction((ctx, args) =>
                 {
-                    EventPictureRuntime.Clear();
+                    EventPictureRuntime.Hide(0f);
                     return DynValue.Nil;
                 }, "mod_event_picture_hide");
                 script.Globals["mod_event_picture_hide_fade"] = new CallbackFunction((ctx, args) =>

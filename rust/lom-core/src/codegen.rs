@@ -1079,6 +1079,18 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
         }
         "cg" if !ctx.previous_big_pictures
             && s(node, "kind") == "big"
+            && s(node, "action") == "hide"
+            && has(node, "fade_out") =>
+        {
+            out.push("\tif mod_big_picture_configure_hide == nil then error(\"大图淡出时长需要 Host 1.5.19，请在游戏与 MOD 中更新 Host\") end".into());
+            out.push(call(
+                "mod_big_picture_configure_hide",
+                &[n(node, "fade_out", json!(0))],
+            ));
+            out.push("\trunwait(mainui.HideBigPicture())".into());
+        }
+        "cg" if !ctx.previous_big_pictures
+            && s(node, "kind") == "big"
             && s(node, "action") == "show"
             && (node["background_only"] == true
                 || s(node, "key").starts_with("user:")
@@ -1959,6 +1971,29 @@ pub fn compile_story(
         false,
     )
 }
+// Exact <=1.5.18 output for the formerly ignored big-picture hide duration.
+pub(crate) fn compile_story_previous_big_picture_fades(
+    story: &Value,
+    mod_info: Option<&Value>,
+    source: Option<&str>,
+    content_root: Option<&Path>,
+) -> Result<String> {
+    // Released <=1.5.18 accepted this optional field but ignored it on big hides.
+    let mut historical = story.clone();
+    for node in historical["nodes"].as_array_mut().into_iter().flatten() {
+        if node["type"] == "cg" && node["kind"] == "big" && node["action"] == "hide" {
+            if node
+                .get("fade_out")
+                .is_some_and(|fade| !crate::validate::finite(fade))
+            {
+                bail!("历史大图步骤 {} 的 fade_out 不是数值", s(node, "id"));
+            }
+            node.as_object_mut().unwrap().remove("fade_out");
+        }
+    }
+    compile_story(&historical, mod_info, source, content_root)
+}
+
 // Exact <=1.5.8 output, including author-entered fields that the older emitter
 // accepted but did not yet route to a custom big-picture implementation.
 pub(crate) fn compile_story_previous_big_pictures(
@@ -2055,6 +2090,13 @@ fn compile_story_impl(
             .flatten()
         {
             if node["type"] == "cg" && node["kind"] == "big" {
+                if node["action"] == "show"
+                    && !node["key"]
+                        .as_str()
+                        .is_some_and(|key| !key.trim().is_empty())
+                {
+                    bail!("旧版大图编译器要求步骤 {} 提供图片 key", s(node, "id"));
+                }
                 node.as_object_mut().unwrap().remove("fade_in");
             }
         }
