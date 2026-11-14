@@ -14,6 +14,7 @@ mod help;
 mod http_download;
 mod i18n;
 mod initial_setup;
+mod json;
 mod macos_window;
 mod native_forms;
 mod persistence;

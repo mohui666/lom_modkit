@@ -230,16 +230,25 @@ fn find_back_edges(
     back_edges: &mut BTreeSet<(usize, usize)>,
 ) {
     colors[index] = 1;
-    for &next in &graph[index] {
+    let mut stack = vec![(index, 0)];
+    while let Some((index, edge)) = stack.last_mut() {
+        let Some(&next) = graph[*index].get(*edge) else {
+            colors[*index] = 2;
+            stack.pop();
+            continue;
+        };
+        *edge += 1;
         match colors[next] {
-            0 => find_back_edges(next, graph, colors, back_edges),
+            0 => {
+                colors[next] = 1;
+                stack.push((next, 0));
+            }
             1 => {
-                back_edges.insert((index, next));
+                back_edges.insert((*index, next));
             }
             _ => {}
         }
     }
-    colors[index] = 2;
 }
 
 fn layout(story: &Value) -> Layout {
@@ -1001,7 +1010,7 @@ pub(super) fn show(
         }
     });
     if state.layout.as_ref().is_none_or(|cached| {
-        cached.story != *story
+        !crate::json::same(&cached.story, story)
             || cached.full != state.full
             || !state.full && cached.selected != selected_id
     }) {
@@ -1418,6 +1427,25 @@ mod tests {
         assert_eq!(own_loop.layout.links.len(), 1);
         assert!(own_loop.layout.links[0].backward);
         assert_eq!(own_loop.layout.links[0].to, Some(0));
+    }
+
+    #[test]
+    fn long_route_with_return_edge_uses_bounded_call_stack() {
+        let mut nodes: Vec<_> = (0..20000)
+            .map(|index| {
+                serde_json::json!({
+                    "id":format!("n{index}"), "type":"say", "text":"长章节"
+                })
+            })
+            .collect();
+        nodes.last_mut().unwrap()["goto"] = serde_json::json!("n0");
+        let model = display_layout(&serde_json::json!({"start":"n0", "nodes":nodes}), 0, false);
+        assert_eq!(model.members.iter().map(Vec::len).sum::<usize>(), 20000);
+        assert!(model
+            .layout
+            .links
+            .iter()
+            .any(|link| link.backward && link.to == Some(0)));
     }
 
     #[test]

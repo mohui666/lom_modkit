@@ -159,7 +159,10 @@ impl App {
     }
     pub(super) fn apply_pending_drafts(&mut self) -> bool {
         match self.content_panel.apply_pending(&mut self.project) {
-            Ok(true) => self.track(),
+            Ok(true) => {
+                self.asset_dirty = true;
+                self.track();
+            }
             Ok(false) => {}
             Err(error) => {
                 self.error = Some(crate::error_ui::capture(error));
@@ -228,7 +231,7 @@ impl App {
                     .any(|key| key.split('/').nth(3) == Some(id.as_str()))
             })
             .unwrap();
-        self.content_panel.apply_pending(&mut self.project)?;
+        self.asset_dirty |= self.content_panel.apply_pending(&mut self.project)?;
         self.flush();
         self.import_assets_with_target(paths, &id, &name, kind, &extends)?;
         if kind == 0 {

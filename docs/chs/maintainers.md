@@ -2,7 +2,7 @@
 
 当前工具端由 Rust 编译器、核心库与 egui 编辑器组成；C# `MortalModHost` 保留游戏接入。日常编辑见 [软件使用](software_usage.md)，构建和 CLI 见 [Rust 工具端](rust.md)，验证层次见 [测试矩阵](test_matrix.md)。旧 Python／Qt／PyInstaller 入口已经退役，不作为本手册操作入口。
 
-当前版本为 1.5.18，功能见 [本版说明](../../RELEASE_NOTES_v1.5.18.md)，验证范围见 [当前能力](current_capabilities.md)。
+当前版本为 1.5.19，功能见 [本版说明](../../RELEASE_NOTES_v1.5.19.md)，验证范围见 [当前能力](current_capabilities.md)。
 
 ## 编辑器入口与设置
 
@@ -90,6 +90,8 @@ Runtime 更新在 `BepInEx/plugins/MortalModHost/.runtime_rollback/` 保留已�
 Windows 工作文件位于 `%LOCALAPPDATA%\lom_modkit\cache\work`，每次操作使用独立子目录。遇到拒绝访问时，先按报告中的实际路径区分工作目录、游戏目录和被占用 DLL，再检查该路径的权限、只读属性或文件占用。诊断信息会标明读取、暂存、备份或替换失败的位置。
 
 ## 原生离线验证入口
+
+仓库通过 `rust-toolchain.toml` 固定为 `nightly-2026-11-14`，常规 Cargo 命令自动使用该工具链。沿用 nightly 默认的编译元数据拆分以减少中间产物；构建脚本从 Cargo 最终产物目录取文件，不依赖内部构建目录布局。有关默认优化见 [Rust 官方说明](https://blog.rust-lang.org/inside-rust/2026/08/18/reducing-target-dir-size-on-nightly/)。发布配置使用体积优化级别 `s`、ThinLTO、单个代码生成单元及符号剥离，保留 panic 展开行为。
 
 以下均在仓库根目录执行；本次执行结果见版本记录：
 

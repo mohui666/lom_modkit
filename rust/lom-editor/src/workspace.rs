@@ -49,7 +49,7 @@ use crate::shell::{self, style, surface, ACCENT};
 struct Snapshot {
     manifest: Value,
     scenario: Option<Value>,
-    stories: BTreeMap<String, Value>,
+    stories: BTreeMap<String, std::sync::Arc<history::StorySnapshot>>,
     paths: BTreeMap<String, PathBuf>,
     assets: std::sync::Arc<BTreeMap<String, Vec<u8>>>,
 }
@@ -326,7 +326,16 @@ fn snapshot(p: &Project) -> Snapshot {
     Snapshot {
         manifest: p.manifest.clone(),
         scenario: p.scenario.clone(),
-        stories: p.stories.clone(),
+        stories: p
+            .stories
+            .iter()
+            .map(|(id, story)| {
+                (
+                    id.clone(),
+                    std::sync::Arc::new(history::StorySnapshot::capture(story, None)),
+                )
+            })
+            .collect(),
         paths: p.paths.clone(),
         assets: std::sync::Arc::new(p.assets.clone()),
     }

@@ -65,14 +65,17 @@ pub(crate) fn clear_preview_draft(ctx: &egui::Context) {
     });
 }
 
-/// A private copy for rendering. The editable story and undo history stay intact.
-pub(crate) fn preview_story(ctx: &egui::Context, story: &Value) -> Value {
+/// Only a pending browse selection needs a copy. Idle previews borrow the source.
+pub(crate) fn preview_story<'a>(
+    ctx: &egui::Context,
+    story: &'a Value,
+) -> std::borrow::Cow<'a, Value> {
     let draft = ctx.data(|data| data.get_temp::<PreviewDraft>(draft_id()));
     let Some(draft) = draft else {
-        return story.clone();
+        return std::borrow::Cow::Borrowed(story);
     };
     if story["id"].as_str() != Some(draft.scope.story.as_str()) {
-        return story.clone();
+        return std::borrow::Cow::Borrowed(story);
     }
     let mut preview = story.clone();
     let Some(node) = preview["nodes"]
@@ -80,7 +83,7 @@ pub(crate) fn preview_story(ctx: &egui::Context, story: &Value) -> Value {
         .and_then(|nodes| nodes.iter_mut().find(|node| node["id"] == draft.scope.node))
     else {
         clear_preview_draft(ctx);
-        return story.clone();
+        return std::borrow::Cow::Borrowed(story);
     };
     let target = if let Some(index) = draft.scope.action {
         node["actions"]
@@ -91,15 +94,15 @@ pub(crate) fn preview_story(ctx: &egui::Context, story: &Value) -> Value {
     };
     let Some(target) = target else {
         clear_preview_draft(ctx);
-        return story.clone();
+        return std::borrow::Cow::Borrowed(story);
     };
     if *target != draft.source {
         // Any real edit invalidates a pending browse selection.
         clear_preview_draft(ctx);
-        return story.clone();
+        return std::borrow::Cow::Borrowed(story);
     }
     *target = draft.preview;
-    preview
+    std::borrow::Cow::Owned(preview)
 }
 
 fn set_draft(ctx: &egui::Context, owner: egui::Id, key: &str, source: &Value, value: Option<&str>) {
@@ -769,10 +772,10 @@ mod tests {
         );
         let mut edited = story.clone();
         edited["nodes"][0]["portrait"] = json!("laugh1");
-        assert_eq!(preview_story(&context, &edited), edited);
+        assert_eq!(preview_story(&context, &edited).as_ref(), &edited);
         assert_eq!(
-            preview_story(&context, &story),
-            story,
+            preview_story(&context, &story).as_ref(),
+            &story,
             "An expired selection must not return later"
         );
         set_draft(
@@ -783,6 +786,6 @@ mod tests {
             Some("angry1"),
         );
         set_preview_scope(&context, "main", "two");
-        assert_eq!(preview_story(&context, &story), story);
+        assert_eq!(preview_story(&context, &story).as_ref(), &story);
     }
 }

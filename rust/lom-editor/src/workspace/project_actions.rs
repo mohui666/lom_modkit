@@ -11,6 +11,7 @@ impl App {
             .and_then(|incoming| lom_core::project_merge::merge(&mut self.project, &incoming));
         match result {
             Ok(report) => {
+                self.asset_dirty |= report.assets > 0;
                 self.track();
                 self.status = crate::i18n::message(
                     "editor.merge.done",

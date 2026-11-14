@@ -4,7 +4,7 @@ exclude = ["vendor/egui-winit"]
 resolver = "2"
 
 [workspace.package]
-version = "1.5.18"
+version = "1.5.19"
 edition = "2021"
 license = "MIT"
 
@@ -21,3 +21,9 @@ lom-core = { path = "rust/lom-core" }
 [patch.crates-io]
 # Backport Windows IME Process-key handling without changing the egui version.
 egui-winit = { path = "vendor/egui-winit" }
+
+[profile.release]
+opt-level = "s"
+lto = "thin"
+codegen-units = 1
+strip = "symbols"

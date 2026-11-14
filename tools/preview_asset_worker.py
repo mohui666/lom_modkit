@@ -34,6 +34,64 @@ def token(value):
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
+def extract_inventory_pictures(data, output, max_size):
+    import struct
+    import UnityPy
+    from UnityPy.classes.PPtr import PPtr
+    from PIL import Image
+    import _probe_assets as probe
+
+    inventory = UnityPy.load(str(data / "globalgamemanagers.assets"))
+    catalog = json.loads(Path(probe.EDITOR_DATA).with_name("picture_keys.json").read_text(encoding="utf-8"))
+    requested = {row["key"] for row in catalog["pictures"] if row["key"].startswith("item:")}
+    databases = []
+    for obj in inventory.objects:
+        if obj.type.name != "MonoBehaviour" or "ItemDatabase" not in probe._read_str(obj.get_raw_data(), 28)[0]:
+            continue
+        script = obj.read(check_read=False).m_Script.read()
+        if (script.m_Namespace, script.m_ClassName) == ("Mortal.Core", "ItemDatabase"):
+            databases.append(obj)
+    if len(databases) != 1:
+        raise ValueError("原版 ItemDatabase 缺失或不唯一")
+    database = databases[0]
+
+    def pointer(owner, offset):
+        file_id, path_id = struct.unpack_from("<iq", owner.get_raw_data(), offset)
+        return PPtr(m_FileID=file_id, m_PathID=path_id, assetsfile=owner.assets_file).deref()
+
+    _, start = probe._read_str(database.get_raw_data(), 28)
+    mapping, files = {}, {}
+    for index, category in enumerate(["book", "misc", "special", "consumable"]):
+        collection = pointer(database, start + index * 12)
+        raw = collection.get_raw_data()
+        _, offset = probe._read_str(raw, 28)
+        count = struct.unpack_from("<i", raw, offset)[0]
+        if count < 0 or offset + 4 + count * 12 != len(raw):
+            raise ValueError("原版 ItemDataCollection 的结构已改变")
+        for n in range(count):
+            item = pointer(collection, offset + 4 + n * 12)
+            raw = item.get_raw_data()
+            _, field = probe._read_str(raw, 28)
+            _, field = probe._read_str(raw, field)
+            item_id, field = probe._read_str(raw, field)
+            key = f"item:{category}:{item_id}"
+            if key not in requested:
+                continue
+            icon = pointer(item, field)
+            identity = (str(icon.assets_file.name), icon.path_id)
+            if identity not in files:
+                relative = f"assets/pictures/item_{category}_{item_id}.png"
+                image = icon.read().image
+                image.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+                (output / relative).parent.mkdir(parents=True, exist_ok=True)
+                image.save(output / relative)
+                files[identity] = relative
+            mapping[key] = files[identity]
+    if requested - mapping.keys():
+        raise ValueError("原版物品图标未找到：" + "、".join(sorted(requested - mapping.keys())))
+    return mapping
+
+
 def portrait_canvas_image(sprite):
     """Restore the logical Sprite rect after UnityPy decodes its trimmed image."""
     from PIL import Image
@@ -143,6 +201,13 @@ def extract(game, output, max_size):
         if done == 1 or done % 10 == 0 or done == len(tasks):
             emit("progress", message="正在导出立绘、表情、背景和插图", done=done, total=len(tasks), failed=len(failures))
     load_bundle.cache_clear()
+
+    # Inventory-only icons have no pic_ alias. Follow registered ItemData._image
+    # references, as the Host does via ItemData.Image. Shared Sprites share PNGs.
+    inventory = extract_inventory_pictures(data, output, max_size)
+    mapping["pictures"].update(inventory)
+    mapping["picture_catalog"].extend({"key": key, "category": "Book" if key.startswith("item:book:") else "Items"} for key in inventory)
+    succeeded += len(inventory)
 
     # Missing fallback portraits must remain visible as failures, never map to
     # a different character or a nonexistent image.

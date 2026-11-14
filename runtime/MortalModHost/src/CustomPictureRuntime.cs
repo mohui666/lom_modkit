@@ -25,7 +25,7 @@ namespace MortalModHost
             internal void Destroy()
             {
                 if (Root != null) { Root.SetActive(false); UObject.Destroy(Root); }
-                if (Sprite != null) UObject.Destroy(Sprite);
+                if (Texture != null && Sprite != null) UObject.Destroy(Sprite);
                 if (Texture != null) UObject.Destroy(Texture);
             }
         }
@@ -36,7 +36,8 @@ namespace MortalModHost
         {
             if (slot == "_picture") EventPictureRuntime.Clear();
             routine = null;
-            if (ModOverlay.CurrentPackage != null && key != null && key.StartsWith("user:", StringComparison.Ordinal))
+            if (ModOverlay.CurrentPackage != null && key != null
+                && (key.StartsWith("user:", StringComparison.Ordinal) || OfficialItemPictureRuntime.IsReference(key)))
             {
                 routine = Show(main, slot, key, ModOverlay.CurrentPackage);
                 return true;
@@ -50,8 +51,10 @@ namespace MortalModHost
             Clear(slot);
             StoryPicture original = Traverse.Create(main).Field(slot).GetValue<StoryPicture>();
             if (original == null) throw new InvalidOperationException("当前剧情没有对应的图片界面：" + slot);
-            UserContent content = CustomGameplayRuntime.ResolveContent(package, key);
-            if (!content.IsStoryPicture || content.Bytes == null)
+            Sprite official;
+            bool inventory = OfficialItemPictureRuntime.TryResolve(key, out official);
+            UserContent content = inventory ? null : CustomGameplayRuntime.ResolveContent(package, key);
+            if (!inventory && (!content.IsStoryPicture || content.Bytes == null))
                 throw new InvalidOperationException("图片需要已导入的图片、物品或功法：" + key);
             yield return original.Hide();
 
@@ -61,12 +64,16 @@ namespace MortalModHost
             Vector2 offset = Traverse.Create(original).Field("_moveOffset").GetValue<Vector2>();
             try
             {
-                visual.Texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
-                if (!visual.Texture.LoadImage(content.Bytes)) throw new InvalidOperationException("图片解码失败：" + key);
-                visual.Texture.wrapMode = TextureWrapMode.Clamp;
-                visual.Texture.filterMode = FilterMode.Bilinear;
-                visual.Sprite = Sprite.Create(visual.Texture,
-                    new Rect(0, 0, visual.Texture.width, visual.Texture.height), new Vector2(.5f, .5f));
+                visual.Sprite = official;
+                if (!inventory)
+                {
+                    visual.Texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+                    if (!visual.Texture.LoadImage(content.Bytes)) throw new InvalidOperationException("图片解码失败：" + key);
+                    visual.Texture.wrapMode = TextureWrapMode.Clamp;
+                    visual.Texture.filterMode = FilterMode.Bilinear;
+                    visual.Sprite = Sprite.Create(visual.Texture,
+                        new Rect(0, 0, visual.Texture.width, visual.Texture.height), new Vector2(.5f, .5f));
+                }
                 visual.Root = UObject.Instantiate(original.gameObject, original.transform.parent, false);
                 visual.Root.name = "lom_custom" + slot;
                 var controller = visual.Root.GetComponent<StoryPicture>();

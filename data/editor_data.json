@@ -7596,6 +7596,14 @@
       "name": "Bake_001"
     },
     {
+      "id": "Bell_001",
+      "name": "Bell_001"
+    },
+    {
+      "id": "Bite_001",
+      "name": "Bite_001"
+    },
+    {
       "id": "BlackLine_001",
       "name": "BlackLine_001"
     },
@@ -7608,12 +7616,24 @@
       "name": "Blade_002"
     },
     {
+      "id": "Blade_003",
+      "name": "Blade_003"
+    },
+    {
+      "id": "Blade_004",
+      "name": "Blade_004"
+    },
+    {
       "id": "Blood_001",
       "name": "Blood_001"
     },
     {
       "id": "Blood_002",
       "name": "Blood_002"
+    },
+    {
+      "id": "Blood_003",
+      "name": "Blood_003"
     },
     {
       "id": "Breath_001",
@@ -7704,6 +7724,14 @@
       "name": "Dust_003"
     },
     {
+      "id": "EggBreak_001",
+      "name": "EggBreak_001"
+    },
+    {
+      "id": "EggMove_001",
+      "name": "EggMove_001"
+    },
+    {
       "id": "Electric_001",
       "name": "Electric_001"
     },
@@ -7724,6 +7752,30 @@
       "name": "EventBubble_004"
     },
     {
+      "id": "EventBubble_100",
+      "name": "EventBubble_100"
+    },
+    {
+      "id": "EventBubble_101",
+      "name": "EventBubble_101"
+    },
+    {
+      "id": "EventBubble_102",
+      "name": "EventBubble_102"
+    },
+    {
+      "id": "EventBubble_103",
+      "name": "EventBubble_103"
+    },
+    {
+      "id": "EventBubble_104",
+      "name": "EventBubble_104"
+    },
+    {
+      "id": "EventBubble_105",
+      "name": "EventBubble_105"
+    },
+    {
       "id": "Explosion_001",
       "name": "Explosion_001"
     },
@@ -7734,6 +7786,14 @@
     {
       "id": "Explosion_003",
       "name": "Explosion_003"
+    },
+    {
+      "id": "Explosion_100",
+      "name": "Explosion_100"
+    },
+    {
+      "id": "FireSparkSlow_001",
+      "name": "FireSparkSlow_001"
     },
     {
       "id": "FireSparkSlow_002",
@@ -7768,8 +7828,16 @@
       "name": "Glow_002"
     },
     {
+      "id": "Hammer_001",
+      "name": "Hammer_001"
+    },
+    {
       "id": "Hand_001",
       "name": "Hand_001"
+    },
+    {
+      "id": "HeadRotate_001",
+      "name": "HeadRotate_001"
     },
     {
       "id": "HeadRotate_002",
@@ -7848,6 +7916,34 @@
       "name": "MapArrow_004"
     },
     {
+      "id": "MapArrow_005",
+      "name": "MapArrow_005"
+    },
+    {
+      "id": "MapArrow_006",
+      "name": "MapArrow_006"
+    },
+    {
+      "id": "MapArrow_007",
+      "name": "MapArrow_007"
+    },
+    {
+      "id": "MapArrow_008",
+      "name": "MapArrow_008"
+    },
+    {
+      "id": "MapArrow_101",
+      "name": "MapArrow_101"
+    },
+    {
+      "id": "MapArrow_201",
+      "name": "MapArrow_201"
+    },
+    {
+      "id": "Medi_100",
+      "name": "Medi_100"
+    },
+    {
       "id": "Mega_001",
       "name": "Mega_001"
     },
@@ -7904,6 +8000,14 @@
       "name": "SmokeDust_001"
     },
     {
+      "id": "SmokeLoop_001",
+      "name": "SmokeLoop_001"
+    },
+    {
+      "id": "Smoke_001",
+      "name": "Smoke_001"
+    },
+    {
       "id": "Snow_001",
       "name": "Snow_001"
     },
@@ -7940,6 +8044,10 @@
       "name": "SwordBlock_002"
     },
     {
+      "id": "SwordBlock_003",
+      "name": "SwordBlock_003"
+    },
+    {
       "id": "Sword_001",
       "name": "Sword_001"
     },
@@ -7962,6 +8070,10 @@
     {
       "id": "ThrowStick_001",
       "name": "ThrowStick_001"
+    },
+    {
+      "id": "UI_Blood_002",
+      "name": "UI_Blood_002"
     },
     {
       "id": "Woosh_001",

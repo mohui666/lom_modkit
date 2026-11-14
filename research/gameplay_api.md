@@ -1,5 +1,17 @@
 # Gameplay API 实证矩阵
 
+## 2026-11-14 图片淡出、字号与重复试玩
+
+本次只读实时核对当前 `Mortal.Story.StoryPicture.Show/Hide/Awake`、`StoryMainUI.ShowBigPicture/HideBigPicture`、`Mortal.Core.ItemDatabase.Miscs`、`ItemData.Image`、`Fungus.SayDialog.DoSay/StoryTextObject`、`Mortal.Core.CharacterSayDialog.DoSay`、`CustomSayDialog.DoSay`、`TextLineSpacingPanel.UpdateLineSpacing`、`Mortal.Story.StoryManager.SkipDialog` 与 `Mortal.Core.SceneController.StartLoadScene/UnloadLoading`。快进把 `Time.timeScale` 设为 10，事件图补间因此与 Lua 等待一起使用游戏时间；暂停时一起停止。大图隐藏时只临时覆盖当前实例的 `_fadeoutDuration`，原版 `Hide()` 仍负责资源释放，结束后恢复实例时长；自建大图使用同样的作者时长。
+
+`Misc7002_色紙` 的 `ItemData.Image` 指向 `item_paper_001` Sprite（312×300）；当前 Addressables 没有它的 `pic_` 别名。工具引用 `item:misc:7002` 通过 `ItemDatabase.Miscs.Get("7002").Image` 读取原图，预览提取同一序列化图片引用，不注册虚构的 Addressables 地址、不销毁或修改官方 Sprite。显式字号在 `SayDialog.DoSay` 进入正文前关闭实例 Text 的 best-fit，下一句或清舞台恢复原字号和开关，沿用已发布编译器的 `{size=...}` 输出。
+
+`LuaManager.Init` 启动的 `UnloadLoading` 协程尚未结束时，F5 清理不能先停止 LuaManager 的协程；目标场景已激活也可能仍有 `_currentLoadingScene`。试玩请求在清理旧演出之前等待现有完整场景就绪判断，再重新载入 Story。
+
+本次补漏沿实时 `ItemDatabase.Books/Miscs/Special` 持有的 `ItemDataCollection.Get(id).Image` 核对，补入 138 个无 `pic_` 别名的物品图标引用，并补列 `book_0000`。共享 Sprite 的物品共用预览 PNG。游戏只读解析 139 个 `item:` 图标引用均成功；另有 6 条原版物品记录本来没有图片，不生成虚构图标。实时 `StoryParticleDataCollection.GetData` 与 `StoryEffectsController.SetupEffect` 确认原版 124 个特效键，28 项漏列已补入；Addressables 项按 `StoryParticleData.UseAddressable/Addressable` 加载，124 项均检查到根 ParticleSystem。
+
+当前 `UnityEngine.ImageConversion.LoadImage(Texture2D, byte[], bool markNonReadable)` 的第三参数可释放 CPU 端像素副本。仅作者自有立绘、事件图使用 `true`，不改官方 Texture/Sprite；渲染和 Sprite.Create 已在游戏压测中执行。事件图只缓存最近一张作者图片，隐藏保留、切换作者图片或清舞台/会话时释放，避免同图反复解码。
+
 ## 2026-11-13 补齐原版注册旗标目录
 
 本次实时只读核对当前 Windows 游戏 `MissionManagerData.FlagsCollection/GetFlag(string)`、`FlagCollectionData.List/Get(string)`、`FlagData.DevNote/ResetData()`。`GetFlag` 按任务管理器持有的集合查找，目录生成因此改为沿这些真实集合引用读取全部 1068 个旗标，补入旧目录未收录的 310 个编号，包括 `M00032`（崆峒留学·瑞笙参战）。883 项有原始开发备注，52 项有可明确解析的数值说明；没有备注或数值含义不明确时保持未知，不猜测。常规目录重建保留这份已核对的完整集合，不再只留下旧 Lua 字面调用出现的编号。未改写官方资产、游戏文件或存档；这是接口与资源核对，不是本次实机读写验证。

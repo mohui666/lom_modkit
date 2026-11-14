@@ -20,6 +20,8 @@ namespace MortalModHost
         private static AsyncOperationHandle<Sprite> _handle;
         private static MonoBehaviour _host;
         private static Coroutine _fade;
+        private static UserContent _cachedContent;
+        internal static bool IsFading { get { return _fade != null; } }
 
         internal static void Init(MonoBehaviour host) { _host = host; }
 
@@ -27,7 +29,7 @@ namespace MortalModHost
         {
             if (float.IsNaN(fadeIn) || float.IsInfinity(fadeIn) || fadeIn < 0f)
                 throw new ArgumentOutOfRangeException("fadeIn", "事件图淡入时间必须为非负有限数值");
-            Clear();
+            ClearVisual();
             CustomPictureRuntime.ClearPicture();
             try
             {
@@ -49,16 +51,21 @@ namespace MortalModHost
                     if (package == null || !package.TryGetUserContent(reference.ContentId, out content)
                         || !content.IsStoryPicture || content.Bytes == null)
                         throw new InvalidOperationException("事件图片不存在：" + key);
-                    _texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
-                    if (!_texture.LoadImage(content.Bytes))
-                        throw new InvalidOperationException("事件图片解码失败：" + key);
-                    _texture.wrapMode = TextureWrapMode.Clamp;
-                    _texture.filterMode = FilterMode.Bilinear;
-                    _sprite = Sprite.Create(_texture,
-                        new Rect(0, 0, _texture.width, _texture.height), new Vector2(0.5f, 0.5f));
+                    if (!ReferenceEquals(_cachedContent, content) || _texture == null || _sprite == null)
+                    {
+                        ReleaseCachedPicture();
+                        _texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+                        if (!_texture.LoadImage(content.Bytes, true))
+                            throw new InvalidOperationException("事件图片解码失败：" + key);
+                        _texture.wrapMode = TextureWrapMode.Clamp;
+                        _texture.filterMode = FilterMode.Bilinear;
+                        _sprite = Sprite.Create(_texture,
+                            new Rect(0, 0, _texture.width, _texture.height), new Vector2(0.5f, 0.5f));
+                        _cachedContent = content;
+                    }
                     picture = _sprite;
                 }
-                else
+                else if (!OfficialItemPictureRuntime.TryResolve(key, out picture))
                 {
                     _handle = Addressables.LoadAssetAsync<Sprite>("pic_" + key);
                     picture = _handle.WaitForCompletion();
@@ -118,10 +125,13 @@ namespace MortalModHost
 
         private static IEnumerator FadeIn(CanvasGroup group, float seconds)
         {
+            float started = Time.timeSinceLevelLoad;
             float elapsed = 0f;
             while (group != null && elapsed < seconds)
             {
-                elapsed += Time.unscaledDeltaTime;
+                // Match the exact clock used by the installed Lua/fungus wait().
+                // A skip-speed change must affect the wait and reveal together.
+                elapsed = Time.timeSinceLevelLoad - started;
                 group.alpha = Mathf.Clamp01(elapsed / seconds);
                 yield return null;
             }
@@ -135,7 +145,7 @@ namespace MortalModHost
                 throw new ArgumentOutOfRangeException("fadeOut", "事件图淡出时间必须为非负有限数值");
             if (fadeOut == 0f || _root == null)
             {
-                Clear();
+                ClearVisual();
                 return;
             }
             if (_host == null)
@@ -150,19 +160,35 @@ namespace MortalModHost
         private static IEnumerator FadeOut(CanvasGroup group, float seconds)
         {
             float start = group.alpha;
+            float started = Time.timeSinceLevelLoad;
             float elapsed = 0f;
             while (group != null && elapsed < seconds)
             {
-                elapsed += Time.unscaledDeltaTime;
+                elapsed = Time.timeSinceLevelLoad - started;
                 group.alpha = start * (1f - Mathf.Clamp01(elapsed / seconds));
                 yield return null;
             }
             if (group != null) group.alpha = 0f;
             _fade = null;
-            Clear();
+            ClearVisual();
         }
 
         internal static void Clear()
+        {
+            ClearVisual();
+            ReleaseCachedPicture();
+        }
+
+        private static void ReleaseCachedPicture()
+        {
+            if (_sprite != null) UnityEngine.Object.Destroy(_sprite);
+            if (_texture != null) UnityEngine.Object.Destroy(_texture);
+            _sprite = null;
+            _texture = null;
+            _cachedContent = null;
+        }
+
+        private static void ClearVisual()
         {
             if (_fade != null && _host != null) _host.StopCoroutine(_fade);
             _fade = null;
@@ -172,10 +198,6 @@ namespace MortalModHost
                 UnityEngine.Object.Destroy(_root);
             }
             _root = null;
-            if (_sprite != null) UnityEngine.Object.Destroy(_sprite);
-            if (_texture != null) UnityEngine.Object.Destroy(_texture);
-            _sprite = null;
-            _texture = null;
             if (_handle.IsValid()) Addressables.Release(_handle);
             _handle = default(AsyncOperationHandle<Sprite>);
         }

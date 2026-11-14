@@ -407,6 +407,13 @@ fn verify_story_lua_pairs(entries: &Entries, manifest: &Value) -> Result<()> {
         let matches = generated
             .as_ref()
             .is_ok_and(|lua| lua.as_bytes() == packaged)
+            || crate::codegen::compile_story_previous_big_picture_fades(
+                story,
+                Some(manifest),
+                Some(&source),
+                Some(resources.path()),
+            )
+            .is_ok_and(|expected| expected.as_bytes() == packaged)
             || crate::codegen::compile_story_previous_big_pictures(
                 story,
                 Some(manifest),
@@ -1404,6 +1411,17 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
                     })
         })
     });
+    let picture_controls = stories.values().any(|story| {
+        crate::parallel::story_actions(story).any(|(_, node)| {
+            node["type"] == "cg"
+                && (node["kind"] == "big"
+                    && node["action"] == "hide"
+                    && node.get("fade_out").is_some()
+                    || node["key"]
+                        .as_str()
+                        .is_some_and(|key| key.starts_with("item:")))
+        })
+    });
     let presentation_controls = stories.values().any(|story| {
         crate::parallel::story_actions(story).any(|(parent, node)| {
             matches!(node["type"].as_str(), Some("show" | "cg")) && node.get("scale").is_some()
@@ -1418,7 +1436,8 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
                     )
         })
     });
-    if presentation_controls
+    if picture_controls
+        || presentation_controls
         || custom_pictures
         || render_priority
         || martial_talents
@@ -1437,7 +1456,9 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
         || event_fade
         || dialogue_dimming
     {
-        let (minimum, required) = if presentation_controls {
+        let (minimum, required) = if picture_controls {
+            ([1, 5, 19], "1.5.19")
+        } else if presentation_controls {
             ([1, 5, 15], "1.5.15")
         } else if custom_pictures {
             ([1, 5, 13], "1.5.13")

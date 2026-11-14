@@ -548,7 +548,6 @@ impl Catalog {
                 .as_array()
                 .into_iter()
                 .flatten()
-                .filter(|row| node["kind"] != "event" || row["category"] == "Picture")
                 .filter_map(|row| {
                     Some((
                         row["key"].as_str()?.to_owned(),
@@ -2519,7 +2518,9 @@ fn field_visible(kind: &str, node: &Value, key: &str) -> bool {
             "fade_in" => {
                 node["action"] == "show" && matches!(node["kind"].as_str(), Some("event" | "big"))
             }
-            "fade_out" => node["action"] == "hide" && node["kind"] == "event",
+            "fade_out" => {
+                node["action"] == "hide" && matches!(node["kind"].as_str(), Some("event" | "big"))
+            }
             "scale" => {
                 node["action"] == "show"
                     && node["background_only"] != true
@@ -3189,8 +3190,8 @@ mod tests {
         );
         assert!(!changed);
         assert_eq!(
-            preview_story(&context, &story),
-            story,
+            preview_story(&context, &story).as_ref(),
+            &story,
             "Applying clears the temporary overlay"
         );
     }
@@ -3290,7 +3291,7 @@ mod tests {
         let (_, changed) = field_frame(&catalog, &context, &mut node, "view", "view", events);
         assert!(changed);
         assert_eq!(node["view"], "fixture_75");
-        assert_eq!(preview_story(&context, &story), story);
+        assert_eq!(preview_story(&context, &story).as_ref(), &story);
         let (_, changed) = field_frame(&catalog, &context, &mut node, "view", "view", vec![]);
         assert!(!changed, "confirmation must commit only once");
         let (output, _) = field_frame(&catalog, &context, &mut node, "view", "view", vec![]);
@@ -3384,7 +3385,7 @@ mod tests {
             "character",
             vec![key(egui::Key::Escape)],
         );
-        assert_eq!(preview_story(&context, &story), story);
+        assert_eq!(preview_story(&context, &story).as_ref(), &story);
         assert_eq!(node, before);
 
         set_preview_scope(&context, "main", "parallel");
@@ -3438,7 +3439,7 @@ mod tests {
             "portrait",
             vec![key(egui::Key::Escape)],
         );
-        assert_eq!(preview_story(&context, &story), story);
+        assert_eq!(preview_story(&context, &story).as_ref(), &story);
     }
 
     #[test]
@@ -4411,6 +4412,8 @@ mod tests {
             ("素醒酒冰", "food_125"),
             ("尸心丹", "medi_002"),
             ("大师兄拎起小师妹", "event_bubble_101"),
+            ("色纸", "item:misc:7002"),
+            ("折纸", "item:misc:7002"),
         ] {
             node["key"] = json!("food_103");
             let original = node.clone();
@@ -4484,7 +4487,13 @@ mod tests {
         assert!(event
             .iter()
             .any(|(id, name)| id == "girlroom_work_002" && name.contains("吊打")));
-        assert!(!event.iter().any(|(id, _)| id == "food_126"));
+        assert!(event.iter().any(|(id, _)| id == "food_126"));
+        assert!(event.iter().any(|(id, _)| id == "item:misc:7002"));
+        assert!(field_visible(
+            "cg",
+            &json!({"kind":"big","action":"hide"}),
+            "fade_out"
+        ));
     }
 
     #[test]

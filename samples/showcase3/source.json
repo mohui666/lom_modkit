@@ -4,7 +4,7 @@
     "package_format": 3,
     "story_schema": 2,
     "content_schema": 1,
-    "min_host_version": "1.5.12",
+    "min_host_version": "1.5.19",
     "id": "showcase3",
     "campaign_id": "showcase3",
     "name": "全节点样例3.0·七十三节点实机验收",
@@ -1840,7 +1840,7 @@
       "id": "event_presentation",
       "story_schema": 2,
       "title": "独立事件演出示例",
-      "start": "say",
+      "start": "white",
       "nodes": [
         {
           "id": "white",
@@ -1860,7 +1860,8 @@
           "id": "white_hide",
           "type": "cg",
           "kind": "big",
-          "action": "hide"
+          "action": "hide",
+          "fade_out": 0.6
         },
         {
           "id": "custom_big",
@@ -1880,7 +1881,42 @@
           "id": "custom_big_hide",
           "type": "cg",
           "kind": "big",
-          "action": "hide"
+          "action": "hide",
+          "fade_out": 0.8
+        },
+        {
+          "id": "paper_event",
+          "type": "cg",
+          "kind": "event",
+          "action": "show",
+          "key": "item:misc:7002",
+          "event_title": "色纸",
+          "event_text": "折纸用的彩纸也能直接作为事件图，无需导入原版图片。",
+          "fade_in": 0.6
+        },
+        {
+          "id": "paper_hide",
+          "type": "cg",
+          "kind": "event",
+          "action": "hide",
+          "fade_out": 0.4
+        },
+        {
+          "id": "book_event",
+          "type": "cg",
+          "kind": "event",
+          "action": "show",
+          "key": "item:book:2000",
+          "event_title": "秘籍",
+          "event_text": "原版物品图标目录现在也包含云霄雷霆霹雳刀。",
+          "fade_in": 0.4
+        },
+        {
+          "id": "book_hide",
+          "type": "cg",
+          "kind": "event",
+          "action": "hide",
+          "fade_out": 0.4
         },
         {
           "id": "say",
