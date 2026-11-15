@@ -38,7 +38,9 @@ open "out/LoM Modkit Rust.app"
 
 构建提取器使用 `cargo build --locked --release -p lom-assets`；无需 UnityPy 或 PyInstaller。两端均构建本平台的提取器，不能复制另一平台的二进制。`--self-check` 不读取游戏。`tools` 中的旧 Python 读取器仅作为迁移结果的开发对照，不进入发布包。
 
-Windows 构建入口为 `scripts/build-windows.ps1 -NoArchive`，需要已构建的同版 `MortalModHost.dll`、`NVorbis.dll`；可用 `-RuntimeDirectory` 指定目录，正式单文件产物为 `out/windows/lom-editor.exe`。CLI、SDK、原生提取器、音频解码器、FFmpeg 与 Host 均由该 exe 内置，首次使用时准备任务所需组件；正式 Release 只上传此 exe。Host 本地引用及嵌入资源要求见 [Runtime 构建说明](../../runtime/MortalModHost/README.md#构建与测试)。
+Windows 构建入口为 `scripts/build-windows.ps1 -NoArchive`，需要已构建的同版 `MortalModHost.dll`、`NVorbis.dll`；可用 `-RuntimeDirectory` 指定目录，正式单文件产物为 `out/windows/lom-editor.exe`。CLI、SDK、原生提取器、音频解码器、FFmpeg 与 Host 均由该 exe 内置，配套组件在个人缓存中解包；正式 Release 只上传此 exe。Host 本地引用及嵌入资源要求见 [Runtime 构建说明](../../runtime/MortalModHost/README.md#构建与测试)。
+
+内置 FFmpeg 使用固定的 9.0.2 与 x264 源码裁剪构建，只保留原生视频的 H.264／AAC／MP4、原始画面与 PCM 输入、混音和格式转换，同时保留汇编优化与线程。先运行 `scripts/build-video-encoder.ps1`，默认输出到 `out/video-encoder-9.0.2-minimal`，后续编辑器构建复用该目录。该入口需要现有的 Git Bash、MinGW-w64 GCC／GNU Make／NASM 和 Perl pkg-config；路径参数见脚本。仅缺失的固定源码会下载，已有源码和对象缓存可继续使用。`-VideoEncoderDirectory` 可指定自备编码器目录，分发时同时维护对应许可与来源说明；默认构建来源见 [FFmpeg 说明](../../editor/assets/video/FFMPEG-NOTICE.md)。
 
 ## 模块
 
