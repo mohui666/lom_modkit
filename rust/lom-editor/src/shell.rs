@@ -10,6 +10,7 @@ const TEXT: Color32 = Color32::from_rgb(45, 51, 59);
 pub const NAVIGATION_WIDTH: f32 = 280.0;
 pub const PREVIEW_WIDTH: f32 = 560.0;
 
+#[derive(Clone)]
 pub struct Shell {
     backend: Option<String>,
     title: String,

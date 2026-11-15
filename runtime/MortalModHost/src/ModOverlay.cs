@@ -199,7 +199,7 @@ namespace MortalModHost
 
         private static void Postfix(GameOverController __instance, ref IEnumerator __result)
         {
-            if (ModDisclosure.Active)
+            if (ModDisclosure.Active && ModDisclosurePolicy.VisibleWatermarks)
             {
                 Transform buttonAnchor = ResolveButtonDisclosureAnchor(__instance);
                 GameObject disclosure = buttonAnchor != null
@@ -364,7 +364,7 @@ namespace MortalModHost
 
         private static void Postfix(EndGamePanel __instance, ref IEnumerator __result)
         {
-            if (ModDisclosure.Active)
+            if (ModDisclosure.Active && ModDisclosurePolicy.VisibleWatermarks)
             {
                 if (ModDisclosure.AttachToPanel(ResolveDisclosureAnchor(__instance)) == null)
                 {
@@ -513,7 +513,7 @@ namespace MortalModHost
 
         private static void Postfix(EndGameController __instance, ref IEnumerator __result)
         {
-            if (ModDisclosure.Active)
+            if (ModDisclosure.Active && ModDisclosurePolicy.VisibleWatermarks)
             {
                 Transform buttonAnchor = ResolveButtonDisclosureAnchor(__instance);
                 GameObject disclosure = buttonAnchor != null

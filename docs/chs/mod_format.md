@@ -523,7 +523,7 @@ luamanager.ChangeScene("GameOver", "910021", "Title")
 17. **用户音频**：`LuaManager.PlayMusic/PlaySound/PlayEnvSound` 参数以 `user:` 开头时由插件接管，从**当前演出 Mod 包**的 `UserContents` 解析（`assets/user/audio/<id>/content.json` + 主文件），解码后用 Windows `waveOut` 播放（本游戏主混音是 Wwise，Unity `AudioSource` 经常无声）。官方名字一律放行给原版 Wwise。运行时禁止读取 `%APPDATA%/lom_modkit/repository`。两个 Mod 即使 ID 相同也只解析自身包。支持格式仅 `.ogg` / `.wav`，单条 ≤20MB。自定义 fadeout 是输出音量淡出（随后仍有编译器发射的 `wait`）；切到自定义音乐会先停官方 Wwise 音乐（官方 `StopMusic` 会同时清环境音）。
 18. **对白语音**：注册 `mod_play_voice(ref)` / `mod_stop_voice()`。`mod_play_voice` 先停当前语音再播（不循环，走独立 `_voice` 通道）。`sound` 节点、自定义音效、`StopMusic` 都不碰这条通道。剧情中断、切官方脚本、重载 Mod 时 `StopEverything()` 会停语音。无 `voice` 的旧 Lua 不会调用这两个函数，行为不变。
 19. **离场清台**：脚本开头、`end` / `goto_scene` / `death` 发射 `mod_hide_all()`，立刻隐藏官方台上人物并清掉自定义立绘。换背景 `scene` 不自动退场。切到下一章（`end.next_script`）时下一章开场也会再清一次，避免上一幕角色带到下一章。
-20. **自定义角色立绘朝向与体型**：原版立绘朝左。默认 `art_facing=left`，节点 `facing=left` 不翻、`right` 水平翻转。原图朝右时标为 `right`。`scale` 默认 100；1.4.3 起为任意可表示的正数百分比，支持小数，按完整站位矩形等比适配并从站位脚底缩放。
+20. **自定义角色立绘朝向与体型**：原版立绘朝左。默认 `art_facing=left`，节点 `facing=left` 不翻、`right` 水平翻转。原图朝右时标为 `right`。`scale` 默认 100；1.4.3 起为任意可表示的正数百分比，支持小数，按完整站位矩形等比适配并从舞台锚点缩放（不代表可见脚底）。
 21. **游戏内 Mod 菜单多语言**：菜单文案（`src/I18n.cs` 内嵌 chs/cht/ja/ko 四语言目录）跟随游戏当前语言——反射读 LeanLocalization `CurrentLanguage` 并模糊匹配语言名；官方游戏本身没有日语选项，日语目录实际不会触发；检测失败一律回退 chs。详见 `i18n.md`。
 22. **强制玩家内容披露与失败停播**：注册表命中的 Mod 首次开演前，Host 必须同步创建固定的「玩家制作 MOD｜非官方内容 / UNOFFICIAL」主标签，并以独立次级 Text 显示清洗后的作品名、作者自报信息和 SHA-256 前 16 字符。屏幕右上角标签、独立 IMGUI 固定章、对白框内标签、GameOver/EndGamePanel/End/人物介绍卡标签覆盖全屏录像、裁对白截图和关键单卡。整章导入依据上述来源缓存隐藏未改原版步骤的标记，新增、改写和持续影响按修改内容显示。标签无任意 Lua/cfg 关闭接口。来源按整段会话污染：Mod 链入官方脚本仍保持原包标签；活动期间嵌套切到另一包会被拒绝；只有实际抵达 Title/Free 才解除。独立于 BepInEx 宿主对象的 guardian 在 Update/LateUpdate、`Canvas.willRenderCanvases` 与 `Camera.onPreCull` 复验对象父级、几何、字体、文案、alpha、材质、显示器与最高排序，被删除/禁用/移出屏幕后自动重建；使用 `SayDialog.activeSayDialogs` 实例表、当前 `ActiveSayDialog` 与已绑定宿主维护可见对白框，属性变化时才触发重建。任何必须标签无法创建/恢复时，立即停止由 Host 推进的 LuaEnvironment 协程、用不依赖 Canvas 的 IMGUI 黑屏显示固定警示并直接返回 Free；异步 Lua 异常不会被 Fungus 吞掉。演出中关闭 Host 总开关只关闭菜单/热键，补丁与披露延迟到 Title/Free 后卸载。
 23. **F5 Runtime Trace v1**：只对编辑器固定的 `lom_modkit_preview` / `__lom_modkit_preview.lommod` 开发包启用。记录 `mod_enter`、`story_enter`、`node_enter`、`choice`、`condition_result`、`goto`、`end`、`death`、`runtime_error`；普通玩家加载的正式 Mod 默认不记录。Trace 使用 256 条内存 ring buffer，满后丢弃最旧条目，不写入存档且不会无限增长。新编译器只增加 `if mod_trace_node then ... end` 可选钩子，旧 Runtime 没有该函数时仍按原流程运行。
@@ -606,7 +606,7 @@ Host 1.5.10 支持人物可选 `avatar`（同目录头像文件名）、`initial
 
 ### 1.4.2 自定义人物气泡
 
-`mood.character` 可以引用 `user:命名空间.人物`，人物需已登场。`icon` 使用既有九种样式或 `auto`，`enabled=false` 隐藏该人物。人物内容的 `mood_x`／`mood_y` 为原图横向／从脚底向上的百分比，默认 50／90。使用自定义人物气泡的作品自动要求 Host 1.4.2。包格式继续为 v3。
+`mood.character` 可以引用 `user:命名空间.人物`，人物需已登场。`icon` 使用既有九种样式或 `auto`，`enabled=false` 隐藏该人物。人物内容的 `mood_x`／`mood_y` 为原图横向／从原图底边向上的百分比，默认 50／90。使用自定义人物气泡的作品自动要求 Host 1.4.2。包格式继续为 v3。
 
 指定人物时可填写 `offset_x`（−1920～1920）和 `offset_y`（−1080～1080），单位为参考像素，默认 0。偏移跟随人物翻转与旋转，正 y 向上。`auto` 加非零偏移表示保留自动表情匹配并调整位置；全场自动开关仍生效。单人气泡偏移要求 Host 1.4.2。
 
@@ -622,7 +622,7 @@ Host 1.5.19 起，大图 `cg(kind="big", action="hide")` 也可填 `fade_out`：
 
 原版色纸可在图片选择器搜索“色纸”或“折纸”，引用为 `item:misc:7002`，供 picture/item/event/big 使用，导出要求 Host 1.5.19。它读取游戏物品自己的图标；作品不包含原版图片。显式非零 `say.font_size` 在新 Host 中固定本句字号，关闭原版按字数缩放；省略或 0 恢复游戏默认。
 
-Host 1.5.15 支持在人物 `show` 和 `cg` 的 picture/item/event/big 显示步骤填写 `scale`（正数百分比，默认100）。人物按脚底站位缩放；图片按原图框中心缩放，事件书页的框与题字尺寸保持不变。再次显示时省略该字段恢复100%，后续移动与换表情保留人物大小。编辑器的“查看大图”、100%、滚轮缩放和拖动只调整查看比例；剧情大小通过步骤的“人物大小／图片大小”设置。
+Host 1.5.15 支持在人物 `show` 和 `cg` 的 picture/item/event/big 显示步骤填写 `scale`（正数百分比，默认100）。人物按舞台锚点缩放；图片按原图框中心缩放，事件书页的框与题字尺寸保持不变。再次显示时省略该字段恢复100%，后续移动与换表情保留人物大小。编辑器的“查看大图”、100%、滚轮缩放和拖动只调整查看比例；剧情大小通过步骤的“人物大小／图片大小”设置。
 
 ### 系统提示开关（1.4.9）
 

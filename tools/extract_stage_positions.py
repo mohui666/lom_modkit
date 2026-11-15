@@ -4,17 +4,18 @@
 为什么需要这个文件：
   编辑器预览里把站位画成横向一排在一条基线上，而且只硬编码了 36 个站位中的
   14 个（其余兜底画到正中央）。真实游戏里站位是场景里的一组 RectTransform 锚点，
-  横坐标由数字决定（1/2/3 → 左/右列），纵坐标是「角色脚底站位点」——越靠后的
+  横坐标由数字决定（1/2/3 → 左/右列），纵坐标是「角色容器锚点」——越靠后的
   行越低。
 
 依据（反编译 + 场景实测，2026-10）：
   - 角色位置由 Fungus 的 Stage.GetPosition(name) 按名字查 positions 列表
     （Fungus/Stage.cs），PortraitController.SetRectTransform 把锚点的
     anchoredPosition / sizeDelta / anchor / pivot 整套复制给角色容器。
-  - 锚点统一 anchorMin=anchorMax=(0.5,1.0)、pivot=(0.5,0.0)：即「脚底点」在
+  - 锚点统一 anchorMin=anchorMax=(0.5,1.0)、pivot=(0.5,0.0)：即容器原点在
     父 Canvas 顶部中心 + anchoredPosition 处。
   - 因此 x 比例 = 0.5 + anchoredPosition.x / 1920；
-    脚底距画面顶部像素 = -anchoredPosition.y（1080 参考高）。
+    锚点距画面顶部像素 = -anchoredPosition.y（1080 参考高）。
+  - 容器原点不等于图片中可见脚底；不能据此判断半身、全身或实际落地位置。
 
 输出：
   data/stage_positions.json = { "schema": 1, "reference": {...},
@@ -122,9 +123,12 @@ def extract(level_path: Path) -> dict:
         ap_y = float(d.m_AnchoredPosition.y)
         positions[name] = {
             "x": round(0.5 + ap_x / REF_WIDTH, 6),
-            # 脚底距画面顶部（1080 参考）：Canvas 顶部中心 + anchoredPosition.y
+            # 锚点距画面顶部（1080 参考）；保留兼容旧字段名 feet，不代表可见脚底。
             "feet": round(-ap_y / REF_HEIGHT, 6),
         }
+        size = [float(d.m_SizeDelta.x), float(d.m_SizeDelta.y)]
+        if size != [REF_WIDTH, REF_HEIGHT]:
+            positions[name]["size"] = size
 
     return positions
 
@@ -145,8 +149,10 @@ def main(argv=None) -> int:
     payload = {
         "schema": 1,
         "note": (
-            "由 tools/extract_stage_positions.py 从游戏剧情场景提取（脚底站位点）。"
-            "x=横向比例(0=左缘,1=右缘，可越界表示屏外)；feet=脚底距画面顶部比例(1080 参考)。"
+            "由 tools/extract_stage_positions.py 从游戏剧情场景提取舞台 Transform 锚点。"
+            "x=横向比例(0=左缘,1=右缘，可越界表示屏外)；feet 是保留兼容的旧字段名，值为锚点距画面顶部比例(1080 参考)，不代表图片中可见脚底。"
+            "size 为非默认站位矩形宽高，省略时为 1920×1080。"
+            "半身／全身及实际落地位置须结合原画布、透明边界和实际画面确认。"
         ),
         "reference": {"width": REF_WIDTH, "height": REF_HEIGHT},
         "positions": dict(sorted(positions.items())),

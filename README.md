@@ -2,9 +2,11 @@
 
 用可视化步骤制作《活侠传》MOD，支持多章节、人物演出、分支、事件任务和自定义素材，也支持 Python 批量制作。
 
-**当前版本：1.5.19 · Windows x64 · 只需一个 exe**
+**当前版本：1.6.0 · Windows x64 · 只需一个 exe**
 
-[下载编辑器](https://github.com/mohui666/lom_modkit/releases/download/v1.5.19/lom-editor.exe) · [更新内容](RELEASE_NOTES_v1.5.19.md) · [全部文档](docs/README.md)
+[下载编辑器](https://github.com/mohui666/lom_modkit/releases/download/v1.6.0/lom-editor.exe) · [更新内容](RELEASE_NOTES_v1.6.0.md) · [全部文档](docs/README.md)
+
+1.6.0 新增多工程标签与重启恢复、跨窗口步骤复制、后台生成游戏原生视频，以及预览分辨率选择；素材查询、舞台图导出和视频生成也可通过 CLI／Python 使用。
 
 [繁體中文](README.cht.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
@@ -15,7 +17,7 @@
 3. 在“素材管理 → 游戏预览素材”提取原版素材。
 4. 新建作品、添加剧情，预览并检查后导出 MOD 或完整游玩包。
 
-1.4.19 用户可通过“检查更新 → 更新并重启”升级，也可退出编辑器后手动替换 exe。已有作品、素材和存档身份保留。
+可通过“检查更新 → 更新并重启”升级，也可退出编辑器后手动替换 exe。已有作品、素材和存档身份保留。
 
 | 要做什么 | 从这里开始 |
 | --- | --- |
@@ -65,4 +67,4 @@ cargo run --locked -p lom-editor
 
 ## 许可
 
-采用 [MIT 许可](LICENSE)，属于粉丝自制工具，与游戏开发商无关。原版素材从使用者自己的游戏中提取。[第三方组件](runtime/MortalModHost/THIRD_PARTY_NOTICES.md) · [作品来源标识](docs/chs/watermark.md)
+采用 [MIT 许可](LICENSE)，属于粉丝自制工具，与游戏开发商无关。原版素材从使用者自己的游戏中提取。[第三方组件](runtime/MortalModHost/THIRD_PARTY_NOTICES.md) · [旧媒体来源检测](docs/chs/watermark.md)

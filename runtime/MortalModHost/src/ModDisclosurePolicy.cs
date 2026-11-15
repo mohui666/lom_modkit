@@ -6,9 +6,8 @@ using System.Text;
 namespace MortalModHost
 {
     /// <summary>
-    /// 可见「非官方剧情」披露的纯规则（不碰 Unity）：
-    /// 只在 Host 强制开关为开时显示；Title / Free 是官方枢纽，必须关；
-    /// Loading 是过场，必须保持，否则进 GameOver/End 时标已经没了。
+    /// 包身份会话的纯规则（不碰 Unity）。画面水印统一停用，保留包身份与会话边界。
+    /// Title / Free 结束来源会话；Loading 等过场继续保持。
     /// </summary>
     internal static class ModDisclosurePolicy
     {
@@ -22,6 +21,10 @@ namespace MortalModHost
         public const int MaxAuthorElements = 20;
         public const int MaxVersionElements = 16;
         public const int MaxDescriptionElements = 120;
+
+        // Normal playtests and rendered videos create no visible or hidden carrier.
+        public static bool WatermarksEnabled { get { return false; } }
+        public static bool VisibleWatermarks { get { return WatermarksEnabled; } }
 
         public static bool IsDevelopmentPreviewPackage(ModPackage package)
         {

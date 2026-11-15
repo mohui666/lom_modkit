@@ -275,10 +275,10 @@ class CLI:
         """Invoke editor operations; query automation-schema for contracts.
 
         Paths are made absolute before the temporary request file is created.
-        playtest/capture-effects execute game operations only when explicitly called.
+        playtest/playtest-event/render-video/capture-effects execute game operations only when explicitly called.
         """
         request = _plain(request)
-        for key in ("project", "game", "runtime", "output"):
+        for key in ("project", "game", "runtime", "output", "library", "cache_dir"):
             if key in request:
                 request[key] = str(Path(request[key]).resolve())
         with tempfile.TemporaryDirectory(prefix="lom-operation-") as directory:
@@ -291,9 +291,38 @@ class CLI:
         request.update({k: v for k, v in (("output", output), ("script", script), ("node", node)) if v is not None})
         return self.operation("open-editor", **request)
 
+    def render_preview(self, project, script, node, output, **options):
+        return self.operation("render-preview", project=project, script=script,
+                              node=node, output=output, **options)
+
+    def render_previews(self, project, frames, output, **options):
+        return self.operation("render-previews", project=project, frames=frames,
+                              output=output, **options)
+
+    def render_video(self, project, game, output, **options):
+        """Render native-game MP4 synchronously; use the CLI directly for live stderr progress."""
+        return self.operation("render-video", project=project, game=game, output=output, **options)
+
+    def prepare_event_playtest(self, project, event_id, output, **options):
+        return self.operation("prepare-event-playtest", project=project, event_id=event_id,
+                              output=output, **options)
+
+    def playtest_event(self, project, event_id, game, **options):
+        return self.operation("playtest-event", project=project, event_id=event_id,
+                              game=game, **options)
+
+    def playtest_status(self, game, request_id):
+        return self.operation("playtest-status", game=game, request_id=request_id)
+
+    def query_assets(self, **options):
+        return self.operation("asset-query", **options)
+
 
 __all__ = ["CLI", "CLIError", "Node", "Chapter", "Project", "Option", "NODE_TYPES", "VERSION",
            *[cls.__name__ for cls in NODE_TYPES.values()]]
 from .authoring import *
 from .authoring import __all__ as _authoring_exports
 __all__ += _authoring_exports
+from .presentation import *
+from .presentation import __all__ as _presentation_exports
+__all__ += _presentation_exports

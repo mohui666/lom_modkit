@@ -18,6 +18,7 @@ namespace MortalModHost
         private static bool _hadVoice;
         private static AutoDialogueTiming _timing;
         internal static ConfigEntry<AutoDialogueSpeed> Speed;
+        internal static AutoDialogueSpeed? RenderSpeed;
 
         internal static void Begin(Writer writer)
         {
@@ -53,7 +54,8 @@ namespace MortalModHost
                 && !manager.IsStoryPause && !_writer.Paused && !RuntimeDebugControl.Paused
                 && input != null && input.isActiveAndEnabled
                 && !(menu != null && menu.IsActive() && menu.DisplayedOptionsCount > 0);
-            if (_timing.Tick(Time.deltaTime, active, voice, Speed != null ? Speed.Value : AutoDialogueSpeed.Standard))
+            if (_timing.Tick(Time.deltaTime, active, voice,
+                RenderSpeed ?? (Speed != null ? Speed.Value : AutoDialogueSpeed.Standard)))
                 input.SetNextLineFlag();
         }
 

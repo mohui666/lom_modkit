@@ -5,6 +5,7 @@ param(
     [string]$OutputDirectory = "",
     [string]$RuntimeDirectory = "",
     [string]$AudioDecoderDirectory = "",
+    [string]$VideoEncoderDirectory = "",
     [switch]$NoArchive,
     [switch]$Archive,
     [switch]$Force
@@ -122,7 +123,7 @@ if (Test-Path -LiteralPath $BundleDirectory) {
 # Components are build inputs, never required beside the distributed editor.
 $ComponentDirectory = Join-Path $RepositoryRoot "out\embedded-components"
 [IO.Directory]::CreateDirectory($ComponentDirectory) | Out-Null
-foreach ($Folder in @("runtime", "asset-extractor", "audio-decoder", "licenses")) {
+foreach ($Folder in @("runtime", "asset-extractor", "audio-decoder", "video-encoder", "licenses")) {
     [IO.Directory]::CreateDirectory((Join-Path $ComponentDirectory $Folder)) | Out-Null
 }
 Copy-Item -LiteralPath (Join-Path $NativeOutput "lomc.exe") -Destination (Join-Path $ComponentDirectory "lomc.exe")
@@ -175,6 +176,17 @@ if (-not (Test-Path -LiteralPath (Join-Path $AudioDecoderDirectory "vgmstream-cl
     throw "Missing audio decoder: $AudioDecoderDirectory"
 }
 Copy-Item -Path (Join-Path $AudioDecoderDirectory "*") -Destination (Join-Path $ComponentDirectory "audio-decoder") -Recurse -Force
+# The video encoder is an independent FFmpeg executable, with its upstream license.
+if ([string]::IsNullOrWhiteSpace($VideoEncoderDirectory)) {
+    $VideoEncoderDirectory = Join-Path $RepositoryRoot "out\video-encoder-9.0.2"
+}
+foreach ($Name in @("ffmpeg.exe", "LICENSE")) {
+    if (-not (Test-Path -LiteralPath (Join-Path $VideoEncoderDirectory $Name) -PathType Leaf)) {
+        throw "Missing video encoder input: $Name. Prepare the FFmpeg essentials build in out/video-encoder-9.0.2 or pass -VideoEncoderDirectory."
+    }
+    Copy-Item -LiteralPath (Join-Path $VideoEncoderDirectory $Name) -Destination (Join-Path $ComponentDirectory "video-encoder\$Name")
+}
+Copy-Item -LiteralPath (Join-Path $RepositoryRoot "editor\assets\video\FFMPEG-NOTICE.md") -Destination (Join-Path $ComponentDirectory "video-encoder\FFMPEG-NOTICE.md")
 $ComponentPrefix = [IO.Path]::GetFullPath($ComponentDirectory).TrimEnd('\') + '\'
 $ComponentManifest = @(Get-ChildItem -LiteralPath $ComponentDirectory -File -Recurse | Where-Object { $_.Name -ne "components.json" } | ForEach-Object {
     [ordered]@{ path = $_.FullName.Substring($ComponentPrefix.Length).Replace("\", "/"); size = $_.Length }

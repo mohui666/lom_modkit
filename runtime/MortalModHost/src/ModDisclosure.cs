@@ -12,7 +12,7 @@ namespace MortalModHost
 {
     /// <summary>
     /// 与 BepInEx Plugin GameObject 独立的披露守护。即使恶意 Lua 销毁宿主对象，
-    /// 仍会在 Update / LateUpdate / IMGUI 继续 best-effort 自愈。
+    /// 旧画面水印模式的独立守护；水印停用时不创建此对象。
     /// </summary>
     internal sealed class ModDisclosureGuardian : MonoBehaviour
     {
@@ -36,8 +36,7 @@ namespace MortalModHost
     /// Host 强制的玩家制作内容披露。来源状态由 Host 的脚本注册表决定，MOD Lua 与 cfg
     /// 都没有关闭、改字、改透明度的入口。
     ///
-    /// 同时覆盖屏幕边缘、对白框和关键结果卡；每帧检查并尽力修复对象。UI 标记创建
-    /// 或修复失败只记录日志，绝不停止 Lua、清理当前演出或强制返回 Free。
+    /// 维护真实包身份与当前会话。画面水印统一停用，不建立可见或隐形载体。
     /// </summary>
     internal static class ModDisclosure
     {
@@ -96,8 +95,7 @@ namespace MortalModHost
             "activeSayDialogs", BindingFlags.Static | BindingFlags.NonPublic);
 
         /// <summary>
-        /// 先验证 Host 计算的包身份；可见标记随后 best-effort 创建。身份错误仍拒绝，
-        /// 单纯 UI 创建失败不会阻止脚本启动。
+        /// 验证 Host 计算的包身份并建立会话。水印停用时不进入画布或载荷创建路径。
         /// </summary>
         internal static void Enable(ModPackage package)
         {
@@ -155,26 +153,37 @@ namespace MortalModHost
             {
                 SubscribeTrustedBoundaryEvents();
                 EnsureSessionIntegrity();
-                EnsureEdgeOverlay();
-                RefreshLabels(true);
-                ProvenanceWatermark.Enable(ModId, PackageFingerprint);
-                if (!IsChipStructurallyValid(_edgeChip))
-                    throw new InvalidOperationException("屏幕常驻标记未成功创建");
-                if (!ProvenanceWatermark.Maintain())
-                    throw new InvalidOperationException(
-                        "来源水印未成功创建：" + ProvenanceWatermark.LastError);
-                Canvas.willRenderCanvases -= BeforeCanvasRender;
-                Canvas.willRenderCanvases += BeforeCanvasRender;
+                if (ModDisclosurePolicy.WatermarksEnabled)
+                {
+                    EnsureGuardian();
+                    if (ModDisclosurePolicy.VisibleWatermarks)
+                    {
+                        EnsureEdgeOverlay();
+                        RefreshLabels(true);
+                        if (!IsChipStructurallyValid(_edgeChip))
+                            throw new InvalidOperationException("屏幕常驻标记未成功创建");
+                    }
+                    ProvenanceWatermark.Enable(ModId, PackageFingerprint);
+                    if (!ProvenanceWatermark.Maintain())
+                        throw new InvalidOperationException(
+                            "来源水印未成功创建：" + ProvenanceWatermark.LastError);
+                    Canvas.willRenderCanvases -= BeforeCanvasRender;
+                    Canvas.willRenderCanvases += BeforeCanvasRender;
+                }
+                else ProvenanceWatermark.Disable();
             }
             catch (Exception ex)
             {
                 // 来源 UI 不是演出生命周期门禁。保留当前会话并让后续帧继续尝试自愈。
-                try { EnsureGuardian(); }
-                catch { }
+                if (ModDisclosurePolicy.WatermarksEnabled)
+                {
+                    try { EnsureGuardian(); }
+                    catch { }
+                }
                 ReportSurfaceFailure("玩家内容标记初始化失败：" + ex.Message);
             }
 
-            Log?.LogInfo("已开启玩家制作内容披露（" + ModId + "，SHA-256 " + PackageFingerprint + "）");
+            Log?.LogInfo("已建立 MOD 包身份会话（" + ModId + "，SHA-256 " + PackageFingerprint + "）");
         }
 
         internal static void Disable()
@@ -202,7 +211,7 @@ namespace MortalModHost
         }
 
         /// <summary>
-        /// Host-only F5 boundary. The old disclosure stays visible while the old Lua
+        /// Host-only F5 boundary. The old provenance session stays active while the old Lua
         /// environment is discarded; the next Enable may atomically replace identity
         /// only with the fixed editor preview package. Lua has no callback to this API.
         /// </summary>
@@ -244,7 +253,7 @@ namespace MortalModHost
         private static void SubscribeTrustedBoundaryEvents()
         {
             Camera.onPreCull -= BeforeCameraRender;
-            Camera.onPreCull += BeforeCameraRender;
+            if (ModDisclosurePolicy.WatermarksEnabled) Camera.onPreCull += BeforeCameraRender;
             SceneManager.sceneLoaded -= OnSceneLoaded;
             SceneManager.sceneLoaded += OnSceneLoaded;
             SceneManager.activeSceneChanged -= OnActiveSceneChanged;
@@ -284,6 +293,7 @@ namespace MortalModHost
             EnsureSessionIntegrity();
             if (OriginalContent == original) return;
             OriginalContent = original;
+            if (!ModDisclosurePolicy.WatermarksEnabled) return;
             ProvenanceWatermark.SetVisible(!original);
             if (!original) { Tick(); return; }
             if (_edgeRoot != null) _edgeRoot.SetActive(false);
@@ -309,12 +319,13 @@ namespace MortalModHost
         }
 
         /// <summary>
-        /// 健康态也由独立 guardian 绘制一份不含作者字段的 IMGUI 固定章。
+        /// 旧可见模式的 IMGUI 固定章入口；当前无可见水印策略直接跳过。
         /// 它与 Canvas 排序系统独立，避免恶意 Lua 把官方面板 Canvas 调到最高层后
         /// 盖住对白/卡片内标。
         /// </summary>
         internal static void DrawPersistentImGuiStamp()
         {
+            if (!ModDisclosurePolicy.VisibleWatermarks) return;
             if (!Active || OriginalContent || Event.current == null || Event.current.type != EventType.Repaint) return;
             int oldDepth = GUI.depth;
             Color oldColor = GUI.color;
@@ -361,7 +372,8 @@ namespace MortalModHost
         }
 
         /// <summary>
-        /// 每帧检查三类标记。失败时记录并让下一帧继续重建，不影响演出生命周期。
+        /// 检查包身份会话；只有显式启用水印时才维护图形载体。
+        /// 返回值表示会话检查结果，不把停用的水印声称为维护成功。
         /// </summary>
         internal static bool Tick()
         {
@@ -370,16 +382,20 @@ namespace MortalModHost
             try
             {
                 EnsureSessionIntegrity();
-                if (OriginalContent) return true;
-                EnsureEdgeOverlay();
-                RefreshLabels(false);
+                if (!ModDisclosurePolicy.WatermarksEnabled || OriginalContent) return true;
+                EnsureGuardian();
+                if (ModDisclosurePolicy.VisibleWatermarks)
+                {
+                    EnsureEdgeOverlay();
+                    RefreshLabels(false);
+                    SyncDialogChips();
+                    SyncPanelChips();
+                    if (!IsChipStructurallyValid(_edgeChip))
+                        throw new InvalidOperationException("屏幕常驻标记校验失败");
+                }
                 if (!ProvenanceWatermark.Maintain())
                     throw new InvalidOperationException(
                         "来源水印刷新失败：" + ProvenanceWatermark.LastError);
-                SyncDialogChips();
-                SyncPanelChips();
-                if (!IsChipStructurallyValid(_edgeChip))
-                    throw new InvalidOperationException("屏幕常驻标记校验失败");
                 return true;
             }
             catch (Exception ex)
@@ -411,7 +427,7 @@ namespace MortalModHost
             Vector2 pivot,
             Vector2 offset)
         {
-            if (!Active || OriginalContent) return null;
+            if (!ModDisclosurePolicy.VisibleWatermarks || !Active || OriginalContent) return null;
             if (parent == null)
             {
                 ReportSurfaceFailure("关键结果面板不存在，无法附加来源标记");

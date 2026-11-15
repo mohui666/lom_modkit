@@ -7,6 +7,7 @@ use sha2::{Digest, Sha256};
 use std::process::Command;
 use std::{
     fs,
+    io::Read,
     path::Path,
     sync::{
         atomic::{AtomicBool, AtomicU64, Ordering},
@@ -241,12 +242,24 @@ struct Prepared {
 }
 
 fn verify_file(path: &Path, file: &Download) -> Result<()> {
+    let mut input = fs::File::open(path)?;
     ensure!(
-        fs::metadata(path)?.len() == file.size,
+        input.metadata()?.len() == file.size,
         "更新文件长度不正确：{}",
         file.path
     );
-    let actual = format!("{:x}", Sha256::digest(fs::read(path)?));
+    // Standalone releases embed large components. Hash a fixed-size chunk
+    // instead of allocating another complete executable during update checks.
+    let mut digest = Sha256::new();
+    let mut buffer = [0_u8; 64 * 1024];
+    loop {
+        let count = input.read(&mut buffer)?;
+        if count == 0 {
+            break;
+        }
+        digest.update(&buffer[..count]);
+    }
+    let actual = format!("{:x}", digest.finalize());
     ensure!(
         actual.eq_ignore_ascii_case(&file.digest),
         "更新文件校验失败：{}",
@@ -345,6 +358,7 @@ pub struct Updater {
     last_received: u64,
     last_activity: Option<Instant>,
     cancelling: bool,
+    notes_cache: egui_commonmark::CommonMarkCache,
 }
 
 impl Updater {
@@ -386,6 +400,7 @@ impl Updater {
         self.silent = silent;
         self.completed = false;
         self.release = None;
+        self.notes_cache = Default::default();
         self.prepared = None;
         self.error = None;
         self.downloading = false;
@@ -475,8 +490,10 @@ impl Updater {
         }
         match result {
             Ok(Job::Checked(release)) => {
+                // A same-version byte mismatch remains available for manual
+                // repair, including a manual check joining a startup request.
+                // Only a strictly newer version opens a silent check's dialog.
                 self.open = !self.silent
-                    || release.repair_needed
                     || version(&release.version).ok() > version(env!("CARGO_PKG_VERSION")).ok();
                 self.release = Some(release);
             }
@@ -631,7 +648,11 @@ impl Updater {
                         egui::ScrollArea::vertical()
                             .max_height(210.0)
                             .show(ui, |ui| {
-                                ui.label(&release.notes);
+                                egui_commonmark::CommonMarkViewer::new().show(
+                                    ui,
+                                    &mut self.notes_cache,
+                                    &release.notes,
+                                );
                             });
                         ui.add_space(8.0);
                         ui.label(tr(if release.repair_needed {
@@ -848,12 +869,14 @@ mod tests {
     }
 
     #[test]
-    fn startup_check_opens_only_for_updates_or_a_damaged_current_installation() {
+    fn startup_check_opens_only_for_strictly_newer_versions() {
         for (latest, repair, opens) in [
             ("0.1.0", false, false),
+            ("0.1.0", true, false),
             (env!("CARGO_PKG_VERSION"), false, false),
-            (env!("CARGO_PKG_VERSION"), true, true),
+            (env!("CARGO_PKG_VERSION"), true, false),
             ("99.0.0", false, true),
+            ("99.0.0", true, true),
         ] {
             let mut release = parse_release(&release()).unwrap();
             release.version = latest.into();
@@ -976,6 +999,27 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn streamed_update_validation_checks_the_final_partial_chunk_and_file_length() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("lom-editor.exe");
+        let mut bytes = vec![0x45; 3 * 64 * 1024 + 17];
+        let file = Download {
+            path: "lom-editor.exe".into(),
+            url: format!("{RELEASES}/download/v1.6.0/lom-editor.exe"),
+            size: bytes.len() as u64,
+            digest: format!("{:x}", Sha256::digest(&bytes)),
+        };
+        fs::write(&path, &bytes).unwrap();
+        verify_file(&path, &file).unwrap();
+        *bytes.last_mut().unwrap() ^= 1;
+        fs::write(&path, &bytes).unwrap();
+        assert!(verify_file(&path, &file).is_err());
+        bytes.pop();
+        fs::write(&path, &bytes).unwrap();
+        assert!(verify_file(&path, &file).is_err());
     }
 
     #[test]
@@ -1148,6 +1192,77 @@ mod tests {
         assert!(!nodes
             .iter()
             .any(|(_, node)| node.label() == Some(crate::i18n::tr("当前已是最新版本").as_str())));
+    }
+
+    #[test]
+    fn release_notes_render_markdown_and_keep_links_clickable() {
+        let mut release = parse_release(&release()).unwrap();
+        release.version = "99.0.0".into();
+        release.notes = "# 更新说明\n\n**性能改进** 与 `Say`\n\n1. 第一项\n2. 第二项\n\n[发布详情](https://github.com/mohui666/lom_modkit/releases)".into();
+        let mut updater = Updater::default();
+        updater.release = Some(release);
+        let context = egui::Context::default();
+        context.enable_accesskit();
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(900.0, 800.0),
+            )),
+            ..Default::default()
+        };
+        let _ = context.run(input.clone(), |context| {
+            updater.dialog(context);
+        });
+        let output = context.run(input.clone(), |context| {
+            updater.dialog(context);
+        });
+        let nodes = output.platform_output.accesskit_update.unwrap().nodes;
+        let text = nodes
+            .iter()
+            .filter_map(|(_, node)| node.label().or_else(|| node.value()))
+            .collect::<Vec<_>>()
+            .join("\n");
+        for part in ["更新说明", "性能改进", "Say", "第一项", "第二项"] {
+            assert!(text.contains(part), "missing rendered text {part}: {text}");
+        }
+        assert!(!text.contains("# 更新说明") && !text.contains("**性能改进**"));
+        let link = nodes
+            .iter()
+            .find_map(|(_, node)| {
+                (node.label() == Some("发布详情"))
+                    .then(|| node.bounds())
+                    .flatten()
+            })
+            .expect("release notes must contain a real hyperlink");
+        let position = egui::pos2(
+            ((link.x0 + link.x1) / 2.0) as f32,
+            ((link.y0 + link.y1) / 2.0) as f32,
+        );
+        let mut click = input;
+        click.events = vec![
+            egui::Event::PointerMoved(position),
+            egui::Event::PointerButton {
+                pos: position,
+                button: egui::PointerButton::Primary,
+                pressed: true,
+                modifiers: Default::default(),
+            },
+            egui::Event::PointerButton {
+                pos: position,
+                button: egui::PointerButton::Primary,
+                pressed: false,
+                modifiers: Default::default(),
+            },
+        ];
+        let output = context.run(click, |context| {
+            updater.dialog(context);
+        });
+        assert!(output
+            .platform_output
+            .commands
+            .iter()
+            .any(|command| matches!(command,
+            egui::OutputCommand::OpenUrl(url) if url.url == RELEASES)));
     }
 
     #[test]

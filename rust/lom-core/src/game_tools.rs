@@ -633,12 +633,193 @@ pub fn request_preview(root: &Path, script: &str, node: &str) -> Result<PathBuf>
     write_preview_request(root, script, node, json!({}))
 }
 
+/// Publish a preview request with an independently queryable acknowledgement.
+/// A sent request is not evidence that the game entered its script or node.
+pub fn request_tracked_preview(
+    root: &Path,
+    script: &str,
+    node: &str,
+    request_id: &str,
+) -> Result<PathBuf> {
+    write_preview_launch_status(
+        root,
+        script,
+        node,
+        request_id,
+        "sent",
+        "试玩请求已发送，等待游戏 Host 确认",
+    )?;
+    let result = write_preview_request(root, script, node, json!({"request_id":request_id}));
+    if let Err(error) = &result {
+        write_preview_launch_status(
+            root,
+            script,
+            node,
+            request_id,
+            "failed",
+            &format!("试玩请求未能发布：{error:#}"),
+        )?;
+    }
+    result
+}
+
+fn preview_status_path(root: &Path, request_id: &str) -> Result<PathBuf> {
+    validate_root(root)?;
+    ensure!(
+        request_id.len() == 32
+            && request_id
+                .bytes()
+                .all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c)),
+        "无效试玩状态编号"
+    );
+    confined(
+        root,
+        &Path::new("BepInEx/plugins/MortalModHost/playtest-status")
+            .join(format!("{request_id}.json")),
+    )
+}
+
+/// Read one status snapshot. Does not launch, poll or infer game execution.
+pub fn read_preview_status(root: &Path, request_id: &str) -> Result<Value> {
+    let path = preview_status_path(root, request_id)?;
+    let mut value =
+        load_json(&path).with_context(|| format!("无法读取试玩状态：{}", path.display()))?;
+    ensure!(
+        value["format"] == 1 && value["request_id"] == request_id,
+        "试玩状态与请求编号不匹配"
+    );
+    ensure!(
+        matches!(
+            value["state"].as_str(),
+            Some(
+                "sent"
+                    | "game_started"
+                    | "chapter_entered"
+                    | "node_entered"
+                    | "predecessor_entered"
+                    | "original_target_entered"
+                    | "event_not_triggered"
+                    | "restart_required"
+                    | "failed"
+            )
+        ),
+        "未知试玩状态"
+    );
+    value["status_file"] = json!(path);
+    Ok(value)
+}
+
+/// Editor-owned launch results. Only the Host may acknowledge chapter/node entry.
+pub fn write_preview_launch_status(
+    root: &Path,
+    script: &str,
+    node: &str,
+    request_id: &str,
+    state: &str,
+    message: &str,
+) -> Result<Value> {
+    validate_preview_entry(script, node)?;
+    ensure!(
+        matches!(state, "sent" | "restart_required" | "failed"),
+        "编辑器不能声明游戏已进入目标章节"
+    );
+    let path = preview_status_path(root, request_id)?;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)?
+        .as_secs();
+    let evidence = match state {
+        "sent" => "editor_request",
+        "restart_required" => "runtime_installation",
+        _ => "editor_error",
+    };
+    let value = json!({"format":1,"request_id":request_id,"state":state,"script_id":script,"node_id":node,
+        "message":message,"evidence":evidence,"visual_checked":false,"updated_at":now});
+    atomic_write(&path, &stable_json(&value)?)?;
+    read_preview_status(root, request_id)
+}
+
+pub fn request_video_preview(
+    root: &Path,
+    script: &str,
+    node: &str,
+    job_id: &str,
+) -> Result<PathBuf> {
+    write_preview_request(root, script, node, video_preview_fields(job_id)?)
+}
+
+/// Complete IPC for an editor-owned worker; does not write into a game install.
+pub fn video_preview_payload(script: &str, node: &str, job_id: &str) -> Result<Value> {
+    preview_payload(script, node, video_preview_fields(job_id)?)
+}
+
+fn video_preview_fields(job_id: &str) -> Result<Value> {
+    ensure!(
+        job_id.len() == 32 && job_id.bytes().all(|value| value.is_ascii_hexdigit()),
+        "无效视频生成编号"
+    );
+    Ok(json!({"video_render_id":job_id}))
+}
+
 pub fn request_event_preview(
     root: &Path,
     script: &str,
     node: &str,
     event: &Value,
 ) -> Result<PathBuf> {
+    write_preview_request(root, script, node, event_preview_fields(event)?)
+}
+
+/// Keep the setup chapter distinct from the authored event being observed.
+pub fn request_tracked_event_preview(
+    root: &Path,
+    setup: &str,
+    event: &Value,
+    event_node: &str,
+    source_script: Option<&str>,
+    request_id: &str,
+) -> Result<PathBuf> {
+    let mut request = event_preview_fields(event)?;
+    let event_script = event["script"].as_str().context("事件缺少剧情章节")?;
+    validate_preview_entry(setup, "notice")?;
+    validate_preview_entry(event_script, event_node)?;
+    if let Some(source) = source_script {
+        ensure!(
+            event["trigger"] == "story_entry"
+                && crate::vanilla_patch::valid_target(source)
+                && event["target"] != source,
+            "前置章节必须是目标入口之前的有效原版章节"
+        );
+        request["source_script"] = json!(source);
+    }
+    request["request_id"] = json!(request_id);
+    request["event_script"] = json!(event_script);
+    request["event_node"] = json!(event_node);
+    // An older Host must reject this request rather than ignore source_script
+    // and silently run its legacy boundary-only event test.
+    request["format"] = json!(2);
+    write_preview_launch_status(
+        root,
+        event_script,
+        event_node,
+        request_id,
+        "sent",
+        "事件试玩请求已发送，等待真实事件调度与剧情执行",
+    )?;
+    let result = write_preview_request(root, setup, "notice", request);
+    if let Err(error) = &result {
+        write_preview_launch_status(
+            root,
+            event_script,
+            event_node,
+            request_id,
+            "failed",
+            &format!("发布事件试玩请求失败：{error:#}"),
+        )?;
+    }
+    result
+}
+
+fn event_preview_fields(event: &Value) -> Result<Value> {
     let id = event["id"].as_str().context("事件测试缺少事件编号")?;
     ensure!(
         !id.is_empty()
@@ -660,16 +841,40 @@ pub fn request_event_preview(
             request[field] = json!(target);
         }
     }
-    write_preview_request(root, script, node, request)
+    Ok(request)
 }
 
-fn write_preview_request(
-    root: &Path,
-    script: &str,
-    node: &str,
-    mut request: Value,
-) -> Result<PathBuf> {
+fn write_preview_request(root: &Path, script: &str, node: &str, request: Value) -> Result<PathBuf> {
     validate_root(root)?;
+    let target = confined(
+        root,
+        Path::new("BepInEx/plugins/MortalModHost/preview-request.json"),
+    )?;
+    let request = preview_payload(script, node, request)?;
+    atomic_write(&target, &stable_json(&request)?)?;
+    Ok(target)
+}
+
+fn preview_payload(script: &str, node: &str, mut request: Value) -> Result<Value> {
+    validate_preview_entry(script, node)?;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)?
+        .as_secs();
+    request
+        .as_object_mut()
+        .unwrap()
+        .entry("format")
+        .or_insert(json!(1));
+    request.as_object_mut().unwrap().extend(
+        json!({"mod_id":PREVIEW_ID,"script_id":script,"node_id":node,"requested_at":now})
+            .as_object()
+            .unwrap()
+            .clone(),
+    );
+    Ok(request)
+}
+
+fn validate_preview_entry(script: &str, node: &str) -> Result<()> {
     for id in [script, node] {
         ensure!(
             !id.is_empty()
@@ -679,16 +884,7 @@ fn write_preview_request(
             "无效试玩编号"
         );
     }
-    let target = confined(
-        root,
-        Path::new("BepInEx/plugins/MortalModHost/preview-request.json"),
-    )?;
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)?
-        .as_secs();
-    request.as_object_mut().unwrap().extend(json!({"format":1,"mod_id":PREVIEW_ID,"script_id":script,"node_id":node,"requested_at":now}).as_object().unwrap().clone());
-    atomic_write(&target, &stable_json(&request)?)?;
-    Ok(target)
+    Ok(())
 }
 pub fn launch_game() -> Result<()> {
     #[cfg(windows)]

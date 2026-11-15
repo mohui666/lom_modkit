@@ -273,9 +273,171 @@ pub fn prepare(project: &Project, spec: &Value) -> Result<Project> {
     Ok(preview)
 }
 
+#[derive(Debug)]
+pub(crate) struct EventPreview {
+    pub project: Project,
+    pub event: Value,
+    pub event_node: String,
+    pub source_script: Option<String>,
+}
+
+impl EventPreview {
+    pub fn context(&self) -> Value {
+        json!({"event_id":self.event["id"],"event_script":self.event["script"],"event_node":self.event_node,
+            "entry_mode":if self.source_script.is_some(){"predecessor"}else{"boundary"},
+            "source_script":self.source_script,"target":self.event["target"],"from":self.event["from"],
+            "include_official_events":self.project.manifest["campaign"]["disable_official_events"]==false})
+    }
+}
+
+/// CLI state is explicit. Never solve event conditions by inventing flags or
+/// replacing chance/priority merely to make a requested event fire.
+pub(crate) fn prepare_request(project: &Project, request: &Value) -> Result<EventPreview> {
+    let event_id = request["event_id"]
+        .as_str()
+        .context("event_id 必须是字符串")?;
+    let event = project.scenario.as_ref().context("项目没有事件配置")?["events"]
+        .as_array()
+        .context("事件配置缺少 events")?
+        .iter()
+        .find(|event| event["id"] == event_id && event["trigger"] != "start")
+        .context("测试事件不存在或为开场事件")?
+        .clone();
+    let mode = request
+        .get("entry_mode")
+        .map(|value| value.as_str().context("entry_mode 必须是字符串"))
+        .transpose()?
+        .unwrap_or(if event["trigger"] == "story_entry" {
+            "predecessor"
+        } else {
+            "boundary"
+        });
+    ensure!(
+        ["predecessor", "boundary"].contains(&mode),
+        "entry_mode 必须是 predecessor 或 boundary"
+    );
+    let source_script = if mode == "predecessor" {
+        ensure!(
+            event["trigger"] == "story_entry",
+            "只有 story_entry 事件支持原版前置章节试玩"
+        );
+        let source = request.get("source_script").or_else(|| event.get("from"))
+            .and_then(Value::as_str).context("完整衔接试玩需要 source_script，或在 story_entry 中指定 from；入口直达请显式选择 entry_mode=boundary")?;
+        ensure!(
+            lom_core::vanilla_patch::valid_target(source) && event["target"] != source,
+            "source_script 必须是目标入口之前的有效原版章节"
+        );
+        Some(source.to_owned())
+    } else {
+        ensure!(
+            request.get("source_script").is_none(),
+            "boundary 模式不播放前置章节，不能指定 source_script"
+        );
+        None
+    };
+    let include_official = request
+        .get("include_official_events")
+        .map(|value| {
+            value
+                .as_bool()
+                .context("include_official_events 必须是布尔值")
+        })
+        .transpose()?
+        .unwrap_or(mode == "predecessor");
+    let spec = json!({"event_id":event_id,"year":request.get("year").unwrap_or(&json!(1)),
+        "month":request.get("month").unwrap_or(&json!(5)),"stage":request.get("stage").unwrap_or(&json!(1)),
+        "values":request.get("values").unwrap_or(&json!([])),"include_official_events":include_official});
+    let preview = prepare(project, &spec)?;
+    let script = event["script"].as_str().context("事件缺少 script")?;
+    let event_node = preview.stories.get(script).context("事件剧情章节不存在")?["start"]
+        .as_str()
+        .context("事件剧情缺少入口")?
+        .to_owned();
+    Ok(EventPreview {
+        project: preview,
+        event,
+        event_node,
+        source_script,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn entry_project() -> Project {
+        let mut project = Project::new_scenario("addon");
+        let event = &mut project.scenario.as_mut().unwrap()["events"][0];
+        event["trigger"] = json!("story_entry");
+        event.as_object_mut().unwrap().remove("position");
+        event["target"] = json!("section_01_free_03");
+        event["from"] = json!("section_01_free_start_02");
+        event["chance"] = json!(37);
+        event["priority"] = json!(4);
+        event["when"] = json!({"all":[{"source":"stat","key":"action","op":"ge","value":2}]});
+        project
+    }
+
+    #[test]
+    fn cli_predecessor_defaults_preserve_real_conditions_without_solving_them() {
+        let project = entry_project();
+        let original = project.clone();
+        let prepared = prepare_request(&project, &json!({"event_id":"opening"})).unwrap();
+        assert_eq!(
+            prepared.source_script.as_deref(),
+            Some("section_01_free_start_02")
+        );
+        assert_eq!(prepared.context()["entry_mode"], "predecessor");
+        assert_eq!(prepared.context()["include_official_events"], true);
+        assert_eq!(
+            prepared.project.scenario.as_ref().unwrap()["events"][0],
+            original.scenario.as_ref().unwrap()["events"][0]
+        );
+        let actions = &prepared.project.scenario.as_ref().unwrap()["events"][1]["outcomes"]
+            ["completed"]["actions"];
+        assert_eq!(
+            actions.as_array().unwrap().len(),
+            1,
+            "must not invent player stat setters to satisfy the condition"
+        );
+        assert_eq!(
+            prepared.project.manifest["id"],
+            lom_core::game_tools::PREVIEW_ID
+        );
+        assert_eq!(project, original);
+    }
+
+    #[test]
+    fn cli_requires_a_real_predecessor_instead_of_silently_testing_a_clean_boundary() {
+        let mut project = entry_project();
+        project.scenario.as_mut().unwrap()["events"][0]
+            .as_object_mut()
+            .unwrap()
+            .remove("from");
+        let request = json!({"event_id":"opening"});
+        assert!(prepare_request(&project, &request)
+            .unwrap_err()
+            .to_string()
+            .contains("source_script"));
+        let prepared = prepare_request(
+            &project,
+            &json!({"event_id":"opening","entry_mode":"boundary"}),
+        )
+        .unwrap();
+        assert!(prepared.source_script.is_none());
+        assert_eq!(prepared.context()["include_official_events"], false);
+        assert!(prepare_request(&project, &json!({"event_id":"opening","entry_mode":"boundary","source_script":"section_01_free_start_02"})).is_err());
+        assert!(prepare_request(
+            &project,
+            &json!({"event_id":"opening","source_script":"../outside"})
+        )
+        .is_err());
+        let prepared = prepare_request(&project, &json!({"event_id":"opening","source_script":"section_01_free_start_02","values":[{"source":"stat","key":"action","value":3}]})).unwrap();
+        assert_eq!(
+            prepared.source_script.as_deref(),
+            Some("section_01_free_start_02")
+        );
+    }
 
     #[test]
     fn event_test_preserves_conditions_and_author_source_in_an_isolated_campaign() {

@@ -60,6 +60,8 @@
 
 > 阅读 ai_cli.md，查询 schema nodes/catalog，用节点对象制作剧本。通过 project 生成可编辑工程，按体检的章节／节点位置修正错误，再 export 和 inspect。保留原工程与存档身份，不猜测官方资源 ID。
 
+编排演出前先读 skill 的[演出节奏与站位](../../skills/lom-modkit-authoring/SKILL.md#演出节奏与站位)，按剧情处理位移、动作等待和人物距离；工程校验不代替这些演出判断。
+
 完整嵌套条件、选项、奖励和原版来源信息见 [Mod 格式参考](mod_format.md)。原版整章来源信息不能凭空编造。
 
 ## 工程请求字段
@@ -188,7 +190,7 @@ picture = ImageAsset(id="demo.letter", name="来信", main="letter.png")
 | `VariableChange` | op=set/add、Int32 value |
 | `Outcome` | tasks={任务ID:状态}、variables={变量ID:VariableChange(...)}、actions=[OutcomeAction(...)]；均可省略 |
 | `OutcomeAction` | type=stat/affinity/game_flag 时传 key/op/value；flag 仅 key；talent 传 key/value=±1；item 传 key/kind/op/value；time 传 year/month/stage |
-| `Event` | id/name/script/trigger 必填；position、when、outcomes 可选；once=True、enabled=True、check=stage、priority=0、chance=100、weight=1；可填 pool 和 weight_modifiers |
+| `Event` | id/name/script/trigger 必填；trigger=start/auto/position/story_entry；position、when、outcomes 可选；story_entry 必填 target，可选 from_（序列化为 from）；其他触发不能填 target/from_；once=True、enabled=True、check=stage、priority=0、chance=100、weight=1；可填 pool 和 weight_modifiers |
 | `WeightModifier` | when、add（-100000～100000） |
 | `Scenario` | events、tasks=()、entry_event=None；sandbox 设置 entry_event，addon 不设置；检查任务引用与重复 ID |
 | `Translation` | locale=cht/ja/ko 等、texts={可翻译路径:文字} |

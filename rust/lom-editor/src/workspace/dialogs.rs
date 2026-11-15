@@ -6,9 +6,11 @@ impl App {
         if !self.settings_open
             && !self.updater.open
             && self.chapter_dialog.is_none()
+            && self.project_choice.is_none()
             && self.delete_chapter_dialog.is_none()
             && self.rename_dialog.is_none()
             && self.asset_import_dialog.is_none()
+            && self.video_dialog.is_none()
             && self.error.is_none()
             && self.pending.is_none()
             && self.pending_template.is_none()
@@ -121,6 +123,67 @@ impl App {
             } else if locate {
                 crate::error_location::focus_field(ctx, &message);
                 self.go_to_problem(ctx, destination);
+            }
+            return;
+        }
+        if let Some(choice) = &mut self.project_choice {
+            let mut close = false;
+            let mut open = false;
+            egui::Modal::new(egui::Id::new("open-project-choice"))
+                .frame(shell::dialog_frame_for(ctx))
+                .show(ctx, |ui| {
+                    ui.set_width(600.0_f32.min(ctx.content_rect().width() - 80.0));
+                    close |= shell::dialog_header(ui, &crate::i18n::key("workspace.open.choose"));
+                    ui.label(crate::i18n::key("workspace.open.multiple"));
+                    ui.weak(choice.directory.display().to_string());
+                    ui.add_space(10.0);
+                    ui.group(|ui| {
+                        egui::ScrollArea::vertical()
+                            .auto_shrink([false, true])
+                            .max_height(ctx.content_rect().height() * 0.45)
+                            .show(ui, |ui| {
+                                for (index, path) in choice.candidates.iter().enumerate() {
+                                    let kind = crate::i18n::key(if path.is_dir() {
+                                        "workspace.open.directory"
+                                    } else {
+                                        "workspace.open.package"
+                                    });
+                                    let name = path
+                                        .file_name()
+                                        .unwrap_or(path.as_os_str())
+                                        .to_string_lossy();
+                                    let response = ui
+                                        .add_sized(
+                                            [ui.available_width(), 34.0],
+                                            egui::Button::selectable(
+                                                choice.selected == index,
+                                                format!("{kind}  ·  {name}"),
+                                            )
+                                            .truncate(),
+                                        )
+                                        .on_hover_text(path.display().to_string());
+                                    if response.clicked() {
+                                        choice.selected = index;
+                                    }
+                                    open |= response.double_clicked();
+                                }
+                            });
+                    });
+                    ui.add_space(12.0);
+                    shell::dialog_buttons(ui, |ui| {
+                        close |= ui.button(tr("取消")).clicked();
+                        open |= ui
+                            .button(crate::i18n::key("workspace.open.selected"))
+                            .clicked();
+                    });
+                });
+            let source = (!close && !escape_pressed && (open || return_pressed))
+                .then(|| choice.candidates[choice.selected].clone());
+            if close || escape_pressed || source.is_some() {
+                self.project_choice = None;
+            }
+            if let Some(source) = source {
+                self.request(Pending::Open(source), ctx);
             }
             return;
         }

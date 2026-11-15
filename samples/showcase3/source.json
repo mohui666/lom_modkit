@@ -111,6 +111,9 @@
         {
           "id": "show1",
           "type": "show",
+          "_editor": {
+            "note": "站位坐标指舞台 Transform 锚点，不是原图可见脚底。体型与落地位置需结合原画布、透明边界及实际画面确认；可用 SDK 的 render-preview / asset-query 辅助检查。"
+          },
           "character": "player",
           "position": "L1",
           "portrait": "normal",

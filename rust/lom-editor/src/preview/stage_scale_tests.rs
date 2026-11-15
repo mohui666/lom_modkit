@@ -38,13 +38,24 @@ struct Drawing {
     title: Option<Pos2>,
 }
 
-fn render(project: &Project, mut node: Value, scale: Option<u32>, character: bool) -> Drawing {
+fn render(project: &Project, node: Value, scale: Option<u32>, character: bool) -> Drawing {
+    render_resolution(project, node, scale, character, resolution::DEFAULT)
+}
+
+fn render_resolution(
+    project: &Project,
+    mut node: Value,
+    scale: Option<u32>,
+    character: bool,
+    resolution: [u32; 2],
+) -> Drawing {
     if let Some(scale) = scale {
         node["scale"] = json!(scale);
     }
     let story = json!({"id":"main","start":"scaled","mood":false,"nodes":[node]});
     let ctx = egui::Context::default();
     let mut preview = Preview::new(Path::new("."));
+    preview.resolution = resolution;
     preview.mapping = json!({});
     let mut image_id = None;
     let output = ctx.run(
@@ -102,6 +113,37 @@ fn render(project: &Project, mut node: Value, scale: Option<u32>, character: boo
         clip,
         book,
         title,
+    }
+}
+
+#[test]
+fn selected_resolution_maps_actor_units_without_stretching_or_recentering_top_anchors() {
+    let project = project();
+    for resolution in [[1280, 1024], [1024, 768], [2560, 1080]] {
+        let drawing = render_resolution(
+            &project,
+            json!({
+                "id":"scaled", "type":"show", "character":"user:scaled.actor",
+                "position":"M", "portrait":"normal"
+            }),
+            None,
+            true,
+            resolution,
+        );
+        close(
+            drawing.clip.aspect_ratio(),
+            resolution[0] as f32 / resolution[1] as f32,
+        );
+        let unit = (drawing.clip.width() / 1920.0).max(drawing.clip.height() / 1080.0);
+        close(drawing.image.height(), 1080.0 * unit);
+        close(drawing.image.width() / drawing.image.height(), 80.0 / 120.0);
+        let positions: Value =
+            serde_json::from_str(include_str!("../../../../data/stage_positions.json")).unwrap();
+        let (_, feet) = position(&positions, "M");
+        close(
+            drawing.image.center().y,
+            drawing.clip.top() + (feet as f32 * 1080.0 - 540.0) * unit,
+        );
     }
 }
 
@@ -208,5 +250,35 @@ fn stage_character_show_size_changes_around_the_same_feet_position() {
         );
         close(scaled.image.bottom(), original.image.bottom());
         close(scaled.image.center().x, original.image.center().x);
+    }
+}
+
+#[test]
+fn special_slot_painting_keeps_native_container_height_and_anchor() {
+    let project = project();
+    let positions: Value =
+        serde_json::from_str(include_str!("../../../../data/stage_positions.json")).unwrap();
+    for (position, height) in [
+        ("M", 1080.0),
+        ("BC1", 1920.0),
+        ("BC2", 1920.0),
+        ("BCB2", 1920.0),
+        ("Talk", 1245.0),
+    ] {
+        let node = json!({"id":"scaled","type":"show","character":"user:scaled.actor","portrait":"normal","position":position});
+        let drawing = render(&project, node, None, true);
+        let stage = drawing.clip;
+        close(drawing.image.height(), stage.height() * height / 1080.0);
+        close(
+            drawing.image.bottom(),
+            stage.top()
+                + stage.height()
+                    * positions["positions"][position]["feet"].as_f64().unwrap() as f32,
+        );
+        close(
+            drawing.image.center().x,
+            stage.left()
+                + stage.width() * positions["positions"][position]["x"].as_f64().unwrap() as f32,
+        );
     }
 }

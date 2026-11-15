@@ -43,6 +43,151 @@ fn event_preview_requests_are_complete_before_publication_and_invalid_inputs_pre
         .get("fresh_campaign")
         .is_none());
 }
+
+#[test]
+fn tracked_event_preview_separates_setup_from_the_real_event_and_preserves_context() {
+    let dir = tempfile::tempdir().unwrap();
+    fixture(dir.path());
+    let event = serde_json::json!({"id":"visit","script":"side","trigger":"story_entry","target":"section_01_free_03","from":"section_01_free_start_02"});
+    let id = "0123456789abcdef0123456789abcdef";
+    let path = g::request_tracked_event_preview(
+        dir.path(),
+        "event_test_setup_1",
+        &event,
+        "greeting",
+        Some("section_01_free_start_02"),
+        id,
+    )
+    .unwrap();
+    let request = lom_core::load_json(&path).unwrap();
+    assert_eq!(request["script_id"], "event_test_setup_1");
+    assert_eq!(request["format"], 2);
+    assert_eq!(request["node_id"], "notice");
+    assert_eq!(request["event_script"], "side");
+    assert_eq!(request["event_node"], "greeting");
+    assert_eq!(request["event_id"], "visit");
+    assert_eq!(request["source_script"], event["from"]);
+    assert_eq!(request["target"], event["target"]);
+    assert_eq!(request["from"], event["from"]);
+    assert_eq!(request["request_id"], id);
+    assert_eq!(
+        g::read_preview_status(dir.path(), id).unwrap()["state"],
+        "sent"
+    );
+    let before = fs::read(&path).unwrap();
+    for source in ["../outside", "MOD_unsafe_main", "section_01_free_03"] {
+        assert!(g::request_tracked_event_preview(
+            dir.path(),
+            "event_test_setup_1",
+            &event,
+            "greeting",
+            Some(source),
+            id
+        )
+        .is_err());
+        assert_eq!(fs::read(&path).unwrap(), before);
+    }
+    assert!(g::request_tracked_event_preview(
+        dir.path(),
+        "event_test_setup_1",
+        &event,
+        "../node",
+        None,
+        id
+    )
+    .is_err());
+    assert_eq!(fs::read(&path).unwrap(), before);
+    let path = g::request_tracked_event_preview(
+        dir.path(),
+        "event_test_setup_1",
+        &event,
+        "greeting",
+        None,
+        id,
+    )
+    .unwrap();
+    assert!(lom_core::load_json(path)
+        .unwrap()
+        .get("source_script")
+        .is_none());
+}
+#[test]
+fn video_preview_request_publishes_job_and_rejects_invalid_identity() {
+    let dir = tempfile::tempdir().unwrap();
+    fixture(dir.path());
+    let id = "0123456789abcdef0123456789abcdef";
+    let path = g::request_video_preview(dir.path(), "main", "say1", id).unwrap();
+    let request = lom_core::load_json(&path).unwrap();
+    assert_eq!(request["format"], 1);
+    assert_eq!(request["mod_id"], g::PREVIEW_ID);
+    assert_eq!(request["video_render_id"], id);
+    assert_eq!(request["script_id"], "main");
+    assert_eq!(request["node_id"], "say1");
+    let payload = g::video_preview_payload("main", "say1", id).unwrap();
+    for field in [
+        "format",
+        "mod_id",
+        "video_render_id",
+        "script_id",
+        "node_id",
+    ] {
+        assert_eq!(payload[field], request[field]);
+    }
+    assert!(g::video_preview_payload("main", "../outside", id).is_err());
+    let before = fs::read(&path).unwrap();
+    assert!(g::request_video_preview(dir.path(), "main", "say1", "../outside").is_err());
+    assert_eq!(fs::read(&path).unwrap(), before);
+}
+
+#[test]
+fn tracked_preview_status_distinguishes_sending_from_host_observations() {
+    let dir = tempfile::tempdir().unwrap();
+    fixture(dir.path());
+    let id = "0123456789abcdef0123456789abcdef";
+    let path = g::request_tracked_preview(dir.path(), "main", "say1", id).unwrap();
+    let request = lom_core::load_json(&path).unwrap();
+    assert_eq!(request["request_id"], id);
+    let initial = g::read_preview_status(dir.path(), id).unwrap();
+    assert_eq!(initial["state"], "sent");
+    assert_eq!(initial["evidence"], "editor_request");
+    assert_eq!(initial["visual_checked"], false);
+    let status_path = Path::new(initial["status_file"].as_str().unwrap());
+    let before = fs::read(status_path).unwrap();
+    assert!(
+        g::write_preview_launch_status(dir.path(), "main", "say1", id, "node_entered", "fake")
+            .is_err()
+    );
+    assert_eq!(fs::read(status_path).unwrap(), before);
+    assert!(g::request_tracked_preview(dir.path(), "main", "../node", id).is_err());
+    assert_eq!(fs::read(status_path).unwrap(), before);
+    assert!(g::read_preview_status(dir.path(), "../outside").is_err());
+    let mut host = initial.clone();
+    host["state"] = serde_json::json!("node_entered");
+    host["evidence"] = serde_json::json!("node_trace");
+    lom_core::project::atomic_write(status_path, &lom_core::stable_json(&host).unwrap()).unwrap();
+    assert_eq!(
+        g::read_preview_status(dir.path(), id).unwrap()["state"],
+        "node_entered"
+    );
+    host["request_id"] = serde_json::json!("ffffffffffffffffffffffffffffffff");
+    lom_core::project::atomic_write(status_path, &lom_core::stable_json(&host).unwrap()).unwrap();
+    assert!(g::read_preview_status(dir.path(), id).is_err());
+    let restart = g::write_preview_launch_status(
+        dir.path(),
+        "main",
+        "say1",
+        id,
+        "restart_required",
+        "Host已更新，请重启游戏",
+    )
+    .unwrap();
+    assert_eq!(restart["state"], "restart_required");
+    g::request_preview(dir.path(), "main", "say1").unwrap();
+    assert!(lom_core::load_json(path)
+        .unwrap()
+        .get("request_id")
+        .is_none());
+}
 #[test]
 fn host_install_and_verified_rollback_preserve_other_plugins() {
     let t = tempfile::tempdir().unwrap();

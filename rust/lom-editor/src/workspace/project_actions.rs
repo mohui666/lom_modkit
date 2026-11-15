@@ -2,6 +2,24 @@
 use super::*;
 
 impl App {
+    pub(super) fn resolve_project_source(&mut self, path: &Path) -> Option<PathBuf> {
+        match project_io::project_sources(path) {
+            Ok(mut candidates) if candidates.len() == 1 => candidates.pop(),
+            Ok(candidates) => {
+                self.project_choice = Some(project_io::ProjectChoice {
+                    directory: path.to_owned(),
+                    candidates,
+                    selected: 0,
+                });
+                None
+            }
+            Err(error) => {
+                self.error = Some(format!("打开失败\n{}\n{error:#}", path.display()));
+                None
+            }
+        }
+    }
+
     pub(super) fn project_dialog_directory(&self) -> Option<&Path> {
         crate::file_dialog::project_directory(&self.project).or_else(|| {
             self.recent.iter().find_map(|source| {
@@ -62,6 +80,9 @@ impl App {
             self.recent.retain(|p| p != &path);
             self.recent.insert(0, path);
             self.recent.truncate(12);
+            if cfg!(test) {
+                return;
+            }
             if let Ok(bytes) = lom_core::stable_json(&json!(self.recent)) {
                 if let Err(e) =
                     lom_core::project::atomic_write(&user_root().join("rust/recent.json"), &bytes)
@@ -392,6 +413,10 @@ impl App {
         Ok(())
     }
     pub(super) fn request(&mut self, p: Pending, ctx: &egui::Context) {
+        if self.managed_tab && !matches!(p, Pending::EditorUpdate | Pending::CloseTab) {
+            self.tab_action = Some(p);
+            return;
+        }
         // Downloading only prepares the update. Ask about unsaved work once,
         // immediately before installation and exit, including any newer edits.
         if matches!(p, Pending::EditorUpdate) {
@@ -412,6 +437,7 @@ impl App {
     }
     pub(super) fn perform(&mut self, pending: Pending, ctx: &egui::Context) {
         match pending {
+            Pending::CloseTab => self.tab_action = Some(Pending::CloseTab),
             Pending::EditorUpdate => self.request(Pending::EditorUpdate, ctx),
             Pending::InstallEditorUpdate => {
                 match self.updater.install(self.project.source.as_deref()) {
@@ -467,10 +493,16 @@ impl App {
                 Err(error) => self.error = Some(crate::error_ui::capture(error)),
             },
             Pending::Recover(path) => self.recover(&path),
-            Pending::Open(path) => match open_project(&path) {
-                Ok(p) => self.install(p),
-                Err(e) => self.error = Some(format!("打开失败\n{}\n{e:#}", path.display())),
-            },
+            Pending::Open(path) => {
+                if let Some(source) = self.resolve_project_source(&path) {
+                    match Project::open(&source) {
+                        Ok(p) => self.install(p),
+                        Err(e) => {
+                            self.error = Some(format!("打开失败\n{}\n{e:#}", source.display()))
+                        }
+                    }
+                }
+            }
         }
     }
     pub(super) fn open_vanilla_routes(&mut self, ctx: &egui::Context) {
@@ -574,9 +606,11 @@ impl App {
         self.content_panel.reset();
         self.vanilla = Default::default();
         self.chapter_dialog = None;
+        self.project_choice = None;
         self.delete_chapter_dialog = None;
         self.rename_dialog = None;
         self.asset_import_dialog = None;
+        self.video_dialog = None;
         self.image_import_target = None;
         self.audio.stop();
         self.auto = false;

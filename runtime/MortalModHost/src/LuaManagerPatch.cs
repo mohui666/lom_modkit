@@ -38,8 +38,9 @@ namespace MortalModHost
         private static LuaEnvironment _activeDevelopmentEnvironment;
         private static LuaManager _activeDevelopmentManager;
 
-        private static bool Prefix(LuaManager __instance)
+        private static bool Prefix(LuaManager __instance, out string __state)
         {
+            __state = null;
             string scriptName = __instance.ScriptName;
             VanillaBookmarkCapture.Begin(scriptName);
             string replacementName;
@@ -91,6 +92,7 @@ namespace MortalModHost
                 }
                 else
                     Log.LogInfo("MOD 来源会话进入官方脚本 " + (scriptName ?? "(null)") + "：继续保持玩家内容披露");
+                __state = scriptName;
                 return true; // 官方脚本，走原方法
             }
 
@@ -178,7 +180,7 @@ namespace MortalModHost
                     _activeDevelopmentManager = __instance;
                 }
                 failureCategory = "lua_startup";
-                env.StartCoroutine(HostRunModLua(env, fn, scriptName));
+                env.StartCoroutine(VideoRenderRuntime.WhenReady(HostRunModLua(env, fn, scriptName), package));
                 Log.LogInfo("mod 脚本开始演出：" + scriptName);
             }
             catch (Exception ex)
@@ -190,12 +192,19 @@ namespace MortalModHost
             return false; // 该脚本名归 mod 管，成败都跳过原方法
         }
 
+        private static void Postfix(string __state)
+        {
+            // Preserve the allowed original name: the original Lua may call Init
+            // recursively and change LuaManager.ScriptName before this returns.
+            if (__state != null) PlaytestStatusRuntime.OriginalScriptStarted(__state);
+        }
+
         /// <summary>
         /// Stops and forgets the current F5 execution. Resetting the protected Fungus
         /// fields is intentional: StopAllCoroutines alone leaves modflags, modvars and
         /// all host callbacks in the shared MoonSharp global table.
         /// </summary>
-        internal static void StopActiveDevelopmentPlayback()
+        internal static void StopActiveDevelopmentPlayback(bool preserveSceneCoroutines = false)
         {
             if (!RuntimeTrace.Active) return;
             GameplaySceneTransition.Reset();
@@ -205,8 +214,14 @@ namespace MortalModHost
 
             LuaEnvironment env = _activeDevelopmentEnvironment;
             LuaManager manager = _activeDevelopmentManager;
-            _activeDevelopmentEnvironment = null;
-            _activeDevelopmentManager = null;
+            // A completed video keeps this Story stage visible. Retain the
+            // component handles so the next F5/video can clean the same stage;
+            // its Lua execution and globals are still stopped/reset below.
+            if (!preserveSceneCoroutines)
+            {
+                _activeDevelopmentEnvironment = null;
+                _activeDevelopmentManager = null;
+            }
             EnvironmentLease.Detach();
 
             if (env == null)
@@ -225,7 +240,7 @@ namespace MortalModHost
             }
             try
             {
-                if (manager != null) manager.StopAllCoroutines();
+                if (manager != null && !preserveSceneCoroutines) manager.StopAllCoroutines();
             }
             catch (Exception ex)
             {
@@ -260,6 +275,8 @@ namespace MortalModHost
             string registeredName = null)
         {
             bool firstAttempt = string.IsNullOrEmpty(_pendingAbortReason);
+            VideoRenderRuntime.Fail(reason);
+            PlaytestStatusRuntime.RuntimeFailed(reason, RuntimeTrace.CurrentStory, RuntimeTrace.CurrentNode);
             if (firstAttempt)
             {
                 try { ScenarioRuntime.Abort(package ?? ModOverlay.CurrentPackage); }
@@ -459,6 +476,13 @@ namespace MortalModHost
                 yield break;
             }
 
+            if (PlaytestStatusRuntime.Tracked)
+            {
+                const string previewPrefix = "MOD_lom_modkit_preview_";
+                bool previewScript = RuntimeTrace.Active && scriptName != null && scriptName.StartsWith(previewPrefix, StringComparison.Ordinal);
+                PlaytestStatusRuntime.ScriptStarted(previewScript ? "lom_modkit_preview" : "",
+                    previewScript ? scriptName.Substring(previewPrefix.Length) : scriptName);
+            }
             while (coroutine.Coroutine.State != CoroutineState.Dead)
             {
                 // Released scripts use wait(seconds) after starting the book
@@ -586,6 +610,10 @@ namespace MortalModHost
                 {
                     CaptureTraceState(script);
                     RuntimeTrace.NodeEnter(ArgString(args, 0), ArgString(args, 1));
+                    if (PlaytestStatusRuntime.Tracked && RuntimeTrace.Active)
+                        PlaytestStatusRuntime.NodeEntered(RuntimeTrace.CurrentMod, RuntimeTrace.CurrentStory, RuntimeTrace.CurrentNode);
+                    if (VideoRenderRuntime.OnNode(ArgString(args, 1)))
+                        return DynValue.NewYieldReq(new DynValue[0]);
                     if (RuntimeDebugControl.BeforeNode())
                         return DynValue.NewYieldReq(new DynValue[0]);
                     return DynValue.Nil;

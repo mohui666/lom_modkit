@@ -4,6 +4,9 @@ from pathlib import Path
 import re
 
 
+_UNSET = object()
+
+
 def plain(value):
     if hasattr(value, "to_dict"):
         return value.to_dict()
@@ -141,9 +144,15 @@ class WeightModifier(Document):
 class Event(Document):
     def __init__(self, *, id, name, script, trigger, outcomes=None, when=None, position=None,
                  once=True, enabled=True, check="stage", priority=0, chance=100, pool=None,
-                 weight=1, weight_modifiers=()):
+                 weight=1, weight_modifiers=(), target=_UNSET, from_=_UNSET, **fields):
+        if "from" in fields:
+            if from_ is not _UNSET:
+                raise TypeError("Duplicate event field: from/from_")
+            from_ = fields.pop("from")
+        if fields:
+            raise TypeError(f"Unknown event fields: {sorted(fields)}")
         ident(id); ident(script)
-        enum(trigger, ("start", "auto", "position")); enum(check, ("month", "stage", "action"))
+        enum(trigger, ("start", "auto", "position", "story_entry")); enum(check, ("month", "stage", "action"))
         if type(once) is not bool or type(enabled) is not bool:
             raise TypeError("Event once/enabled must be bool")
         if type(chance) not in (int, float) or not 0 <= chance <= 100:
@@ -162,6 +171,18 @@ class Event(Document):
             self.data["position"] = position
         elif position is not None:
             raise ValueError("Only position events accept position")
+        if trigger == "story_entry":
+            if target is _UNSET:
+                raise ValueError("Story-entry event needs target")
+            for key, value in (("target", target), ("from", from_)):
+                if key == "from" and value is _UNSET:
+                    continue
+                ident(value)
+                if value.startswith("MOD_"):
+                    raise ValueError(f"Event {key} must name an original chapter, not MOD_...")
+                self.data[key] = value
+        elif target is not _UNSET or from_ is not _UNSET:
+            raise ValueError("Only story_entry events accept target/from")
         if pool is not None:
             if trigger == "start":
                 raise ValueError("Start event cannot join a pool")

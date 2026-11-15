@@ -14,7 +14,7 @@ enum JobEvent {
     Finished(Result<Value, String>),
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum ToolPage {
     #[default]
     Editing,
@@ -197,6 +197,28 @@ impl ToolsPanel {
         node: &str,
     ) -> anyhow::Result<String> {
         play_project(project, script, node, &self.game, &self.runtime)
+    }
+    pub(crate) fn render_video(
+        &mut self,
+        prepared: crate::video_render::Prepared,
+        output: PathBuf,
+    ) {
+        let game = self.game.clone();
+        let runtime = self.runtime.clone();
+        let cancel = self.cancel.clone();
+        self.background_progress("生成视频", move |tx| {
+            crate::video_render::render(
+                prepared,
+                &game,
+                &runtime,
+                &output,
+                true,
+                cancel,
+                move |value| {
+                    let _ = tx.send(JobEvent::Progress(value));
+                },
+            )
+        });
     }
     pub fn play_event(&mut self, project: &Project, spec: &Value) -> anyhow::Result<String> {
         let preview = crate::scenario_test::prepare(project, spec)?;
@@ -516,6 +538,7 @@ impl ToolsPanel {
             return;
         }
         let running = self.job.is_some() && self.report_title == self.job_title;
+        let video = self.report_title == "生成视频";
         let response = egui::Modal::new(egui::Id::new("creation-tool-result"))
             .frame(crate::shell::dialog_frame_for(ctx))
             .show(ctx, |ui| {
@@ -531,6 +554,20 @@ impl ToolsPanel {
                     });
                     if let Some(message) = self.progress["message"].as_str() {
                         ui.label(crate::i18n::tr(message));
+                    }
+                    if video {
+                        if let (Some(frames), Some(seconds)) = (
+                            self.progress["frames"].as_u64(),
+                            self.progress["seconds"].as_f64(),
+                        ) {
+                            ui.label(crate::i18n::message(
+                                "video.progress.frames",
+                                &[
+                                    ("frames", frames.to_string()),
+                                    ("seconds", format!("{seconds:.1}")),
+                                ],
+                            ));
+                        }
                     }
                     if let (Some(done), Some(total)) = (
                         self.progress["done"].as_u64(),
@@ -610,14 +647,21 @@ impl ToolsPanel {
                         self.report_open = false;
                     }
                     if running
-                        && matches!(
-                            self.report_title.as_str(),
-                            "一键提取游戏资产" | "提取当前特效预览" | "提取全部原版特效（较慢）"
-                        )
+                        && (video
+                            || matches!(
+                                self.report_title.as_str(),
+                                "一键提取游戏资产"
+                                    | "提取当前特效预览"
+                                    | "提取全部原版特效（较慢）"
+                            ))
                         && ui
                             .add_enabled(
                                 !self.cancel.load(Ordering::Relaxed),
-                                egui::Button::new(crate::i18n::tr("取消提取")),
+                                egui::Button::new(if video {
+                                    crate::i18n::key("video.cancel")
+                                } else {
+                                    crate::i18n::tr("取消提取")
+                                }),
                             )
                             .clicked()
                     {
@@ -1783,6 +1827,131 @@ pub(crate) fn play_project(
     game: &std::path::Path,
     runtime: &std::path::Path,
 ) -> anyhow::Result<String> {
+    Ok(
+        play_project_request(project, script, node, game, runtime, None)?["message"]
+            .as_str()
+            .unwrap_or("")
+            .to_owned(),
+    )
+}
+
+pub(crate) fn play_project_tracked(
+    project: &Project,
+    script: &str,
+    node: &str,
+    game: &std::path::Path,
+    runtime: &std::path::Path,
+) -> anyhow::Result<Value> {
+    let identity = Project::new();
+    let request_id = identity.manifest["campaign_id"]
+        .as_str()
+        .and_then(|value| value.strip_prefix("campaign_"))
+        .ok_or_else(|| anyhow::anyhow!("无法生成试玩编号"))?;
+    match play_project_request(project, script, node, game, runtime, Some(request_id)) {
+        Ok(mut result) => {
+            result["request_id"] = json!(request_id);
+            Ok(result)
+        }
+        Err(error) => {
+            let message = format!("{error:#}");
+            let persisted = game_tools::write_preview_launch_status(
+                game, script, node, request_id, "failed", &message,
+            );
+            let mut result = json!({"ok":false,"request_id":request_id,"state":"failed","message":message,"game_execution_confirmed":false,"visual_review_performed":false});
+            match persisted {
+                Ok(value) => result["status_file"] = value["status_file"].clone(),
+                Err(error) => result["status_persistence_error"] = json!(format!("{error:#}")),
+            }
+            Ok(result)
+        }
+    }
+}
+
+pub(crate) fn play_event_tracked(
+    prepared: &crate::scenario_test::EventPreview,
+    game: &std::path::Path,
+    runtime: &std::path::Path,
+) -> anyhow::Result<Value> {
+    let identity = Project::new();
+    let request_id = identity.manifest["campaign_id"]
+        .as_str()
+        .and_then(|id| id.strip_prefix("campaign_"))
+        .ok_or_else(|| anyhow::anyhow!("无法生成试玩编号"))?;
+    let script = prepared.event["script"]
+        .as_str()
+        .ok_or_else(|| anyhow::anyhow!("事件缺少 script"))?;
+    let result = (|| -> anyhow::Result<Value> {
+        let temp = lom_core::workdir::create()?;
+        let package = temp.path().join("__lom_modkit_preview.lommod");
+        prepared.project.export(&package)?;
+        let was_running = game_tools::is_game_running()?;
+        let runtime = game_tools::install_runtime(game, runtime)?;
+        if was_running && runtime["changed"] == true {
+            let mut status = game_tools::write_preview_launch_status(
+                game,
+                script,
+                &prepared.event_node,
+                request_id,
+                "restart_required",
+                "Host 刚刚更新，请完整退出游戏后重新执行事件试玩请求",
+            )?;
+            status["requires_restart"] = json!(true);
+            return Ok(status);
+        }
+        game_tools::remove_preview_packages(game)?;
+        game_tools::install_mod(game, &package, true)?;
+        let setup = prepared.project.manifest["entry"]
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("事件测试包缺少入口"))?;
+        game_tools::request_tracked_event_preview(
+            game,
+            setup,
+            &prepared.event,
+            &prepared.event_node,
+            prepared.source_script.as_deref(),
+            request_id,
+        )?;
+        game_tools::launch_game()?;
+        game_tools::read_preview_status(game, request_id)
+    })();
+    let mut value = match result {
+        Ok(value) => value,
+        Err(error) => {
+            let message = format!("{error:#}");
+            let mut value = json!({"state":"failed","message":message});
+            match game_tools::write_preview_launch_status(
+                game,
+                script,
+                &prepared.event_node,
+                request_id,
+                "failed",
+                &message,
+            ) {
+                Ok(status) => value = status,
+                Err(error) => value["status_persistence_error"] = json!(format!("{error:#}")),
+            }
+            value
+        }
+    };
+    value["ok"] = json!(!matches!(
+        value["state"].as_str(),
+        Some("failed" | "restart_required" | "event_not_triggered")
+    ));
+    value["request_id"] = json!(request_id);
+    value["event_context"] = prepared.context();
+    value["game_execution_confirmed"] = json!(value["event_entered"] == true);
+    value["visual_review_performed"] = json!(false);
+    Ok(value)
+}
+
+fn play_project_request(
+    project: &Project,
+    script: &str,
+    node: &str,
+    game: &std::path::Path,
+    runtime: &std::path::Path,
+    request_id: Option<&str>,
+) -> anyhow::Result<Value> {
     anyhow::ensure!(
         cfg!(windows),
         "游戏接入仅支持 Windows；当前 Mac 可编辑、编译和预览"
@@ -1811,14 +1980,48 @@ pub(crate) fn play_project(
     preview.export(&package)?;
     let was_running = game_tools::is_game_running()?;
     let runtime = game_tools::install_runtime(game, runtime)?;
+    if let Some(id) = request_id.filter(|_| was_running && runtime["changed"] == true) {
+        let mut status = game_tools::write_preview_launch_status(
+            game,
+            script,
+            node,
+            id,
+            "restart_required",
+            "Host 刚刚更新，请完整退出游戏后重新执行试玩请求",
+        )?;
+        status["ok"] = json!(false);
+        status["requires_restart"] = json!(true);
+        status["game_execution_confirmed"] = json!(false);
+        return Ok(status);
+    }
     game_tools::remove_preview_packages(game)?;
     game_tools::install_mod(game, &package, true)?;
-    game_tools::request_preview(game, script, node)?;
+    if let Some(id) = request_id {
+        game_tools::request_tracked_preview(game, script, node, id)?;
+    } else {
+        game_tools::request_preview(game, script, node)?;
+    }
     if was_running && runtime["changed"] == true {
-        return Ok("试玩已准备：C# 宿主刚刚更新，请完整退出并重新启动游戏。".into());
+        return Ok(
+            json!({"ok":true,"message":"试玩已准备：C# 宿主刚刚更新，请完整退出并重新启动游戏。"}),
+        );
     }
     game_tools::launch_game()?;
-    Ok(format!("试玩请求已发送：{script}/{node}"))
+    if let Some(id) = request_id {
+        let mut status = game_tools::read_preview_status(game, id)?;
+        status["ok"] = json!(!matches!(
+            status["state"].as_str(),
+            Some("failed" | "restart_required")
+        ));
+        status["game_execution_confirmed"] = json!(matches!(
+            status["state"].as_str(),
+            Some("chapter_entered" | "node_entered")
+        ));
+        status["visual_review_performed"] = json!(false);
+        Ok(status)
+    } else {
+        Ok(json!({"ok":true,"message":format!("试玩请求已发送：{script}/{node}")}))
+    }
 }
 
 pub(crate) fn prepare_preview(
