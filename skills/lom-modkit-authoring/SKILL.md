@@ -13,11 +13,14 @@ description: 使用 LoM Modkit 的 Python 节点对象和 Rust CLI 制作、修�
 - 有源码：先读 `docs/chs/python_api.md` 和 `docs/chs/cli_parameters.md`；需要完整示例再读 `docs/chs/ai_cli.md`。
 - 只有编辑器：执行 `lom-editor.exe --cli sdk -o 一个新目录 --json`，读取导出的 `python_api.md`、`cli_parameters.md`，使用同目录的 lom_modkit 包。
 - 查询 `--cli schema nodes/catalog` 获取当前字段、枚举和官方资源 ID；查询 `--cli automation-schema` 获取当前操作命令。不要猜官方人物、表情、音频或游戏方法。
+- 目录可用 `schema catalog --filter 关键词` 缩小范围；配合 `-o 文件 --summary` 把完整结果写入文件，仅在标准输出读取摘要。不要把摘要当完整目录。
 - 用用户提供或工作区实际构建的编辑器，不自动覆盖安装版或下载其他版本。SDK 与本次使用的 exe 配套。
 
 ## 编写与生成
 
 以一个 Python 文件组织多个 `Chapter`，放入 `Project(chapters=[...])`。每个步骤使用 `Say/Show/Choice/...` 构造函数。先登场再发言／移动；跨章用 `End(next_script=...)`；同组子动作用 `.action()`，不带 id/goto。构造函数检查参数，完整关系由 Rust 校验。
+
+可选的 `NodeIds` 生成不重复编号，`Staging` 简化登退场、并行动作与站位恢复；它们返回普通节点，不替代 `Say`、`Show`、`Parallel` 等接口。`restore` 只复用作者通过 `enter`／`remember` 明确记录的 Show 参数，不读取游戏当前站位，也不因中途 Move 自动更新记录。
 
 按任务选择配置对象：
 
@@ -40,13 +43,17 @@ description: 使用 LoM Modkit 的 Python 节点对象和 Rust CLI 制作、修�
 
 涉及双人／多人站位、接近或退开时，用可用的素材查询与舞台图检查动作前后构图；缺少素材或未看图的距离判断要标明未验证。节奏要看目标自动播放速度下的连续演出：单张截图不能证明等待合适，编译、体检及状态模拟通过也不算画面或节奏验收。检查时重点找无动机的小位移、被下一句抢断的动作、与互动不符的距离，不要求逐节点额外生成报告。
 
+`cli.query_assets(...)` 返回素材缩略图及可确认的尺寸、裁切与锚点依据；`cli.render_preview(...)`／`render_previews(...)` 实际输出编辑器舞台 PNG、批量帧和联系图，生成后需看图。这些画面是编辑器预览，不是游戏本体截图，也不代表人工已经检查。宽高与可选时间点按配套 CLI 文档填写。
+
 ## 检查与交付
 
 按实际内容选择体检和路线测试。检查关键分支、循环出口与结局；`unsupported` 不算通过。需要确认编辑器可读时使用 `--smoke-preview`；用户希望直接检查界面时用 `cli.open_editor(project_or_package, output=可选新目录, script=章节, node=步骤)`。
 
 `story_entry` 用 `Event(..., target=原版目标, from_=可选来源)` 表达。区分单章演出、入口条件和原版前置→MOD→原版续接三种检查；单章预览不能发现原版遗留界面。有对应 CLI 时可先用 `prepare-event-playtest` 离线准备，实机授权范围内用 `playtest-event` 的 predecessor 模式实际播放原版起点；boundary 仅直达入口，不算完整衔接。测试状态显式指定，不为保证触发而猜旗标或修改条件、概率和优先级；状态确认也不能代替看连续画面。
 
-资源读取、位置调整和试玩包准备可用 `cli.operation(...)` 调用 Rust 命令。普通生成不自动执行 playtest、capture-effects 或安装游戏组件；作者明确要求游戏操作时才执行相应命令。
+资源读取、位置调整和试玩包准备可用 `cli.operation(...)` 调用 Rust 命令。试玩返回的 `request_id` 可用 `cli.playtest_status(game, request_id)` 查询一次，区分请求发出、游戏接收、章节与节点进入；收到请求不等于完整路线或画面验收通过。
+
+作者要求生成游戏原生视频时，用 `cli.render_video(project, game, output, **options)`：默认独立桌面后台渲染，按游戏自动播放时长和预设选项输出 MP4，不切换当前桌面；它仍会启动独立游戏进程并使用 GPU。当前 Host 不绘制可见或隐藏画面水印。普通工程生成不自动执行 playtest、render-video、capture-effects 或安装游戏组件；作者明确要求相应游戏操作时再执行。
 
 区分构造检查、编译／包检查、离线模拟、编辑器界面与游戏实机证据。剧情合理性、视觉听感、随机结果、战斗与事件调度的最终表现交给作者确认。
 

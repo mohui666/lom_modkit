@@ -1,12 +1,14 @@
 # Rust 工具端
 
-Cargo workspace 由 `rust/lom-core`、`rust/lomc`、`rust/lom-editor` 组成，覆盖剧情编译、包读写和原生桌面编辑。C# `runtime/MortalModHost` 保留游戏接入；包、Story、用户内容版本仍为 **3 / 2 / 1**。
+Cargo workspace 由 `rust/lom-core`、`rust/lomc`、`rust/lom-editor`、`rust/lom-assets` 组成，覆盖剧情编译、包读写、原生桌面编辑和游戏资源读取。C# `runtime/MortalModHost` 保留游戏接入；1.6.0 的包、Story、用户内容版本仍为 **3 / 2 / 1**。
 
 操作指南见 [软件使用](software_usage.md)，验证命令见 [测试入口](test_matrix.md)。
 
 ## 当前界面
 
 当前是 Rust／egui 通用外壳，标准系统标题栏显示作品名称与未保存状态。默认窗口 1280×760，保留左侧章节／步骤、中间属性编辑、右侧预览的三栏结构。步骤显示序号、类别、节点备注或 ID 及内容概要；同名章节可按列表序号区分，内部标识留在按需查看或高级编辑入口。
+
+顶部工程标签支持多个工程切换，关闭／重启恢复打开的工程和当前位置；每个标签有独立草稿、历史与控件状态。步骤可通过系统剪贴板在不同窗口间复制粘贴，素材引用仍需目标工程具备对应内容。舞台预览的分辨率是编辑器偏好，可选择预设或输入尺寸，不写入作品节点；人物、背景和 UI 按各自原生几何投影。
 
 新建／复制章节先选择操作，再输入可读名称，内部标识自动生成。素材导入先选类型与文件，再确认名称。相关模态框阻挡背景操作，取消在左、主操作在右，支持 Return 确认和 Esc 取消；输入法确认候选不会提前提交。普通可选字段直接显示语义默认值，技术标识改名在“编辑 → 高级”。
 
@@ -36,7 +38,7 @@ open "out/LoM Modkit Rust.app"
 
 构建提取器使用 `cargo build --locked --release -p lom-assets`；无需 UnityPy 或 PyInstaller。两端均构建本平台的提取器，不能复制另一平台的二进制。`--self-check` 不读取游戏。`tools` 中的旧 Python 读取器仅作为迁移结果的开发对照，不进入发布包。
 
-Windows 构建入口为 `scripts/build-windows.ps1 -NoArchive`，需要已构建的 `MortalModHost.dll`、`NVorbis.dll`；可用 `-RuntimeDirectory` 指定目录，默认产物为 `out/windows/lom_modkit/lom-editor.exe`。Host 本地引用及嵌入资源要求见 [Runtime 构建说明](../../runtime/MortalModHost/README.md#构建与测试)。
+Windows 构建入口为 `scripts/build-windows.ps1 -NoArchive`，需要已构建的同版 `MortalModHost.dll`、`NVorbis.dll`；可用 `-RuntimeDirectory` 指定目录，正式单文件产物为 `out/windows/lom-editor.exe`。CLI、SDK、原生提取器、音频解码器、FFmpeg 与 Host 均由该 exe 内置，首次使用时准备任务所需组件；正式 Release 只上传此 exe。Host 本地引用及嵌入资源要求见 [Runtime 构建说明](../../runtime/MortalModHost/README.md#构建与测试)。
 
 ## 模块
 
@@ -45,6 +47,7 @@ Windows 构建入口为 `scripts/build-windows.ps1 -NoArchive`，需要已构建
 | `rust/lom-core` | 节点校验与 Lua 生成、本地化、用户内容、v3 包校验、工程读写与迁移、离线分析、发布体检、水印、C# 宿主文件管理 |
 | `rust/lomc` | 原生命令行与受控创作 API |
 | `rust/lom-editor` | egui 界面、字段表单、舞台／流程预览、编辑历史、草稿与恢复、按文件归属保存 |
+| `rust/lom-assets` | 原生游戏资源提取器，独立进程报告进度与结果 |
 | `rust/lom-editor/src/macos_window.rs` | 标准 AppKit 窗口外观、现有系统应用菜单中的设置项与重绘通知 |
 | `editor/` | 图标、翻译和帮助等静态资源；旧 Python 编辑器已退役 |
 | `tools/` | 游戏资源提取／研究脚本；预览提取器单独打包供原生界面调用，其余脚本不作为编辑器或编译器运行依赖 |
@@ -52,6 +55,8 @@ Windows 构建入口为 `scripts/build-windows.ps1 -NoArchive`，需要已构建
 ## CLI
 
 Python 节点构造函数和完整工程生成见 [Python 对象创作与 CLI](ai_cli.md)。单文件编辑器使用 `lom-editor.exe --cli <命令>`，`sdk -o DIR` 导出配套的 Python 接口；`schema nodes/catalog` 可供 AI 查询完整字段与官方资源清单。
+
+编辑器操作还提供 `asset-query` 图片／布局证据、`render-preview(s)` 纯舞台出图、`playtest-status` 真实执行阶段查询，以及 `playtest-event` 原版前置章衔接测试。`render-video` 默认使用 Windows 独立桌面 Worker，按游戏自动播放时钟输出原生画面与声音，不使用编辑器重绘。详细参数见 [CLI 参数](cli_parameters.md)。顶层 `--help`、`--version` 在 1.6.0 直接输出，不打开窗口；旧版识别版本使用 `--cli --version`。
 
 以下示例使用当前 CLI 参数；`path/to/...` 为作者自己的输入文件：
 
@@ -86,7 +91,7 @@ cargo run --locked -p lomc -- detect-watermark-video path/to/video.mp4 --ffmpeg 
 
 迁移沿用既有版本规则，不猜测无法可靠转换的旧 Combat／Battle 数据。可迁移文件在写入前保留原字节备份；多文件写盘失败不保证整个目录一次回滚。新项目生成独立 `campaign_id`，导入已有项目不重置存档身份。
 
-Windows 游戏管理调用已有 C# Host 协议；Mac 上禁用游戏接入按钮。BepInEx 安装按 `Mortal.exe` 自动识别 x86／x64，接受对应的官方 **6.0.0-be.692+851521c / Unity Mono** ZIP，界面提供匹配的下载链接；校验值或原生代理位数不符时拒绝写入。C# Host 保持 AnyCPU，宿主 DLL 目录由作者选择。游戏从 32 位升级到 64 位后的加载器与旧代理修复见 [维护者手册](maintainers.md#windows-游戏接入与-runtime-回滚)。Mac 编译、离线测试、窗口检查与 133 节点预览都不能代替这些 Windows／游戏流程。
+Windows 游戏管理调用已有 C# Host 协议；Mac 上禁用游戏接入按钮。BepInEx 安装按 `Mortal.exe` 自动识别 x86／x64，接受对应的官方 **6.0.0-be.692+851521c / Unity Mono** ZIP，界面提供匹配的下载链接；校验值或原生代理位数不符时拒绝写入。C# Host 保持 AnyCPU，正式 exe 使用内置 Host，源码运行才需明确完整宿主目录。游戏从 32 位升级到 64 位后的加载器与旧代理修复见 [维护者手册](maintainers.md#windows-游戏接入与-runtime-回滚)。Mac 构建和离线预览都不能代替 Windows／游戏流程；本次 1.6.0 未运行 Mac 构建或实测。
 
 ## 样例与验证
 

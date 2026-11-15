@@ -16,6 +16,8 @@ crash.log
 editor/tests/out/
 # Test matrix reports are local release artifacts.
 /out/
+# 更新正文只保存在 GitHub Release，发布命令使用 out/ 中的临时正文。
+/RELEASE_NOTES*.md
 # 历史 Qt 构建产物（不再维护；保留本机文件）
 editor/build/
 editor/dist/

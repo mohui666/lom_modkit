@@ -1,6 +1,6 @@
 # CLI 命令与参数
 
-主入口 `lom-editor.exe --cli COMMAND ... --json`，不需要 Python。独立 `lomc` 提供下表的核心命令；操作类命令由编辑器提供。Python 调用方法见 [接口参考](python_api.md)。
+本文对应 1.6.0。主入口 `lom-editor.exe --cli COMMAND ... --json`，不需要 Python；Windows 正式附件只有内置组件的 exe。独立 `lomc` 提供下表的核心命令；操作类命令由编辑器提供。Python 调用方法见 [接口参考](python_api.md)。SDK 根目录的 `README.md` 对应仓库创作指南，两份参考文件与它同目录。
 
 所有 JSON 输出为 UTF-8，退出码：0 成功；1 参数／校验／执行失败；水印未检出为 2。命令失败输出 `{ok:false,errors:[...]}` 或 `{ok:false,issues:[...]}`。issues 带 severity/code/story_id/node_id/message。--json 可放命令前后。自动化不要解析默认中文文本输出。
 
@@ -36,7 +36,7 @@
 | `detect-watermark IMAGE` | 无 | 图片来源水印检测 |
 | `detect-watermark-video VIDEO` | --ffmpeg 路径、--interval 秒默认2、--max-frames 默认12 | 视频检测，需可用 FFmpeg |
 
-工程请求字段：source（可选旧工程）、mode（新建模式）、target（原版补丁目标）、manifest（顶层合并）、stories（完整替换章节集合）、scenario（完整替换，null移除）、assets（路径或内嵌JSON）、remove_assets（明确移除路径）。完整示例见 [创作指南](ai_cli.md#工程请求字段)。相对 source/资源路径相对请求文件；-o 相对命令工作目录。
+工程请求字段：source（可选旧工程）、mode（新建模式）、target（原版补丁目标）、manifest（顶层合并）、stories（完整替换章节集合）、scenario（完整替换，null移除）、assets（路径或内嵌JSON）、remove_assets（明确移除路径）。完整示例见 [创作指南](https://github.com/mohui666/lom_modkit/blob/v1.6.0/docs/chs/ai_cli.md#工程请求字段)，SDK 中为本地 `README.md`。相对 source/资源路径相对请求文件；-o 相对命令工作目录。
 
 `schema catalog --filter 关键词` 不区分大小写，匹配条目的 ID、名称和其他文本／数字，以及映射目录的条目键；不按目录分类名称筛选。命中时保留整条记录和 schema 编号，无匹配的分类保留空数组／对象。省略 --filter 仍返回完整目录。
 
@@ -108,6 +108,8 @@ output 为 `.mp4`，父目录须已存在；默认拒绝覆盖，明确填 overw
 
 background 默认 true：在独立桌面中启动游戏原生渲染进程，不弹出窗口、不切换当前游戏，任务结束后自动退出；使用任务内的临时 Host、演出包和独立存档目录。后台模式只接受当前编辑器配套 Host，复用游戏文件与 BepInEx 核心，不复制整套游戏。仍消耗 CPU、GPU 与编码资源，运行时保持命令行进程即可。显式 background=false 使用原有前台游戏流程，需保持游戏运行，请勿最小化或调整游戏窗口。
 
+Windows 正式 exe 内置视频编码器。画面读取支持时使用异步 GPU 回读，再由有界帧池按序交给编码线程；慢编码会限制上游，不丢帧或无限增加缓存。原生 Wwise 与作品自定义音轨按同一帧时钟生成并合成，不能以最终文件存在推断音轨有效。当前普通试玩、前台和后台视频均不嵌入可见或隐藏水印；旧媒体检测器和 Host 身份／存档校验仍保留。
+
 剧情选项由预设自动处理，战斗、商店及交互面板等限制与界面入口一致。仅固定的临时演出包参与渲染，原工程不改写；原版前置流程衔接仍用 playtest-event 单独检查。
 
 进度以 `{"event":"video_progress","progress":...}` 的 JSON 行写到 stderr，包含任务编号、状态、帧数和时长等阶段信息。stdout 只返回最终 JSON；成功含 output、job_id、frames、seconds、width/height、fps、background 和 renderer=native-game，成片落盘后才成功。visual_review_performed=false 表示尚未替作者观看验收。
@@ -122,6 +124,8 @@ background 默认 true：在独立桌面中启动游戏原生渲染进程，不�
 用 `render-previews` 执行以上请求。输出目录须为空；按请求顺序生成 `0001.png` 等图片，`contact-sheet.png` 按行从左至右排列，`frames.json` 对应章节／步骤、时间、缺失图片与特效。单张 `render-preview` 的 output 为尚不存在的 `.png`。尺寸为 16:9，最小 320×180，单边不超过4096；一次最多200帧。批量共用素材缓存，不逐帧启动编辑器。time 为该步骤动画的秒数；省略时采用静态终态，循环气泡／特效从首帧显示。依赖图形后端可用的本机环境。
 
 这里输出的是**编辑器舞台预览**，不是游戏原生画面。`rendering_performed=true` 表示实际生成了图片，`visual_review_performed=false` 表示没有替作者人工看图；`complete=false` 会列出本帧缺失的图片／特效，不能当作完整画面验收。`preview` 和 `--smoke-preview` 明确返回 rendering_performed=false、rendered_images=0；保留的 preview_states 仅是模拟状态数量。
+
+导出的 width/height 直接作为本次舞台投影分辨率，不继承界面保存的预览尺寸。界面预览分辨率偏好不增加剧情节点字段，也不改变原工程内容；纯舞台图仍不模拟真实前置章节遗留的 UI。
 
 ### 素材与试玩结果含义
 
@@ -151,6 +155,8 @@ background 默认 true：在独立桌面中启动游戏原生渲染进程，不�
 
 事件状态额外区分 predecessor_entered（实际原版起点进入）、original_target_entered（原版目标正文已进入）和 event_not_triggered（到了目标但所测事件未进入）。event_entered 表示匹配所测事件 ID 后其 Lua 开始，event_node_entered 表示目标节点收到实际追踪；准备章不会充当事件成功。source_script、event_script/event_node、current_script/current_node 及 context_mode 标明请求与观察的不同位置。仍需实际检查“原版→MOD→原版”的连续画面，状态不保证残留界面已处理。
 
+`event_selected` 只表示目标事件在真实调度中获选，`event_dispatch` 是该观察的 evidence；只有匹配所测事件 ID 后启动对应 Lua，`event_entered` 和事件请求的 `game_execution_confirmed` 才为 true。它们仍不代表已执行目标节点，节点确认单看 `event_node_entered`。若同一脚本被另一个事件选中，不能认作所测事件成功；到达原版 target 而事件未进入时保留 event_not_triggered。
+
 新的跟踪事件请求采用 `format=2`，使旧 Host 拒绝执行，防止忽略前置模式而静默变成入口直达。新版 Host 仍接受旧 `format=1` 的 F5、旧事件测试和视频请求；`.lommod` 格式不变。正在运行的游戏需要退出后加载配套新版 Host。
 
-顶层 `lom-editor --help`／`--version` 直接输出文字，不准备组件、不打开窗口。
+1.6.0 顶层 `lom-editor --help`／`--version` 直接输出文字，不准备组件、不打开窗口。查询不支持该顶层入口的旧版时使用 `lom-editor --cli --version`，避免误开窗口。版本变化以对应 [GitHub Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.0) 为准，仓库不保留版本 notes。

@@ -4,10 +4,12 @@
 
 **所有组件（编辑器 / 编译器 / 运行时插件）以本文档为准。** 改动需同步更新本文档。
 
+1.6.0 继续使用 **package_format=3 / story_schema=2 / content_schema=1**。工程标签、跨窗口剪贴板、预览分辨率、SDK 舞台出图与后台原生视频不增加剧情节点字段；临时试玩请求的 format 与包格式是两套协议。版本变化见 [GitHub Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.0)，仓库不保留版本 notes。
+
 2026-10-24 工作区扩展：Host ≥1.1.3 支持 `play_mode=addon/sandbox` 与独立的 `scenario.json`。事件、任务和结果动作使用[事件与任务配置](events_and_tasks.md)契约，旧作品继续兼容。
 
 Host 1.5.10 增加 `scenario.events[].trigger="story_entry"`：必填 `target` 为原版目标章节 ID，可选 `from` 限制来源章节。两者使用原版章节 ID 的既有安全规则，不能指向 `MOD_` 注册名；其他事件类型不能填写这两个字段。时间条件继续使用 `all/any/not` 与 `time.year/month/stage`，普通结束后继续进入原目标章节。导出使用该入口的作品会自动提高最低 Host 版本，包格式及故事格式保持 v3／2，旧事件模式工程继续兼容。
-文中规则的官方脚本/反编译实证材料见 `../research/`，正文不重复展开。
+文中规则的官方接口实证见 [research/gameplay_api.md](../../research/gameplay_api.md)，正文不复制完整反编译源码。
 
 ## 1. 包结构
 
@@ -32,13 +34,13 @@ assets/                # 可选，自定义资源
 - `<id>` 规则：`[a-zA-Z0-9_\-]{1,64}`，包内唯一，即"剧情脚本 id"。
 - 导出（打包）时必须重新编译：story/*.json → lua/*.lua，二者同名。
 - `story-lua.sha256` 使用 `lom-story-lua-sha256-v1`：每行以 TAB 记录 Story 路径/原始字节 SHA-256 与对应默认或 locale Lua 路径/原始字节 SHA-256。Runtime 对 v3 包强制逐项核对；v1/v2 包缺少稳定战役身份，1.0.1 不再导入或加载，必须明确设置 `campaign_id` 后重新导出。
-- 运行时插件**只读 manifest.json、lua/、texts、可选 localization.json 与 assets/**；story/*.json 给编辑器回读/再编辑用。编译器只打入剧情明确引用的 PNG/JPG（单张 ≤8MB）、明确引用的 `user:` 音频，以及明确引用的自定义角色立绘。导出的 `.lommod` 自包含，玩家机器不需要编辑器仓库。
+- 运行时执行 `lua/`，同时读取清单、文本、可选本地化与素材，并校验 Story／Lua 配对完整性记录；Story 也用于原版来源分类缓存。编辑器回读／再编辑时由 Rust 复编译检查源码／Lua 一致性。编译器只打入剧情明确引用的 PNG/JPG（单张 ≤8MB）、明确引用的 `user:` 音频，以及明确引用的自定义角色立绘。导出的 `.lommod` 自包含，玩家机器不需要编辑器仓库。
 - texts.json 由打包时自动生成：收集每个 story 的全部 **say** 节点文本，key 与 lua 里 `GetStoryText` 的 key 一一对应；运行时注册进 LeanLocalization（见 §4/§6）。**death 文本不进 texts.json**：由 codegen 发射 `mod_set_death_text(<标题>, <文本>)` 两参 lua_str 字面量（见 §3.1/§6）。
-- 运行时先拒绝物理文件超过 160 MiB 的包，再从读取该包的同一个文件句柄计算最终 `.lommod` **全部原始字节**的 SHA-256，保存完整 64 个十六进制字符，并在强制披露中显示前 16 个字符。重新压缩、修改任一字节都会改变指纹；改文件名或逐字节复制不会改变。该指纹用于核对具体包，不是作者签名或官方认证。编辑器安装器同样以 160 MiB / 4 MiB 分别限制包文件与 `manifest.json`。
+- 运行时先拒绝物理文件超过 160 MiB 的包，再从读取该包的同一个文件句柄计算最终 `.lommod` **全部原始字节**的 SHA-256，保存完整 64 个十六进制字符。1.6.0 不在画面显示或隐藏嵌入该身份信息；包指纹与会话校验仍执行。重新压缩、修改任一字节都会改变指纹；改文件名或逐字节复制不会改变。该指纹用于核对具体包，不是作者签名或官方认证。编辑器安装器同样以 160 MiB / 4 MiB 分别限制包文件与 `manifest.json`。
 - 解压后单条目上限为 32 MiB，文本条目通常为 4 MiB。Host 1.4.11 起，严格匹配 `story/<id>.json` 的章节源文件使用 32 MiB 上限，以容纳整章结构化指令。包内解压总量仍以 128 MiB 为上限。
 - 打包器按包内规范路径排序条目，JSON 使用稳定键顺序，Lua 编译顺序固定，并把 ZIP 时间戳固定为 1980-01-01、权限固定为普通只读元数据；同一 lom_modkit/Rust/ZIP 工具链下，相同项目连续导出的 `.lommod` 应逐字节一致。不同 Rust 或 ZIP 实现的压缩字节可能不同，因此**不宣称跨工具链 reproducible build**。
 
-- 读取已发布的 v3 包时，源码／Lua 校验也识别修复前两种已知生成方式：官方压暗直接调用 `stage.SetDimmed`、未显式填写颜色的大图只传图片键。仍按包内结构化源码复编译后逐字节比较，不改写 `raw` 内容；重新导出统一使用当前生成方式。
+- 读取已发布的 v3 包时，源码／Lua 校验识别当前及明确支持的历史生成结果，包括旧压暗／大图调用、大图隐藏淡出、震动等待、并行震动和旧 `stat_set.update` 输出。每条历史路径仍按包内结构化源码复编译、逐字节比较，不改写 `raw` 或放行任意 Lua；只重算完整性摘要不能使无关脚本合法。重新导出统一使用当前生成器，原工程与原包保持可编辑。
 - `package-content.sha256` 是 `lom-entry-sha256-v1` 记录：对除它自身外的全部条目按名称排序，以「名称长度 + UTF-8 名称 + 内容长度 + 原始内容」计算 SHA-256。它不依赖 ZIP 时间戳、权限或压缩结果，可由 `lomc.package_content_hash(path)` 复算；它是构建一致性校验，不是签名或官方认证，也不替代 Runtime 对整包原始字节计算的 Host 指纹。
 - 编辑器「发布 → 包检查与水印检测 → 检查 .lommod 包」以只读方式展示 Manifest、Story、Lua、Texts、资源、用户内容、大小和逐条目 SHA-256，同时检查版本兼容、格式错误、逻辑内容哈希及资源引用/打包差异。检查器不解包到磁盘、不执行 Lua，也不登记共享内容库。
 
@@ -147,7 +149,7 @@ Story 的 `vanilla_patch` 包含 `target` 与 `edits`。每项修改含 `find`�
 
 `end.resume_node` 可在 schema 2 的 `resume_original=true` 时指定返回步骤，用于在分支尾插入内容后继续该分支原本的后继。普通剧情不使用此字段。旧散装 MOD 导入设置 `vanilla_import.external=true`，表示来源为玩家文件，始终按 MOD 内容标记。旧 schema 1 的原生作用域执行仍可读取和编译。
 
-Host 从包内 Story 构建来源缓存，每次加载作品后首次进入该章时与本机原文逐字核对一次，后续进入和节点切换查询缓存。未变原版节点隐藏披露表面，改写或新增节点显示。持续性演出、数值和流程改动后保持标识，原版步骤删除、重排或原生逻辑改写时整章保持标识。来源会话和包归属继续由 Host 管理，整章导入原文包含在作品包中。
+Host 从包内 Story 构建来源缓存，每次加载作品后首次进入该章时与本机原文逐字核对一次，后续进入和节点切换查询缓存。未变原版节点与改写／新增节点分别分类，持续性演出、数值和流程改动、原版步骤删除／重排或原生逻辑改写按既有规则影响后续来源。1.6.0 不再按来源显示或嵌入画面水印；来源会话和包归属仍由 Host 管理，整章导入原文包含在作品包中。
 
 ## 3. story/*.json — 剧情脚本格式
 
@@ -169,7 +171,7 @@ Host 从包内 Story 构建来源缓存，每次加载作品后首次进入该�
 - `choice` / `branch` / `dice` 的分支必须用 `goto` 指到目标节点 id。
 - 多个前驱汇入同一节点（汇合点）合法。
 
-### 3.1 节点类型（全量 67 种）
+### 3.1 节点类型（全量 73 种）
 
 此表是当前全部合法节点。`combat` / `battle` 使用稳定的运行时内部基线，不向作者暴露场景预设；战斗能力只调用已反编译核验的原版接口，`mod_quest` 则是明确不接触原版 Mission ID 的宿主状态机。
 
@@ -180,6 +182,7 @@ Host 从包内 Story 构建来源缓存，每次加载作品后首次进入该�
 | type | 字段 | 说明 |
 | --- | --- | --- |
 | `parallel` | `actions`：2～32 个演出动作对象（含 `type` 及对应节点的字段，不含 `id/goto`） | 预载官方人物后，同一帧启动各动作；等待全部完成再走父节点的后继。具体范围与冲突规则见 §3.4。 |
+| `render_priority` | 必填 `target`；按目标填写 `character`／`slot`／`name`／`tag`，可选 `order`、`enabled`、`wait_after` | 调整舞台对象遮挡顺序；具体范围和重置规则见“舞台渲染优先级”，要求 Host 1.5.12。 |
 | `music` | `name`；可选 `op`("play"默认/"stop"/"fadeout")，fadeout 时 `seconds`(默认2) | 官方名继续 `PlayMusic` / `StopMusic` / `FadeOutMusic(seconds)` 后 **`wait(seconds)`**。`name` 以 `user:` 开头时是用户内容引用（§8），由运行时从**当前包** `assets/user/` 解析播放。禁止本机绝对路径 |
 | `sound` | `name`；可选 `kind`("sound"默认/"env")，`op`("play"默认/"fadeout"仅env，`seconds`默认1) | 官方名继续 `PlaySound` / `PlayEnvSound` / `FadeOutEnvSound(seconds)` 后同样 **`wait(seconds)`**。`user:` 引用规则同 music，且 `audio_kind` 必须与节点匹配 |
 | `scene` | `view` | 切换**原版官方背景**：先清除自定义背景，再 `runblock(flowcharts.view,"out")`；其余原版预载与切换行为不变。`view="out"` 只淡出；`"black"/"white"` 为纯色 |
@@ -197,7 +200,7 @@ Host 从包内 Story 构建来源缓存，每次加载作品后首次进入该�
 | `offset` | `character`, `x`, `y`, `duration`；可选 `absolute`(bool，默认false)、`scale`(正数百分比) | 人物偏移与等比缩放。x/y 为 1920×1080 舞台单位，右/上为正，支持小数；absolute=true 从当前站位锚点定位，否则累加当前位置。scale=100 为素材默认体型，省略则保留当前缩放。填写 absolute 或 scale 时走 `mod_character_layout` 并等待 duration，需 Host ≥1.4.4；显式重新登场恢复默认体型。未填新字段时，官方角色仍走 `runwait(characters.MoveOffsetCoroutine(id,x,y,t))`，用户角色仍走 `mod_char_offset` |
 | `say` | `text`；可选 `character`, `portrait`(默认normal), `mode`("character"默认/"think"/"narrative"/"center")，可选 `mood_icon`, `mood_character`, `voice`，`font_size`(0~200整数，默认0)，`text_align`（`default`/`left`） | `mood_icon` 仅作用于本句，结束后恢复此前气泡及偏移，需 Host ≥1.4.10。省略时沿用现有气泡，取值同单人 `mood.icon`，另有 `hide` 临时隐藏。`mood_character` 默认使用发言人，旁白或沿用原版发言人时可显式指定已登场人物。本句 `auto` 跟随人物表情。字号调节只影响本句正文，0使用游戏默认，原文与已读 key 保留。`text_align=left` 仅对 narrative/center 的本句正文靠左对齐并保留 5% 左右留白，保留原垂直对齐，在下句开始前或清舞台时恢复原布局；其他模式忽略。默认沿用游戏布局。需 Host ≥1.3.6。对话/内心独白(带os_mask)/旁白/居中旁白。narrative 与 center 忽略 character。**已读机制**：文本不裸进 Lua，发射 `say(luamanager.GetStoryText("MOD_<modid>_<scriptid>_<nodeid>"))`（无 modid 时兜底 "MOD"），文本本体进 texts.json 由运行时注册。**`voice`**（可选）：用户音频引用，如 `user:mohui.line_01`；进入本句前 `mod_play_voice`（先停上一句），`say()` 返回后 `mod_stop_voice`。语音走独立通道，`sound` / `StopMusic` 不停它。禁止绝对路径与官方音效名 |
 | `choice` | `options`: `[{"text","goto"}]`（2~4 项）；可选 `dialog`(默认"Options"，皮肤见 §3.3) | 选项菜单 `choose()` |
-| `shock` | `character`；可选 `duration`(默认0.5) | 人物震动。官方角色走 flowcharts.common `shock`；`user:` 角色走独立立绘抖动并在结束后恢复位置 |
+| `shock` | `character`；可选 `duration`(默认0.5) | 人物震动并等待该时长。单独的官方角色步骤沿用 common `shock`，同时执行组内使用 Host 独立人物震动；`user:` 角色也走独立立绘，结束后恢复位置。1.5.20 起支持同组不同原版人物分别震动。 |
 | `mask` | `show`(bool) | 独白遮罩 `os_mask.Show` |
 | `intro` | 可选 `intro_source`(`official` 默认/`custom`)。official 必填 `character`；custom 必填 `name`,`text`，可选 `title`,`image`（包内 `assets/` PNG/JPG，≤8MB）、`image_scale`(正数百分比，默认100)、`image_x`/`image_y`(-30~30，默认0) | official 调用原版 `runwait(intropanel.Show(character))`；custom 调用 `mod_prepare_character_intro(title,name,text,image,scale,x,y)`。1.4.3 起 image_scale 无 40～160 限制；x 正数向右、y 正数向上，无图时隐藏头像区域 |
 | `effect` | `name`；可选 `x/y`、横纵倍数 `a/b`(默认1)、实例 `c`(1复用，其他值叠加)、`play`(bool默认true)；1.4.5 新增 `space`(`world`/`screen`)、`rotation`(默认0度)、`speed`(默认1，≥0)、`stop_after`(≥0秒)、`clear/restart`(bool默认false)、`tag`(字符串) | 详见下方特效控制。新建步骤默认为 screen、50/50；缺省 space 的旧数据保持 world、0/0。位置／缩放／角度支持有限小数，a/b 允许负数与0；所有数值须可表示为 Unity float。后台停止不等待，`wait_after` 控制步骤停留。新字段需 Host ≥1.4.5 |
@@ -217,6 +220,7 @@ Host 从包内 Story 构建来源缓存，每次加载作品后首次进入该�
 | `stat` | `key`, `delta`；可选 `waitDisplay`(默认true), `display`(默认1), `mode`(默认"") | 主角属性增减 `statmodifymanager.Player(key, delta, mode, display)` |
 | `stat_set` | `key`, `value`；可选 `update`(bool默认false) | 绝对设置 `SetPlayer(key, value)`；update=true 用 `UpdateSetPlayerStat`（title 等用） |
 | `character_title` | `character`、称号 `action`（`keep` / `set` / `hide` / `reset`）；可选姓名 `name_action`（`keep` / `set` / `reset`，缺省 keep）；对应设置操作必填 `title` / `name`（单行，最多 80 个 UTF-16 字符）；可选 `wait_after` | 编辑器显示“修改姓名与称号”，赵活 `player`、原版人物和 `user:` 人物共用此节点，无需先登场。姓名、称号独立保持、设置或恢复，称号还可隐藏；只改姓名时令 `action=keep`。作用于后续人物对白名牌，跨章持续生效并随当前作品存档保存；赵活恢复称号后继续按原版“称号”数值属性显示。称号功能需 Host 1.5.4，新增姓名操作需 1.5.5，打包自动提高最低版本。原 1.5.4 称号节点无姓名字段时继续保留原效果和 Lua 输出 |
+| `character_profile` | `character`、`op`（meet/forget/unlock_biography/lock_biography），页操作另填 `page` | 操作本包独立自定义人物的认识状态或传记页，保存到作品隔离存档；页码、等级与资料规则见 §8，要求 Host 1.5.10。 |
 | `affinity` | `character`, `delta`；可选 `show_message` | 人物好感度 `statmodifymanager.Character(character, delta, display)`；1.5.10 起支持本包独立 `user:` 人物，正负值分别升降，保存在作品隔离槽，范围 0～100 |
 | `talent` | `talent`, `level`(±1) | 原版天赋 `statmodifymanager.AddTalent(id, level)`；独立自定义天赋使用 `user:` 引用并调用 `mod_talent(id, level)`，需要 Host 1.5.8 |
 | `item` | `kind`("book"/"misc"/"special"/"consumable"), `item`, `count`(默认1)；可选 `remove`(bool默认false) | 原版物品走 `AddBook/AddMisc/AddSpecial(id,count)`，原版 remove 仅 book/misc。1.4 的 `user:` 内容走 `mod_item(kind,id,count)`；consumable 仅允许用户消耗品 |
@@ -264,12 +268,14 @@ Host 从包内 Story 构建来源缓存，每次加载作品后首次进入该�
 | `free_trigger` | `position`(地图位置 id：Center/Mall/Alchemy/Forge/BackMountain/Room1/Room2/Door/Study/Kitchen/Secret)、`script`(同包脚本 id)；可选 `when_month`(`any` 或 `"1"`~`"12"`)、`when_stage`(`any`/`"1"`/`"2"`/`"3"`)、`when_flag_set`、`when_flag_clear`、`when_affinity`(人物 id，留空=不判定)、`when_affinity_min`、`note`(只给自己看的备注) | **声明型节点**：本身不产生任何运行时指令，只登记一条自由模式触发器；打包时自动汇总进 `manifest.campaign.triggers`（清单里手写的排在前面，其次按「文件名序 → 节点顺序」）。因此它可以放在 `end` 之后而不影响收尾校验——判「末节点能否收尾」时会跳过声明型节点。打包器在顶层 `node_free_triggers` 保存本次生成项的快照；再次导入导出时先移除旧生成项，再按当前节点登记，因此修改或删除节点会同步生效。手写清单项保留原优先级；请勿手改该快照。好感度下限必须为 Int32 整数。放在剧情中间时按普通节点顺延到下一个节点 |
 | `death` | `text`（必填非空，多行合法）、`death_id`（必填）；可选 `title`（str，缺省「勝敗乃兵家常事」）、旧字段 `next` | **死亡文本**：黑屏过渡（view="black"）→ `mod_set_death_text(title, text)`（两参 lua_str 字面量，**不进 texts.json / 已读系统**）→ `luamanager.ChangeScene("GameOver", death_id, "Title")` 进**官方 GameOver 死亡画面**（黑底红字 + 读档/标题按钮，见 §6）；原版不读取自定义 next，旧值忽略并警告。`death_id` 必须是 ≥900000 的 mod 专属数字 id（否则 LomcError，见「死亡/结局 id 约定」）。终止节点（自带流转，不允许显式 goto，可作末节点收尾） |
 | `raw` | `code` | 原生 Lua 逃逸口：原样插入代码（多行合法）。**机制兜底**：任何节点表达不了的官方机制用它 |
+| `native_action` | `operations`，可选 `wait_after` | schema 2 原版整章导入的结构化调用／赋值／返回；保留原作用域与来源归属，不能用无关 Lua 替换其编译结果。 |
+| `native_branch` | `condition`、`success`、`failure` | schema 2 原版导入的结构化表达式分支，两个去向为实际节点 ID；见“原版章节补丁”。 |
 
 ### 3.2 常用取值（以 data/editor_data.json 为权威清单，schema 2 起带中文名）
 
 - 站位 position：`SL L1 L2 M R1 R2 RM2 SR …`（共 36 个，S=屏外 L=左 M=中 R=右 B=后 C=央）
 - 表情 portrait：`normal nervous1..3 angry1 angry2 laugh1 gloomy2 …`（按人物配置，缺失时游戏回退第一张立绘）
-- say mode：`character` 对话 / `think` 内心独白 / `narrative` 旁白 / `center` 居中旁白
+- say mode：`character` 对话 / `think` 内心独白 / `narrative` 旁白 / `center` 居中旁白 / `offscreen` 无立绘画外音
 - stat key：`mental(心相) money(银两) disposition behaviour karma fame talking team …`（31 个）
 
 ### 3.3 选项菜单皮肤（choice.dialog）
@@ -291,15 +297,15 @@ Host 从包内 Story 构建来源缓存，每次加载作品后首次进入该�
 
 父节点仍是唯一的流程节点：上述两人一起开始退场，整组等 0.8 秒，而非依次等待 1.3 秒，再继续父节点的 `goto` 或下一步。动作对象复用原有字段校验，不另写动作 ID、跳转或执行顺序分支。允许 2～32 个动作，不允许嵌套组。
 
-支持 `show/hide/move/face/focus/offset/rotate/dim/shock`、`scene/background/custom_cg/overlay`、`effect/camera/transition/mask/dayenv`、`music/sound/wait`。对白、选项、检定、战斗、跨场景跳转、面板、原生 Lua 等需要独占流程的节点放在组外。组内赵活 `show` 可选择 `appearance`（跟随游戏、普通、美颜）；生成器先设置外观、完成该配置的人物与表情预加载，再一起启动组内动作，沿用现有 Host 外观接口。
+支持 `show/portrait/hide/move/face/focus/offset/rotate/dim/shock/mood`、`scene/background/custom_cg/overlay`、`effect/camera/transition/mask/dayenv`、`music/sound/wait`。对白、选项、检定、战斗、跨场景跳转、面板、原生 Lua 等需要独占流程的节点放在组外。组内赵活 `show` 可选择 `appearance`（跟随游戏、普通、美颜）；生成器先设置外观、完成该配置的人物与表情预加载，再一起启动组内动作，沿用现有 Host 外观接口。
 
-同一人物的位移、旋转、转向、气泡可以放在同组，组合控制需要 Host 1.5.15。位置、角度、朝向、大小、明暗和前后顺序分别判断冲突；例如位移与偏移共用位置，两个旋转共用角度，仍须先后执行。登场、退场、换表情会重新布置立绘，不能与该人物的其他变换同组。重复气泡，以及全场气泡开关与单人气泡也须拆开。背景、前景槽、同名滤镜不得重复控制；特效按非空 tag 分通道，同名不同 tag 可同时播放，同 tag 冲突，空 tag 的同名停止与任意同名播放冲突。官方背景切换与黑幕转场共享剧情界面，不能放在同组；原版人物震动复用同一个 common 流图，同组只能放一个，用户人物震动不受此限制。音乐切换可能影响环境音，因此同组不再另加环境音控制。冲突会报出具体子动作序号、类型和控制属性。
+同一人物的位移、旋转、转向、气泡可以放在同组，组合控制需要 Host 1.5.15。位置、角度、朝向、大小、明暗和前后顺序分别判断冲突；例如位移与偏移共用位置，两个旋转共用角度，仍须先后执行。登场、退场、换表情会重新布置立绘，不能与该人物的其他变换同组。重复气泡，以及全场气泡开关与单人气泡也须拆开。背景、前景槽、同名滤镜不得重复控制；特效按非空 tag 分通道，同名不同 tag 可同时播放，同 tag 冲突，空 tag 的同名停止与任意同名播放冲突。官方背景切换与黑幕转场共享剧情界面，不能放在同组；Host 1.5.20 起不同原版人物可同组独立震动，同一人物的位置冲突仍须拆开。音乐切换可能影响环境音，因此同组不再另加环境音控制。冲突会报出具体子动作序号、类型和控制属性。
 
 编译器先预载组内官方人物及所需表情，再在当前 Host 的 Lua 协程内调度各分支，每帧推进一轮。各动作保留原来的 `wait/runwait`，登场、退场、聚焦、压暗和原版旋转补上必要的完成等待。官方背景仍按原版异步加载／流图切换，不保证图片与人物在同一帧完成加载；需要“揭幕时全部就位”时，先盖黑幕，在组外切好背景，再布置人物，最后揭幕。
 
 音乐、普通音效、循环特效只等待启动，不等待曲目或循环结束；可加一个 `wait` 动作决定整组最短停留时间。子动作错误会中止整组并交给 Host 既有故障处理，不会继续后面的剧情。没有新建线程或分离的 Lua 后台任务。
 
-组内用户人物、图片和声音纳入素材检查、打包与未使用素材统计；选取步骤时显示全部子动作结束后的状态，播放时按各自时长预览人物移动、淡入淡出、偏移和旋转。黑幕遮挡状态会保留到后续背景和人物就位步骤，直到揭幕；转场节奏仅作编辑器示意，未读取游戏场景中配置的时长。F5 的预览前置状态也保留人物、背景与黑幕。预览不代替真实动画时序验收。3／2／1 包格式与既有 C# Host 接口不变；旧 63 类节点的 Lua 编译产物保持原样。
+组内用户人物、图片和声音纳入素材检查、打包与未使用素材统计；选取步骤时显示全部子动作结束后的状态，播放时按各自时长预览人物移动、淡入淡出、偏移和旋转。黑幕遮挡状态会保留到后续背景和人物就位步骤，直到揭幕；转场节奏仅作编辑器示意，未读取游戏场景中配置的时长。F5 的预览前置状态也保留人物、背景与黑幕。预览不代替真实动画时序验收。3／2／1 包契约不变；旧包按明确支持的历史输出校验，重新导出使用当前生成器。
 
 ## 4. story.json → Lua 编译约定（lomc 实现）
 
@@ -517,25 +523,42 @@ luamanager.ChangeScene("GameOver", "910021", "Title")
     - `mod_set_death_text(title, desc)`：缓存死亡标题/描述；Harmony postfix `GameOverController` 把两段文本写入官方 `_titleText`/`_descTextPrefab` 控制器，官方布局显示在死亡画面中央。单参调用按旧契约当 desc、标题留空（旧包兼容）。
     - `mod_set_ending_text(title, desc[, image])`：缓存结局标题/描述与可选包内图片；Harmony postfix 包装 `EndGamePanel.Open`，在官方第一次画布 fade 前写入 `_titleText/_descText` 与左页 `_picImage`；未给图片时借用官方结局 20047 的 Picture 占位。官方渐显、等待确认与淡出全保留；显示期间临时关闭 `_saveLibrary` 避免 mod key 进入传奇存档槽，结束后恢复。
     - 新编译器的自定义 End 不再进入简化 `EndGameController` 场景；旧包仍保留原 End 场景覆盖兼容。GameOver 自造 id 无文字与 End 自造 id 无内容均在编译期阻止。
-14. **编辑器单次试玩协议**：编辑器把入口章节的 `start` 临时改为当前选中节点，安装为固定包 `__lom_modkit_preview.lommod`（manifest id `lom_modkit_preview`），随后原子写入插件目录 `preview-request.json`。运行时每 0.35 秒检查一次：Free 场景直接演出，Title 场景用 `mod_lom_modkit_preview` 隔离槽开局，其它场景等待到安全场景；消费后删除请求与临时包。请求只接受 format=1 及 `[A-Za-z0-9_-]+` 的 mod/script/node id，正式 Mod 包不在自动删除范围内。
+14. **编辑器单次试玩协议**：编辑器生成固定临时包 `__lom_modkit_preview.lommod`（manifest id `lom_modkit_preview`），再原子发布插件目录的 `preview-request.json`。Host 每 0.35 秒检查，在标题、自由场景或现有开发演出可安全进入时消费请求；固定临时包以外的正式作品不参与自动清理。普通 F5、视频和旧事件请求继续使用 format=1，新的跟踪事件用 format=2，二者不是 `.lommod` 包格式。可选 request_id 关联真实状态，普通 F5 会清除上一请求的跟踪关联，不能把后续任意 Lua／节点串成旧请求成功。具体字段和确认边界见 §6.1。
 15. **mod 新战役发放 2 点命运**：官方新游戏初始带命运点，mod 隔离存档初始为 0，骰子「逆天」流程（`DiceMenuDialog.CheckRevolution` 要求 命运>0）在 mod 战役中不可用；NewGameData postfix 在替换首脚本后给 mod 战役 `GameStatType.命運` 加 2 点。官方新游戏不受影响。
 16. **mod 剧情放开骰子范围修改**：官方「修改范围」按钮要求二周目且持有成就 30016；mod 剧情中（`CurrentStoryScript` 以 `MOD_` 开头）`get_NewGamePlus` prefix 返 true，且 `CheckRevolution` 原返 true 时直接激活 `_rangeButton`（不在 mod 里解锁官方成就 30016，避免污染官方存档）。官方剧情完全不受影响。
-17. **用户音频**：`LuaManager.PlayMusic/PlaySound/PlayEnvSound` 参数以 `user:` 开头时由插件接管，从**当前演出 Mod 包**的 `UserContents` 解析（`assets/user/audio/<id>/content.json` + 主文件），解码后用 Windows `waveOut` 播放（本游戏主混音是 Wwise，Unity `AudioSource` 经常无声）。官方名字一律放行给原版 Wwise。运行时禁止读取 `%APPDATA%/lom_modkit/repository`。两个 Mod 即使 ID 相同也只解析自身包。支持格式仅 `.ogg` / `.wav`，单条 ≤20MB。自定义 fadeout 是输出音量淡出（随后仍有编译器发射的 `wait`）；切到自定义音乐会先停官方 Wwise 音乐（官方 `StopMusic` 会同时清环境音）。
+17. **用户音频**：`LuaManager.PlayMusic/PlaySound/PlayEnvSound` 参数以 `user:` 开头时由插件接管，从**当前演出 Mod 包**的 `UserContents` 解析（`assets/user/audio/<id>/content.json` + 主文件），普通播放解码后使用 Windows `waveOut`；官方名字放行给原版 Wwise。原生视频期间，作品音频改送同一视频帧时钟的离线混音，不另建 waveOut 播放线程，再与捕获的原生 Wwise 音轨合成。运行时不读取编辑器共享 repository，两包仅解析各自内容。格式为 `.ogg`／`.wav`，单条 ≤20MB。自定义 fadeout 淡出输出音量并保留节点等待；切到自定义音乐会先停官方 Wwise 音乐。
 18. **对白语音**：注册 `mod_play_voice(ref)` / `mod_stop_voice()`。`mod_play_voice` 先停当前语音再播（不循环，走独立 `_voice` 通道）。`sound` 节点、自定义音效、`StopMusic` 都不碰这条通道。剧情中断、切官方脚本、重载 Mod 时 `StopEverything()` 会停语音。无 `voice` 的旧 Lua 不会调用这两个函数，行为不变。
 19. **离场清台**：脚本开头、`end` / `goto_scene` / `death` 发射 `mod_hide_all()`，立刻隐藏官方台上人物并清掉自定义立绘。换背景 `scene` 不自动退场。切到下一章（`end.next_script`）时下一章开场也会再清一次，避免上一幕角色带到下一章。
 20. **自定义角色立绘朝向与体型**：原版立绘朝左。默认 `art_facing=left`，节点 `facing=left` 不翻、`right` 水平翻转。原图朝右时标为 `right`。`scale` 默认 100；1.4.3 起为任意可表示的正数百分比，支持小数，按完整站位矩形等比适配并从舞台锚点缩放（不代表可见脚底）。
 21. **游戏内 Mod 菜单多语言**：菜单文案（`src/I18n.cs` 内嵌 chs/cht/ja/ko 四语言目录）跟随游戏当前语言——反射读 LeanLocalization `CurrentLanguage` 并模糊匹配语言名；官方游戏本身没有日语选项，日语目录实际不会触发；检测失败一律回退 chs。详见 `i18n.md`。
-22. **强制玩家内容披露与失败停播**：注册表命中的 Mod 首次开演前，Host 必须同步创建固定的「玩家制作 MOD｜非官方内容 / UNOFFICIAL」主标签，并以独立次级 Text 显示清洗后的作品名、作者自报信息和 SHA-256 前 16 字符。屏幕右上角标签、独立 IMGUI 固定章、对白框内标签、GameOver/EndGamePanel/End/人物介绍卡标签覆盖全屏录像、裁对白截图和关键单卡。整章导入依据上述来源缓存隐藏未改原版步骤的标记，新增、改写和持续影响按修改内容显示。标签无任意 Lua/cfg 关闭接口。来源按整段会话污染：Mod 链入官方脚本仍保持原包标签；活动期间嵌套切到另一包会被拒绝；只有实际抵达 Title/Free 才解除。独立于 BepInEx 宿主对象的 guardian 在 Update/LateUpdate、`Canvas.willRenderCanvases` 与 `Camera.onPreCull` 复验对象父级、几何、字体、文案、alpha、材质、显示器与最高排序，被删除/禁用/移出屏幕后自动重建；使用 `SayDialog.activeSayDialogs` 实例表、当前 `ActiveSayDialog` 与已绑定宿主维护可见对白框，属性变化时才触发重建。任何必须标签无法创建/恢复时，立即停止由 Host 推进的 LuaEnvironment 协程、用不依赖 Canvas 的 IMGUI 黑屏显示固定警示并直接返回 Free；异步 Lua 异常不会被 Fungus 吞掉。演出中关闭 Host 总开关只关闭菜单/热键，补丁与披露延迟到 Title/Free 后卸载。
+22. **作品身份会话与水印策略**：Host 先验证实际包身份、指纹和脚本注册，再建立所属作品会话。1.6.0 普通试玩与视频统一停用可见、隐藏画面水印，不建立标签、IMGUI 固定章、来源纹理或独立水印 guardian，不订阅水印画布／相机维护回调，也不加载神经水印模型。逐帧会话完整性、跨包嵌套限制与存档归属继续执行；MOD 接入原版脚本仍保持原包会话，仅到真实 Title／Free 边界解除。原版整章来源缓存仍区分未改与改写步骤，但不改变画面显隐。旧载体协议与截图／视频检测器仅为旧版媒体保留，不能将未检出解释为没有 MOD 内容。演出中关闭 Host 总开关仍先关闭菜单／热键，补丁与身份会话到安全边界后卸载。
 23. **F5 Runtime Trace v1**：只对编辑器固定的 `lom_modkit_preview` / `__lom_modkit_preview.lommod` 开发包启用。记录 `mod_enter`、`story_enter`、`node_enter`、`choice`、`condition_result`、`goto`、`end`、`death`、`runtime_error`；普通玩家加载的正式 Mod 默认不记录。Trace 使用 256 条内存 ring buffer，满后丢弃最旧条目，不写入存档且不会无限增长。新编译器只增加 `if mod_trace_node then ... end` 可选钩子，旧 Runtime 没有该函数时仍按原流程运行。
 24. **F5 Runtime Debugger v1**：开发 trace 激活后显示独立 IMGUI 调试窗，列出当前 Mod/Story/Node、`modvars`、`modflags`、可见自定义角色、当前自定义音乐/语音及最近 24 条 trace；F10 可隐藏/重新显示。正式 `.lommod` 不激活该窗口。变量与 Flag 由节点入口处的真实 Lua table 快照取得；尚未使用 `modvars` 的旧剧情会明确显示为空，不伪造状态。
 25. **Pause / Step / Continue**：F5 调试窗的「暂停」只设置“下一节点前暂停”，不会把正在显示的官方对话/面板冻结在半个 API 调用中。节点第一行的可选 trace 回调通过 MoonSharp `YieldRequest` 在节点体执行前挂起；「单步」放行当前节点，并在再下一节点体之前重新挂起；「继续」清除请求。宿主协程在暂停期间不调用 `Resume()`。该控制器仅在固定 F5 包激活，正式 Mod 即使包含相同可选节点钩子也始终直接返回，不改变执行路径。
-26. **F5 Hot Reload v1**：开发演出仍在 Story 场景且固定试玩包披露仍活动时再次按 F5，宿主会停止旧 `LuaEnvironment` 与 `LuaManager` 协程，丢弃旧 MoonSharp Interpreter（含 `modvars` / `modflags` / 注册回调），并释放人物介绍暂存、死亡/结局覆盖、角色立绘与纹理、背景/CG/Overlay、自定义音乐/环境音/音效/语音及旧包引用。强制披露在重载期间保持，且仅允许 Host 将固定 F5 试玩包的身份原子更新为新 SHA-256；随后重新扫描固定试玩包、卸载并重载 Story，从编辑器本次选中的节点重新开始，不恢复 Lua 指令指针。Trace 保留 256 条有界历史并插入 `hot_reload` 分隔事件，但清空旧变量、Flag 和暂停状态。抵达 `Title`/`Free` 后开发 Trace 与披露一同结束；此时再次 F5 是一次新的试玩，不会拿残留 Trace 误走热重载。正式 Mod 与普通场景请求行为不变。
+26. **F5 Hot Reload v1**：开发演出仍在 Story 场景且固定试玩包身份会话活动时再次按 F5，宿主停止旧开发 `LuaEnvironment`，丢弃 MoonSharp Interpreter（含变量、Flag 和回调），释放人物／图片／音频及旧包引用，在原版读取遮罩协程结束后的安全时机重新载入。来源身份在重载期间保持，仅允许 Host 把固定 F5 包更新为新指纹；随后重新扫描并从本次选中节点开始，不恢复旧 Lua 指令指针。Trace 保留 256 条有界历史和 hot_reload 分隔事件，但清除旧变量、Flag 与暂停状态。到达 Title／Free 后开发 Trace 与身份会话结束；再次 F5 是新试玩。普通正式包行为不受此开发入口影响。
 
 27. **结构化 Runtime 错误**：所有导致 Mod 演出 fail-closed 中止的故障写入单条 `[mod-runtime-error]` JSON 日志，字段固定为 `mod_id`、`mod_name`、`version`、`story`、`node`、`category`、`error`、`recent_trace`（另含 UTC 时间）。正式 Mod 只保留最多 32 条节点/跳转级轻量 breadcrumb，不记录变量值；错误快照最多附 16 条，每条和错误正文均有长度上限。F5 的 256 条完整开发 trace 规则不变。异常格式化、trace 快照、JSON 序列化或日志 sink 自身再次失败时逐层吞掉并生成最小兜底报告，不能遮蔽原始错误或阻止安全返回 Free；最后一份报告保留在内存中供诊断包读取。
 
+### 6.1 临时试玩、执行证据与原生视频
+
+临时请求协议不写入作者的 Story 或正式包格式：
+
+| 协议 | 规则 |
+| --- | --- |
+| `format=1` | 兼容普通 F5、旧边界事件测试和 `video_render_id` 视频请求；不接受 `source_script/event_script/event_node`，避免把新语义静默降成旧行为 |
+| `format=2` | 必须为固定开发包的 `fresh_campaign` 跟踪事件，包含有效 `request_id` 与成对的 `event_script/event_node`；旧 Host 拒绝此版本，游戏需退出后加载配套 Host |
+| `request_id` | 32 位小写十六进制，仅属于固定开发包，不与 `video_render_id` 同用；脚本／节点 ID 继续经过既有安全标识检查 |
+| `source_script` | 仅原版入口事件可填；必须有 target 且当前 Resources 中实际存在该原版起点。Host 核对 event_script 与所测事件配置一致 |
+
+`playtest-event` 对 story_entry 默认前置模式：建立测试状态后只调用 `SetNextScript(source_script)`＋`Init()`，实际播放该原版章，让真实选项、条件和后续跳转触发事件；不虚构来源，不强送 target，也不额外清理原版残留 UI。显式 boundary 保留 `SetCurrentStoryScript(from)` 后直达 target 的旧检查范围。原版流程可改变时间／旗标，测试不会自动满足条件或改写事件概率、优先级。
+
+`playtest-status` 一次读取与该 request_id 对应的原子状态文件。sent／game_started 只说明发布、进程或收件，chapter_entered／node_entered 来自实际 Lua／节点执行；restart_required、failed 保留处理原因。事件另有 predecessor_entered、original_target_entered、event_not_triggered，布尔字段 event_selected／event_entered／event_node_entered 分别表示所测事件 ID 获选、其 Lua 开始和目标节点执行；临时准备章或另一个同脚本事件不能冒充成功。游戏退出后仍可读取历史观察，所有字段均不代表画面人工验收。
+
+原生视频是单独的可取消任务：从固定临时包沿预设选项和自动播放时长推进，抓取游戏最终合成帧以及 Wwise／自定义作品音轨，输出 H.264／AAC MP4。默认后台 Worker 使用独立桌面、临时 Host 和专用 profile，四类 SaveSystem 路径均隔离；结束后退出并移除该 Worker 的临时组件，不重写作者工程或常规存档。GPU 回读与编码写入均有界、按序复用缓冲；慢编码限制上游，不丢帧。战斗、商店和当前需要人工处理的面板会明确中止，不伪造完成。完整入口、输出和阶段含义见 [CLI 参数](cli_parameters.md)。
+
 ## 7. Rust authoring API
 
-`lom-core::story_api` and `lomc author/edit` provide controlled story editing. Unknown fields and wrong field types are rejected. Use `check` before compiling or packaging; all node types share the embedded authoring schema and defaults. The old Python import API is retired. See [CLI and API](ai_cli.md).
+`lom-core::story_api` 和 `lomc author/edit` 提供受控剧情编辑，未知字段和错误类型会被拒绝。当前节点对象 SDK 用 `lom-editor.exe --cli sdk -o 新目录` 导出，Python 3.10+ 标准库构造 Chapter／Project、素材、事件、任务与全部节点，交给同一个 Rust 编译器校验和导出。退役的是旧 Python 编辑器／编译器入口，不是当前配套 SDK。`NodeIds`／`Staging` 只是可选节点生成助手，素材图片查询、纯舞台图、试玩状态与原生视频使用编辑器操作 CLI。完整接口见 [CLI 和对象 API](ai_cli.md)。
 
 ## 8. 用户内容（User Content）
 

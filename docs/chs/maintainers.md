@@ -2,13 +2,15 @@
 
 当前工具端由 Rust 编译器、核心库与 egui 编辑器组成；C# `MortalModHost` 保留游戏接入。日常编辑见 [软件使用](software_usage.md)，构建和 CLI 见 [Rust 工具端](rust.md)，验证层次见 [测试矩阵](test_matrix.md)。旧 Python／Qt／PyInstaller 入口已经退役，不作为本手册操作入口。
 
-当前版本为 1.5.19，功能见 [本版说明](../../RELEASE_NOTES_v1.5.19.md)，验证范围见 [当前能力](current_capabilities.md)。
+当前版本为 1.6.0，版本变更见 [GitHub Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.0)，本次验证范围见 [测试矩阵](test_matrix.md)。仓库不保留独立的版本 notes。
 
 ## 编辑器入口与设置
 
 在仓库根目录执行 `sh scripts/build-macos.sh`，产物为 `out/LoM Modkit Rust.app`；也可用 `cargo run --locked -p lom-editor -- <项目目录>` 启动源码版。应用内含原生 `lom-editor` 与 `lomc`，无需 Python 或 Qt。
 
-当前为浅色 Rust 通用外壳和三栏布局。Mac 界面语言在屏幕顶部系统应用菜单的“设置…”中选择，快捷键 `⌘,`；非 Mac 使用窗口内“设置…”或 `Ctrl+,`。四种语言按各自原文显示，选择即时生效，不把项目标为未保存。Swift／Liquid Glass 外壳尚未完成。
+当前为 Rust 通用外壳、工程标签栏和三栏布局，主题可在设置中选择。Mac 界面语言在屏幕顶部系统应用菜单的“设置…”中选择，快捷键 `⌘,`；非 Mac 使用窗口内“设置…”或 `Ctrl+,`。四种语言按各自原文显示，选择即时生效，不把项目标为未保存。当前没有 Swift／Liquid Glass 外壳。
+
+同一窗口可打开多个工程，活动标签以边界和顶部强调线区分。各标签保留自己的编辑历史、草稿和当前位置；关闭窗口前逐个处理未保存修改，重启按 `rust/workspace.json` 恢复已打开工程、活动标签和章节／步骤位置。此文件只记录工作区，不替代保存工程或自动恢复副本。步骤复制使用结构化系统剪贴板，可在不同编辑器窗口间粘贴；它复制节点及引用，不自动搬运另一个工程的素材文件。
 
 ## 错误组件
 
@@ -61,11 +63,13 @@
 
 统计不能代替编译或发布体检。填写了配音引用不代表该文件有效；引用合法性仍由体检和打包检查。报告可定位到对应章节或步骤。
 
-“生成发布目录”在本地校验 Manifest、执行 Release 体检并生成 `.lommod`、SHA-256 校验文件和说明。它不自动安装、启动游戏或上传。校验和只证明字节一致，不是作者签名。视频水印检测需要可用的 FFmpeg。
+作品的“生成发布目录”在本地校验 Manifest、执行 Release 体检并生成 `.lommod`、SHA-256 校验文件和作品说明。它不自动安装、启动游戏或上传。校验和只证明字节一致，不是作者签名。视频水印检测保留给旧版媒体，需要可用的 FFmpeg；1.6.0 普通试玩和原生视频均不建立可见或隐藏水印，包身份与存档归属规则仍执行。
+
+纯舞台出图、带缩略图的素材查询、可查询试玩状态和事件前置章节试玩使用 [编辑器操作 CLI](cli_parameters.md#编辑器操作命令)。`preview`／`--smoke-preview` 是离线状态模拟，`render-preview(s)` 实际绘制编辑器舞台，`render-video` 才运行游戏原生画面和音轨。视频默认在独立桌面的专用进程内生成，使用任务独立的 Host、临时包和存档目录；不应改成桌面录屏或用编辑器预览冒充原生视频。
 
 ## Windows 游戏接入与 Runtime 回滚
 
-当前事件／任务作品要求包含 Scenario 的 Host 1.1.3，新 Windows 构建应同时提供 `MortalModHost.dll` 与 `NVorbis.dll`。选择完整编辑器旁的 `runtime` 目录；`changed:false` 仅表示所选源与已装文件一致，不代表互联网最新版本。
+事件／任务作品的基础能力要求包含 Scenario 的 Host 1.1.3，后续字段的最低版本由导出器按使用能力提高。1.6.0 Windows 单 exe 内置配套 `MortalModHost.dll` 与 `NVorbis.dll`；源码构建可指定含这两个文件的目录。`changed:false` 仅表示所选源与已装文件一致，不代表互联网最新版本，也不证明运行中的游戏已加载磁盘上的新版 DLL。
 
 当前源码的一级入口为“游戏与 MOD”。先点“一键定位游戏目录”，或手动选择包含 `Mortal.exe` 的目录，再点击“一键配置游戏”：自动下载匹配架构的官方加载器、配置 Steam 启动、安装随工具分发的 C# 宿主并检查结果。Steam 定位支持其他盘的游戏库；多处安装会列出供选择，定位本身只读游戏文件。已就绪时可点击“重新配置游戏环境”。正式单 exe 启动时优先使用其内置 Host；旧配置目录不会抢先覆盖它。Windows 安装入口在写入前比较 Host 版本，启动同步保留较新 Host，手动安装、试玩、重新配置与游玩包安装拒绝降级，并说明已安装与待安装版本。缺少宿主文件时会明确提示，可在“高级维护”选择同时含 `MortalModHost.dll`、`NVorbis.dll` 的完整目录。Mac 显示平台说明及素材、发布入口，不展示不可用的安装控件。
 
@@ -93,7 +97,7 @@ Windows 工作文件位于 `%LOCALAPPDATA%\lom_modkit\cache\work`，每次操作
 
 仓库通过 `rust-toolchain.toml` 固定为 `nightly-2026-11-14`，常规 Cargo 命令自动使用该工具链。沿用 nightly 默认的编译元数据拆分以减少中间产物；构建脚本从 Cargo 最终产物目录取文件，不依赖内部构建目录布局。有关默认优化见 [Rust 官方说明](https://blog.rust-lang.org/inside-rust/2026/08/18/reducing-target-dir-size-on-nightly/)。发布配置使用体积优化级别 `s`、ThinLTO、单个代码生成单元及符号剥离，保留 panic 展开行为。
 
-以下均在仓库根目录执行；本次执行结果见版本记录：
+以下均在仓库根目录执行；本次执行结果见 [测试矩阵](test_matrix.md)：
 
 ```sh
 sh scripts/test-native.sh
@@ -104,11 +108,11 @@ dotnet run --project runtime/MortalModHost/test/SmokeTest/SmokeTest.csproj --con
 
 ## 发布编辑器版本
 
-更新工作区版本、游戏接入组件版本、本版更新说明和当前使用文档后，通过项目既有的合并检查发布。
+更新工作区版本、游戏接入组件版本及使用文档后，通过项目既有的合并检查发布。版本正文临时生成，上传后仅保存在对应的 GitHub Release；当前分支和今后的版本都不保留 `RELEASE_NOTES_v*.md`。历史变化直接链接对应的 [GitHub Releases](https://github.com/mohui666/lom_modkit/releases)。
 
-Windows 发布入口为 `scripts/build-windows.ps1`。准备同版本的 `MortalModHost.dll` 与 `NVorbis.dll`，用 `-RuntimeDirectory` 指向包含两者的目录，原生提取器由 `lom-assets` 构建，不再需要 UnityPy 或 PyInstaller。构建脚本先准备 CLI、提取器、解码器、同版 Host 和固定加载器，再把压缩组件嵌入 editor；默认只输出单 exe，`-Archive` 才额外生成用于自行分发的压缩包；GitHub 正式发布仅上传 `lom-editor.exe`。
+Windows 发布入口为 `scripts/build-windows.ps1`。准备同版本的 `MortalModHost.dll` 与 `NVorbis.dll`，用 `-RuntimeDirectory` 指向包含两者的目录，原生提取器由 `lom-assets` 构建，不再需要 UnityPy 或 PyInstaller。构建脚本先准备 CLI、提取器、音频解码器、视频编码器、同版 Host 和固定加载器，再把压缩组件嵌入 editor；默认发布产物为 `out/windows/lom-editor.exe`，`out/windows/lom_modkit/` 是构建用目录。`-Archive` 才额外生成用于自行分发的压缩包；GitHub 正式发布仅上传 `lom-editor.exe`。
 
-脚本从仓库根目录的 `RELEASE_NOTES_v<版本号>.md` 读取本版说明，并生成以下发布附件。
+构建脚本不读取版本 notes。发布标题使用 `<版本>：<一句话概括>`；正文包含简短概述、连续编号的用户可见更新及必要升级说明，不写验证或已知限制栏目。技术验证和实际边界留在测试矩阵与相关技术文档。通过被 Git 忽略的临时文件准备正文，创建／更新 GitHub Release 后移除临时正文。
 
 - 发布附件只提供 `lom-editor.exe`，skill、接口文档和示例通过 `--cli sdk` 导出。1.5.0 更新器只选择 exe，从 GitHub 正式发布信息读取版本、说明、文件大小与 SHA256，下载并校验后，使用新版 exe 自身作为安装助手，等待旧进程退出再替换。CLI 与 Host 仅存在于内置组件中。
 
@@ -116,4 +120,4 @@ Windows 发布入口为 `scripts/build-windows.ps1`。准备同版本的 `Mortal
 
 先上传到发布草稿，确认 exe 大小与摘要后公开正式版本。内置更新读取 GitHub 发布信息及 exe 附件；Windows 配套组件始终随 exe 内置和更新。原版资源只从用户自己的游戏安装读取，不随 exe 分发。为兼容 1.4.19 更新器，发布页保持单附件。
 
-仓库保留本版说明，旧版说明从对应的历史发布页查阅。清理旧说明时同步修改文档链接。
+发布成功并核对远端附件大小与摘要后，清理本次可再生成的构建产物、临时正文和重复组件缓存，保留最终 exe 与必要验证记录。清理范围和 Windows 路径检查按根目录 `AGENTS.md` 执行，不删除用户工程、素材、存档或共享工具链缓存。

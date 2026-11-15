@@ -1,6 +1,6 @@
 # Python API 接口参考
 
-适用于包含对象 API 的新构建；完整教程见 [对象创作指南](ai_cli.md)，命令参数见 [CLI 参数](cli_parameters.md)。Python 3.10+，只用标准库。SDK 必须从使用中的 exe 导出，不能复用已退役的旧 Python 编辑器模块。
+本文对应 1.6.0 配套 SDK；完整教程见 [对象创作指南](https://github.com/mohui666/lom_modkit/blob/v1.6.0/docs/chs/ai_cli.md)，SDK 中对应本地 `README.md`，命令参数见 [CLI 参数](cli_parameters.md)。Python 3.10+，只用标准库。SDK 必须从使用中的 exe 导出，不能复用已退役的旧 Python 编辑器模块。Windows 正式发布只提供该内置组件 exe，不另发 SDK 安装包。
 
 ```powershell
 .\lom-editor.exe --cli sdk -o .\authoring --json
@@ -94,6 +94,12 @@ entry 默认首章；mode=story/addon/sandbox/vanilla_patch，最后一种需要
 
 预览、素材查询和试玩状态便利方法需要配套编辑器的 `--cli` 操作入口；独立 `lomc` 只提供核心命令。`operation` 仍可调用完整协议；project/game/runtime/output/library/cache_dir 路径会先转为绝对路径，其他选项按原字段传递。
 
+`query_assets` 返回缩略图、实际画布、透明边界和有出处的锚点／裁切资料；未知半身／全身标注仍需看图，不拿舞台锚点当脚底。`render_preview(s)` 的 `rendering_performed` 表示实际绘制编辑器舞台，缺失素材单独报告，`visual_review_performed=false` 不代表人工看过。`preview`／`--smoke-preview` 的模拟状态数不能当成已生成或检查的图片数。
+
+`playtest` 用 `cli.operation("playtest", project=..., script=..., game=...)`，返回 request_id 后再按需调用一次 `playtest_status`。sent／game_started 不表示目标脚本已进入；chapter_entered／node_entered 来自实际 Host Lua／节点证据，restart_required 需退出游戏后重发。`playtest_event` 对 story_entry 默认实际播放原版前置章，沿真实调度确认所测事件 ID、event_entered 和 event_node_entered；准备章不算成功，event_not_triggered 表示已到原版目标却未进入所测事件。SDK 不自动轮询，所有状态都不代替连续画面验收。
+
+`render_video` 默认游戏自动播放速度，选项预设从0编号，未指定默认首个可用项；后台 Worker 用任务独立的 Host、临时包与存档，结束后退出。它取游戏原生合成帧和音轨，普通试玩与视频均关闭可见、隐藏水印；包身份和存档归属仍校验。CPU／GPU 与音轨生成会实际执行，SDK 方法等到成片落盘才返回，实时进度需直接读取 CLI stderr。
+
 ## 事件与任务
 
 | 构造函数 | 关键字参数 |
@@ -125,7 +131,7 @@ entry 默认首章；mode=story/addon/sandbox/vanilla_patch，最后一种需要
 | `ChoiceStep` | node、option（0 基下标） |
 | `RouteTest` | name、story，choices=()、reaches_node=()、reaches_ending=True、flags/variables/initial_flags/initial_variables |
 
-素材对象的 `.ref` 是 user:namespace.name，供节点引用；`Project(assets=[...])` 自动生成内嵌 content.json 与资源路径映射。高级 metadata 及嵌套玩法字段沿用 [用户内容](user_content.md)，Rust 负责语义校验。翻译路径用 `cli.run("texts", chapter_path)` 查询；默认语言不重复放入 translations。
+素材对象的 `.ref` 是 user:namespace.name，供节点引用；`Project(assets=[...])` 自动生成内嵌 content.json 与资源路径映射。高级 metadata 及嵌套玩法字段沿用 [用户内容](https://github.com/mohui666/lom_modkit/blob/v1.6.0/docs/chs/user_content.md)，Rust 负责语义校验。翻译路径用 `cli.run("texts", chapter_path)` 查询；默认语言不重复放入 translations。
 
 ```python
 chapter = Chapter(..., _editor={"tests":[
@@ -150,8 +156,8 @@ except CLIError as error:
     raise
 ```
 
-构造参数问题抛 TypeError/ValueError，文件缺失抛 FileNotFoundError；Rust 命令失败抛 CLIError，含 result 和 returncode。不要捕获后仍声称成功。build 不自动执行游戏；open_editor 会开窗口，playtest/capture-effects 会执行明确的游戏操作。
+构造参数问题抛 TypeError/ValueError，文件缺失抛 FileNotFoundError；Rust 命令失败抛 CLIError，含 result 和 returncode。不要捕获后仍声称成功。build 不自动执行游戏；open_editor 会开窗口，playtest/playtest_event/render_video/capture-effects 会执行明确的游戏操作。
 
-复杂可运行示例和一键重跑方法见 [创作指南](ai_cli.md#复杂样例与重跑)。
+复杂可运行示例和一键重跑方法见 [创作指南](https://github.com/mohui666/lom_modkit/blob/v1.6.0/docs/chs/ai_cli.md#复杂样例与重跑)，SDK 根目录也提供 `complex_story.py` 和本地 `README.md`。
 
 画外音使用 `Say(id="voice", mode="offscreen", text="救命！", speaker_name="？？？")`，不需要人物或立绘。临时高亮使用 `Dim(character="player", dimmed=False, mode="until_dialogue")`；解除持续亮暗使用 `Dim(character="player", dimmed=False, mode="auto")`。这些选项需要 Host 1.5.1，SDK 应由配套编辑器重新导出。

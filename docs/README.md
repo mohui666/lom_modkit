@@ -1,6 +1,6 @@
 # lom_modkit 文档
 
-当前版本为 **1.6.0**，编辑器和编译器使用 Rust，C# Host 提供游戏接入。更新内容见 [本版说明](../RELEASE_NOTES_v1.6.0.md)，下载见 [发布页](https://github.com/mohui666/lom_modkit/releases/latest)。
+当前版本为 **1.6.0**，编辑器和编译器使用 Rust，C# Host 提供游戏接入。更新内容见 [GitHub Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.0)，下载见 [发布页](https://github.com/mohui666/lom_modkit/releases/latest)。仓库维护当前操作与接口文档，历史更新正文仅保留在 GitHub Release。
 
 本版加入多工程标签与恢复、跨窗口步骤复制、后台游戏原生视频和预览分辨率选择；CLI／Python 新增素材查询、舞台图与视频导出、试玩状态查询及可选演出助手。
 
@@ -25,7 +25,7 @@
 | [多语言](chs/i18n.md) | 界面、资源名称与作品翻译 |
 | [自动恢复](chs/editor_recovery.md) | 恢复位置、流程和保存边界 |
 | [自由模式与人物立绘](chs/free_mode_portraits.md) | 赵活外观与旧战役触发器 |
-| [Showcase 样例](../samples/showcase3/README.md) | 10 章、73 类节点与生成入口 |
+| [Showcase 样例](../samples/showcase3/README.md) | 全节点样例、73 类节点与生成入口 |
 
 ## AI 与脚本制作
 
@@ -65,4 +65,4 @@
 
 [繁體中文](cht/README.md) · [日本語](ja/README.md) · [한국어](ko/README.md)。当前操作和契约以简体中文指南为准，各语言索引标注译文适用范围。
 
-仓库保留本版更新说明。历史更新内容和附件从 [GitHub Releases](https://github.com/mohui666/lom_modkit/releases) 查阅。
+仓库不保留逐版本 note；各版本的更新正文和附件统一从 [GitHub Releases](https://github.com/mohui666/lom_modkit/releases) 查阅。

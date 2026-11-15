@@ -4,7 +4,7 @@
 
 **当前版本：1.6.0 · Windows x64 · 只需一个 exe**
 
-[下载编辑器](https://github.com/mohui666/lom_modkit/releases/download/v1.6.0/lom-editor.exe) · [更新内容](RELEASE_NOTES_v1.6.0.md) · [全部文档](docs/README.md)
+[下载编辑器](https://github.com/mohui666/lom_modkit/releases/download/v1.6.0/lom-editor.exe) · [更新内容](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.0) · [全部文档](docs/README.md)
 
 1.6.0 新增多工程标签与重启恢复、跨窗口步骤复制、后台生成游戏原生视频，以及预览分辨率选择；素材查询、舞台图导出和视频生成也可通过 CLI／Python 使用。
 

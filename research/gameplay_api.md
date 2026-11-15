@@ -138,7 +138,7 @@ Host 在好感展示入口克隆当前 `RelationshipStat`，只替换克隆的�
 
 ## 2026-11-15 原生剧情视频
 
-2026-11-15 原生视频生成再次核对当前安装 DLL：`LuaManager.Init()` 先启动 `SceneController.UnloadLoading()`，再执行脚本，因此视频入口先等读取遮罩卸载完成才推进 Lua。画面使用 `ScreenCapture.CaptureScreenshotIntoRenderTexture(RenderTexture)`，读取最终合成画面，保留游戏 UI 与既有 MOD 来源披露。`StoryManager.AutoDialog(bool)` 开启原有 MOD 智能自动播放；`MenuDialog.CachedButtons` 保留隐藏项的位置，预设序号按原选项下标检查可见、可交互后调用该原生按钮的 `onClick`。
+2026-11-15 原生视频生成再次核对当前安装 DLL：`LuaManager.Init()` 先启动 `SceneController.UnloadLoading()`，再执行脚本，因此视频入口先等读取遮罩卸载完成才推进 Lua。画面使用 `ScreenCapture.CaptureScreenshotIntoRenderTexture(RenderTexture)`，读取最终合成画面并保留游戏原生 UI。1.6.0 普通试玩及视频均关闭可见、隐藏画面水印，包身份会话与存档归属检查继续执行。`StoryManager.AutoDialog(bool)` 开启原有 MOD 智能自动播放；`MenuDialog.CachedButtons` 保留隐藏项的位置，预设序号按原选项下标检查可见、可交互后调用该原生按钮的 `onClick`。
 
 当前 Wwise 2021.1.14 的 `AkSoundEngine.SetOfflineRendering(bool)`、`SetOfflineRenderingFrameTime(float)` 配合游戏现有每帧 `RenderAudio()` 推进原生混音。`StartDeviceCapture(ulong)` / `UpdateCaptureSampleCount(ulong)` / `GetCaptureSamples(ulong,float[],uint)` / `StopDeviceCapture(ulong)` 直接读取主输出设备；计数包含所有声道的 float 标量，读取消费完整原生块，停止回调后排空尾块。隔离游戏实测获得 48 kHz 双声道 PCM，与引擎文件捕获的声音逐样本相关系数约 0.99999993。自定义作品音频沿用已有解码器和音量，以同一帧时钟混音。取消时只停止开发演出的 LuaEnvironment，保留 LuaManager 的原生场景协程，并恢复帧率、窗口与音频设置。当前不自动执行战斗、商店及其他需要人工操作的面板。
 
