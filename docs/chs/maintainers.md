@@ -112,6 +112,8 @@ dotnet run --project runtime/MortalModHost/test/SmokeTest/SmokeTest.csproj --con
 
 Windows 发布入口为 `scripts/build-windows.ps1`。准备同版本的 `MortalModHost.dll` 与 `NVorbis.dll`，用 `-RuntimeDirectory` 指向包含两者的目录，原生提取器由 `lom-assets` 构建，不再需要 UnityPy 或 PyInstaller。构建脚本先准备 CLI、提取器、音频解码器、视频编码器、同版 Host 和固定加载器，再把压缩组件嵌入 editor；默认发布产物为 `out/windows/lom-editor.exe`，`out/windows/lom_modkit/` 是构建用目录。`-Archive` 才额外生成用于自行分发的压缩包；GitHub 正式发布仅上传 `lom-editor.exe`。
 
+视频编码器由 `scripts/build-video-encoder.ps1` 使用固定 FFmpeg 9.0.2 与 x264 源码构建，默认复用 `out/video-encoder-9.0.2-minimal`。仅启用导出所需组件，保留原画质参数、汇编优化和线程；源码、对象缓存与编码器作为可复用构建依赖，不按编辑器分支复制。内置 `LICENSE`、`LICENSE.x264` 和来源说明随编码器一起打包，具体工具路径与入口见 [Rust 构建](rust.md)。
+
 构建脚本不读取版本 notes。发布标题使用 `<版本>：<一句话概括>`；正文包含简短概述、连续编号的用户可见更新及必要升级说明，不写验证或已知限制栏目。技术验证和实际边界留在测试矩阵与相关技术文档。通过被 Git 忽略的临时文件准备正文，创建／更新 GitHub Release 后移除临时正文。
 
 - 发布附件只提供 `lom-editor.exe`，skill、接口文档和示例通过 `--cli sdk` 导出。1.5.0 更新器只选择 exe，从 GitHub 正式发布信息读取版本、说明、文件大小与 SHA256，下载并校验后，使用新版 exe 自身作为安装助手，等待旧进程退出再替换。CLI 与 Host 仅存在于内置组件中。

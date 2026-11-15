@@ -178,13 +178,16 @@ if (-not (Test-Path -LiteralPath (Join-Path $AudioDecoderDirectory "vgmstream-cl
 Copy-Item -Path (Join-Path $AudioDecoderDirectory "*") -Destination (Join-Path $ComponentDirectory "audio-decoder") -Recurse -Force
 # The video encoder is an independent FFmpeg executable, with its upstream license.
 if ([string]::IsNullOrWhiteSpace($VideoEncoderDirectory)) {
-    $VideoEncoderDirectory = Join-Path $RepositoryRoot "out\video-encoder-9.0.2"
+    $VideoEncoderDirectory = Join-Path $RepositoryRoot "out\video-encoder-9.0.2-minimal"
 }
 foreach ($Name in @("ffmpeg.exe", "LICENSE")) {
     if (-not (Test-Path -LiteralPath (Join-Path $VideoEncoderDirectory $Name) -PathType Leaf)) {
-        throw "Missing video encoder input: $Name. Prepare the FFmpeg essentials build in out/video-encoder-9.0.2 or pass -VideoEncoderDirectory."
+        throw "Missing video encoder input: $Name. Run scripts/build-video-encoder.ps1 or pass -VideoEncoderDirectory."
     }
     Copy-Item -LiteralPath (Join-Path $VideoEncoderDirectory $Name) -Destination (Join-Path $ComponentDirectory "video-encoder\$Name")
+}
+if (Test-Path -LiteralPath (Join-Path $VideoEncoderDirectory "LICENSE.x264") -PathType Leaf) {
+    Copy-Item -LiteralPath (Join-Path $VideoEncoderDirectory "LICENSE.x264") -Destination (Join-Path $ComponentDirectory "video-encoder\LICENSE.x264")
 }
 Copy-Item -LiteralPath (Join-Path $RepositoryRoot "editor\assets\video\FFMPEG-NOTICE.md") -Destination (Join-Path $ComponentDirectory "video-encoder\FFMPEG-NOTICE.md")
 $ComponentPrefix = [IO.Path]::GetFullPath($ComponentDirectory).TrimEnd('\') + '\'
