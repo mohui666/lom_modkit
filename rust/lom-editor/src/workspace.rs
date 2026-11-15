@@ -2,6 +2,7 @@
 mod assets;
 mod background_save;
 mod chapter_navigation;
+mod clipboard;
 mod dialogs;
 mod editor_shortcuts;
 mod history;
@@ -16,10 +17,12 @@ mod recovery;
 mod segment_insertion;
 mod settings;
 mod steps;
+mod tabs;
 mod text_edit;
 mod timeline_audio;
 mod tools;
 mod usability;
+mod video_export;
 
 use crate::i18n::tr;
 use crate::tools_panel::ToolPage;
@@ -66,9 +69,10 @@ enum Pending {
     Open(PathBuf),
     EditorUpdate,
     InstallEditorUpdate,
+    CloseTab,
     Quit,
 }
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 enum Center {
     Node,
     Chapter,
@@ -88,7 +92,7 @@ enum Section {
     Game,
     Release,
 }
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 enum View {
     Stage,
     Portraits,
@@ -203,7 +207,11 @@ struct App {
     pending_history: Option<Snapshot>,
     last_edit: Instant,
     clipboard: Vec<Value>,
+    node_paste_requested: bool,
+    managed_tab: bool,
+    tab_action: Option<Pending>,
     pending: Option<Pending>,
+    project_choice: Option<project_io::ProjectChoice>,
     allow_close: bool,
     asset_dirty: bool,
     lua: String,
@@ -245,6 +253,7 @@ struct App {
     frame: usize,
     asset_selection: String,
     asset_import_dialog: Option<AssetImportDialog>,
+    video_dialog: Option<video_export::Dialog>,
     image_import_target: Option<(String, String)>,
     shell: shell::Shell,
     scroll_selection: (String, usize),
@@ -401,8 +410,13 @@ pub fn run() -> eframe::Result {
             "--screenshot-panel" => {
                 i += 1;
                 let panel = args.get(i).map(String::as_str).unwrap_or("");
-                if !matches!(panel, "defaults" | "content" | "commands" | "problems") {
-                    eprintln!("--screenshot-panel 需要 defaults/content/commands/problems");
+                if !matches!(
+                    panel,
+                    "defaults" | "content" | "commands" | "problems" | "tabs" | "video"
+                ) {
+                    eprintln!(
+                        "--screenshot-panel 需要 defaults/content/commands/problems/tabs/video"
+                    );
                     std::process::exit(2);
                 }
                 screenshot_panel = Some(panel.to_owned());
@@ -432,6 +446,9 @@ pub fn run() -> eframe::Result {
                 }
             });
     let mut viewport = shell::viewport();
+    if screenshot.is_some() {
+        viewport = viewport.with_active(false);
+    }
     if let Some(icon) = icon {
         viewport = viewport.with_icon(icon);
     }
@@ -461,6 +478,7 @@ pub fn run() -> eframe::Result {
                     Some("defaults") => crate::forms::request_default_parameters(&cc.egui_ctx),
                     Some("content") => app.open_global_search(&cc.egui_ctx),
                     Some("commands") => app.open_command_palette(&cc.egui_ctx),
+                    Some("video") => app.video_dialog = Some(Default::default()),
                     Some("problems") => {
                         app.refresh_full_problems();
                         app.problems_open = true;
@@ -476,7 +494,11 @@ pub fn run() -> eframe::Result {
             } else if app.check_updates_on_startup && app.screenshot.is_none() {
                 app.updater.check_on_startup(&cc.egui_ctx);
             }
-            Ok(Box::new(app))
+            Ok(Box::new(tabs::Workspace::new(
+                &cc.egui_ctx,
+                app,
+                screenshot_panel.as_deref() == Some("tabs"),
+            )))
         }),
     )
 }
@@ -504,7 +526,11 @@ fn smoke(path: &Path) -> anyhow::Result<Value> {
         }
     }
     Ok(
-        json!({"ok":true,"runtime":"native-rust","chapters":p.stories.len(),"nodes":nodes,"preview_states":previews,"schema_node_types":catalog.schema["NODE_SCHEMAS"].as_object().unwrap().len(),"game_tested":false}),
+        json!({"ok":true,"runtime":"native-rust","chapters":p.stories.len(),"nodes":nodes,"preview_states":previews,"simulated_states":previews,
+            "checks":{"compilation_passed":true,"node_forms_checked":true,"state_shapes_checked":true,"route_execution_tested":false},
+            "rendering_performed":false,"rendered_images":0,"visual_review_performed":false,
+            "assessment":crate::preview_report::assessment(&p,&json!({}),Path::new("."))?,
+            "schema_node_types":catalog.schema["NODE_SCHEMAS"].as_object().unwrap().len(),"game_tested":false}),
     )
 }
 impl App {
@@ -513,12 +539,41 @@ impl App {
         open: Option<PathBuf>,
         screenshot: Option<PathBuf>,
     ) -> Self {
-        style(&cc.egui_ctx);
+        Self::from_context(&cc.egui_ctx, open, screenshot)
+    }
+
+    fn from_context(
+        ctx: &egui::Context,
+        open: Option<PathBuf>,
+        screenshot: Option<PathBuf>,
+    ) -> Self {
+        Self::from_context_with_preview(ctx, open, screenshot, None)
+    }
+
+    fn from_context_with_preview(
+        ctx: &egui::Context,
+        open: Option<PathBuf>,
+        screenshot: Option<PathBuf>,
+        preview: Option<Preview>,
+    ) -> Self {
+        style(ctx);
         let mut p = Project::new_scenario("sandbox");
         let mut error = None;
+        let mut project_choice = None;
         if let Some(path) = open {
-            match open_project(&path) {
-                Ok(next) => p = next,
+            match project_io::project_sources(&path).and_then(|candidates| {
+                if candidates.len() == 1 {
+                    p = Project::open(&candidates[0])?;
+                } else {
+                    project_choice = Some(project_io::ProjectChoice {
+                        directory: path.clone(),
+                        candidates,
+                        selected: 0,
+                    });
+                }
+                Ok(())
+            }) {
+                Ok(()) => {}
                 Err(e) => error = Some(format!("无法打开 {}\n{e:#}", path.display())),
             }
         }
@@ -541,7 +596,7 @@ impl App {
         let stamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
-            .as_millis();
+            .as_nanos();
         let recovery_dir = base.join(format!("{}-{stamp}", std::process::id()));
         let recovery_candidates = std::fs::read_dir(&base)
             .map(|d| {
@@ -551,12 +606,13 @@ impl App {
                     .collect()
             })
             .unwrap_or_default();
-        let mut preview = Preview::new(&repository());
+        let mut preview = preview.unwrap_or_else(|| Preview::new(&repository()));
         let prefs = lom_core::load_json(user_root().join("rust/preferences.json"))
             .or_else(|_| lom_core::load_json(user_root().join("settings.json")))
             .unwrap_or(json!({}));
         let theme = shell::Theme::from_id(prefs["ui_theme"].as_str().unwrap_or("classic"));
-        shell::apply_theme(&cc.egui_ctx, theme);
+        preview.resolution = preview::resolution::from_preferences(&prefs);
+        shell::apply_theme(ctx, theme);
         preview.legacy_character_rotation = prefs["legacy_character_rotation"]
             .as_bool()
             .unwrap_or(false);
@@ -578,7 +634,7 @@ impl App {
         let templates =
             lom_core::load_json(user_root().join("rust/node-templates.json")).unwrap_or(json!({}));
         quick_tools::configure_shortcuts(
-            &cc.egui_ctx,
+            ctx,
             &prefs,
             (!cfg!(test)).then(|| user_root().join("rust/preferences.json")),
         );
@@ -609,7 +665,11 @@ impl App {
             pending_history: None,
             last_edit: Instant::now(),
             clipboard: vec![],
+            node_paste_requested: false,
+            managed_tab: false,
+            tab_action: None,
             pending: None,
+            project_choice,
             allow_close: false,
             asset_dirty: false,
             lua: String::new(),
@@ -654,6 +714,7 @@ impl App {
             frame: 0,
             asset_selection: String::new(),
             asset_import_dialog: None,
+            video_dialog: None,
             image_import_target: None,
             shell: shell::Shell::from_preferences(&prefs),
             scroll_selection: (String::new(), usize::MAX),
@@ -768,6 +829,7 @@ impl eframe::App for App {
             }
         }
         if self.chapter_dialog.is_none()
+            && self.project_choice.is_none()
             && self.delete_chapter_dialog.is_none()
             && self.rename_dialog.is_none()
             && self.asset_import_dialog.is_none()
@@ -776,7 +838,7 @@ impl eframe::App for App {
             self.settings_open = true;
             self.settings_error = None;
         }
-        if ctx.input(|i| i.viewport().close_requested()) && !self.allow_close {
+        if !self.managed_tab && ctx.input(|i| i.viewport().close_requested()) && !self.allow_close {
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
             if self.pending.is_none() {
                 self.request(Pending::Quit, ctx);
@@ -799,7 +861,9 @@ impl eframe::App for App {
         if self.selected != preview_index {
             self.tick_preview_audio();
         }
-        self.toolbar(ctx);
+        if !self.managed_tab {
+            self.toolbar(ctx);
+        }
         egui::TopBottomPanel::bottom("status")
             .frame(surface(ctx, false))
             .show(ctx, |ui| {
@@ -857,6 +921,7 @@ impl eframe::App for App {
         self.track();
         self.quick_tools(ctx);
         self.guided_export(ctx);
+        self.video_export_dialog(ctx);
         self.dialogs(ctx);
         self.poll_background_save(ctx);
         self.tools_panel.show_dialog(ctx, &self.project);

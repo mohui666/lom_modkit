@@ -29,6 +29,63 @@ pub fn schema(section: &str) -> Result<Value> {
     })
 }
 
+pub fn filtered_schema(section: &str, filter: Option<&str>) -> Result<Value> {
+    let mut result = schema(section)?;
+    if let Some(filter) = filter {
+        ensure!(section == "catalog", "--filter 仅用于 schema catalog");
+        let needle = filter.trim().to_lowercase();
+        ensure!(!needle.is_empty(), "--filter 关键词不能为空");
+        fn matches(value: &Value, needle: &str) -> bool {
+            match value {
+                Value::String(text) => text.to_lowercase().contains(needle),
+                Value::Number(number) => number.to_string().contains(needle),
+                Value::Array(values) => values.iter().any(|value| matches(value, needle)),
+                Value::Object(values) => values.values().any(|value| matches(value, needle)),
+                _ => false,
+            }
+        }
+        for value in result.as_object_mut().unwrap().values_mut() {
+            match value {
+                Value::Array(rows) => rows.retain(|row| matches(row, &needle)),
+                Value::Object(rows) => rows.retain(|key, row| {
+                    key.to_lowercase().contains(&needle) || matches(row, &needle)
+                }),
+                _ => (), // Keep catalog metadata such as its schema number.
+            }
+        }
+    }
+    Ok(result)
+}
+
+pub fn output_summary(command: &str, value: &Value, output: &Path) -> Value {
+    let mut counts = serde_json::Map::new();
+    for (key, value) in value.as_object().into_iter().flatten() {
+        let length = match value {
+            Value::Array(values) => Some(values.len()),
+            Value::Object(values) => Some(values.len()),
+            _ => None,
+        };
+        if let Some(length) = length {
+            counts.insert(key.clone(), json!(length));
+        }
+    }
+    if command == "project-read" {
+        counts.remove("project");
+        if let Some(stories) = value["project"]["stories"].as_object() {
+            counts.insert("chapters".into(), json!(stories.len()));
+            counts.insert(
+                "nodes".into(),
+                json!(stories
+                    .values()
+                    .filter_map(|story| story["nodes"].as_array())
+                    .map(Vec::len)
+                    .sum::<usize>()),
+            );
+        }
+    }
+    json!({"ok":true,"command":command,"output":output,"counts":counts})
+}
+
 pub fn sdk(target: &Path) -> Result<Value> {
     let package = target.join("lom_modkit");
     // Do not overwrite a user's modified SDK or scripts.
@@ -36,6 +93,10 @@ pub fn sdk(target: &Path) -> Result<Value> {
         (
             package.join("authoring.py"),
             include_bytes!("../../../python/lom_modkit/authoring.py").to_vec(),
+        ),
+        (
+            package.join("presentation.py"),
+            include_bytes!("../../../python/lom_modkit/presentation.py").to_vec(),
         ),
         (
             package.join("__init__.py"),

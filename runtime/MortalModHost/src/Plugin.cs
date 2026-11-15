@@ -28,7 +28,7 @@ namespace MortalModHost
     {
         public const string GUID = "com.mohui666.mortalmodhost";
         public const string NAME = "MortalModHost";
-        public const string VERSION = "1.5.20";
+        public const string VERSION = "1.6.0";
 
         internal static Plugin Instance { get; private set; }
 
@@ -98,6 +98,17 @@ namespace MortalModHost
 
         private void Awake()
         {
+            VideoWorkerRuntime.Initialize();
+            try { InitializeRuntime(); }
+            catch (Exception error)
+            {
+                VideoWorkerRuntime.InitializationFailed(error);
+                throw;
+            }
+        }
+
+        private void InitializeRuntime()
+        {
             Instance = this;
             _enabled = Config.Bind("General", "Enabled", true,
                 "总开关。false 时禁用热键、mod 菜单与 LuaManager 注入；若 mod 剧情正在演出，为保持强制披露，会延迟到回到官方枢纽后卸载补丁。");
@@ -151,6 +162,7 @@ namespace MortalModHost
             else
                 Logger.LogInfo("MortalModHost 已禁用：未挂载 Harmony 补丁");
             _enabled.SettingChanged += OnEnabledChanged;
+            VideoWorkerRuntime.RequireRuntime(_runtimeReady);
         }
 
         private void OnEnabledChanged(object sender, EventArgs args)
@@ -277,6 +289,7 @@ namespace MortalModHost
             if (_harmonyPatched) return;
             _runtimeReady = false;
             LuaManagerPatch.Log = Logger;
+            PlaytestStatusRuntime.LogError = message => Logger.LogError(message);
             NewGameDataPatch.Log = Logger;
             FreePositionPatch.Log = Logger;
             ScenarioRuntime.Log = Logger;
@@ -298,6 +311,7 @@ namespace MortalModHost
             CharacterRotationRuntime.Init(this);
             EffectRuntime.Init(this);
             EffectPreviewCapture.Init(this);
+            VideoRenderRuntime.Init(this);
             CustomImageRuntime.Log = Logger;
             CustomImageRuntime.Init(this);
             EventPictureRuntime.Init(this);
@@ -595,6 +609,7 @@ namespace MortalModHost
 
         private void Update()
         {
+            if (!VideoWorkerRuntime.Tick()) return;
             UpdateDebuggerInputBlocker();
             CustomCharacterRuntime.UpdateMoods();
             if (LuaManagerPatch.HasPendingAbort)
@@ -609,6 +624,7 @@ namespace MortalModHost
             }
             if (!_enabled.Value || !_runtimeReady) return;
             AutoDialogueRuntime.Tick();
+            VideoRenderRuntime.Tick();
             UpdateOverlaySceneTracking();
             bool traceActive = RuntimeTrace.Active;
             if (traceActive && IsHotkeyDown(_debuggerHotkey.Value))
@@ -617,7 +633,13 @@ namespace MortalModHost
             MaintainVanillaTitleEntry();
             VanillaModCampaignPanel.Maintain();
 
-            HandlePreviewRequest();
+            try { HandlePreviewRequest(); }
+            catch (Exception error)
+            {
+                PlaytestStatusRuntime.Fail("处理试玩请求失败：" + error.Message, RuntimeTrace.CurrentStory, RuntimeTrace.CurrentNode);
+                throw;
+            }
+            if (VideoRenderRuntime.Busy) return;
 
             // F7：任意场景可切换，返回 Free 的自动任务与下一次地点点击都会生效；独立于 F8 菜单分支。
             HandleVanillaStoryHotkey();
@@ -710,10 +732,15 @@ namespace MortalModHost
             string error;
             if (!PreviewRequest.TryRead(requestPath, out request, out error))
             {
+                VideoWorkerRuntime.RejectPreview("视频后台试玩请求无效：" + error);
                 Logger.LogWarning("试玩请求无效，已删除：" + error);
                 TryDelete(requestPath, "无效试玩请求");
                 return;
             }
+
+            if (!VideoWorkerRuntime.AcceptPreview(request)) return;
+            if (VideoRenderRuntime.BlockPreview(request, requestPath)) return;
+            PlaytestStatusRuntime.Observe(request, pluginDir);
 
             SceneController sceneController = SceneController.Instance;
             string scene = sceneController != null ? sceneController.CurrentScene : "";
@@ -726,6 +753,7 @@ namespace MortalModHost
                 if (_previewWaitingScene != scene)
                     Logger.LogInfo("试玩请求等待标题、自由场景或当前编辑器试玩演出就绪。");
                 _previewWaitingScene = scene;
+                PlaytestStatusRuntime.Waiting("游戏已启动，等待标题、自由场景或当前开发演出就绪；当前场景：" + scene);
                 return;
             }
 
@@ -737,6 +765,7 @@ namespace MortalModHost
                 if (_previewWaitingScene != waitingKey)
                     Logger.LogInfo("试玩请求正在等待原版 " + scene + " 场景撤下读取遮罩。");
                 _previewWaitingScene = waitingKey;
+                PlaytestStatusRuntime.Waiting("游戏已启动，正在等待 " + scene + " 场景撤下读取遮罩");
                 return;
             }
 
@@ -757,6 +786,7 @@ namespace MortalModHost
                     }
                     catch (Exception ex)
                     {
+                        PlaytestStatusRuntime.Fail("F5 热重载清理失败：" + ex.Message, RuntimeTrace.CurrentStory, RuntimeTrace.CurrentNode);
                         LuaManagerPatch.AbortActivePlayback(
                             "F5 热重载清理失败", null, ex, "hot_reload");
                         return;
@@ -776,7 +806,30 @@ namespace MortalModHost
                 }
             if (target == null || !string.Equals(target.Entry, request.ScriptId, StringComparison.Ordinal))
             {
+                VideoWorkerRuntime.RejectPreview("视频后台预览包未加载或入口不匹配");
+                if (PlaytestStatusRuntime.Tracked)
+                {
+                    PlaytestStatusRuntime.Fail("预览包未加载或入口不匹配：" + request.ModId + "/" + request.ScriptId, null, null);
+                    TryDelete(requestPath, "失败的试玩请求");
+                    return;
+                }
                 Logger.LogWarning("试玩包尚未加载或入口不匹配，将继续等待：" + request.ModId + "/" + request.ScriptId);
+                return;
+            }
+            if (!RuntimeTrace.IsDevelopmentPackage(target))
+                VideoWorkerRuntime.RejectPreview("视频后台只能执行固定的编辑器临时包");
+            if (request.RequestId != null && !RuntimeTrace.IsDevelopmentPackage(target))
+            {
+                PlaytestStatusRuntime.Fail("试玩状态请求只能进入固定的编辑器临时包，当前加载的同名作品不是该包", null, null);
+                Logger.LogWarning("试玩状态请求拒绝进入非编辑器同名作品：" + target.PackagePath);
+                TryDelete(requestPath, "无效试玩状态请求");
+                return;
+            }
+
+            int videoReady = VideoRenderRuntime.Prepare(request);
+            if (videoReady <= 0)
+            {
+                if (videoReady < 0) TryDelete(requestPath, "无效视频生成请求");
                 return;
             }
 
@@ -787,6 +840,7 @@ namespace MortalModHost
                     target.Id)
                 && RuntimeTrace.IsDevelopmentPackage(target)
                 && scene == "Story";
+            PlaytestStatusRuntime.Dispatch();
             if (request.FreshCampaign)
             {
                 try { EventTestRuntime.Arm(target, request); }
@@ -953,6 +1007,7 @@ namespace MortalModHost
 
         private void OnDestroy()
         {
+            VideoRenderRuntime.Shutdown();
             if (_debugInputCanvas != null) Destroy(_debugInputCanvas);
             RouteRuntimeCapture.Reset();
             if (_enabled != null)
@@ -978,12 +1033,14 @@ namespace MortalModHost
             if (Instance == this) Instance = null;
             if (_applicationQuitting || !ModDisclosure.Active)
                 ModDisclosure.Disable();
+            PlaytestStatusRuntime.Shutdown();
         }
 
         private void OnApplicationQuit()
         {
             RouteRuntimeCapture.Reset();
             _applicationQuitting = true;
+            PlaytestStatusRuntime.Shutdown();
         }
 
         /// <summary>
@@ -1251,6 +1308,7 @@ namespace MortalModHost
 
         private void OnGUI()
         {
+            if (VideoRenderRuntime.Busy) return;
             HandleStoryBookmarkKey(Event.current);
             if (_enabled != null && _enabled.Value && RuntimeTrace.Active && _showDebugger)
             {
@@ -1780,6 +1838,7 @@ namespace MortalModHost
         private void NavigationFailed(string message)
         {
             LastNavigationError = message.Split(new[] { '\r', '\n' }, 2)[0];
+            PlaytestStatusRuntime.RuntimeFailed(LastNavigationError, RuntimeTrace.CurrentStory, RuntimeTrace.CurrentNode);
             Logger.LogError(message);
         }
 
@@ -1869,6 +1928,7 @@ namespace MortalModHost
         {
             if (!_runtimeReady)
             {
+                PlaytestStatusRuntime.Fail("运行时未安全就绪：已拒绝演出 MOD", null, null);
                 Logger.LogError("运行时未安全就绪：已拒绝演出 MOD");
                 return;
             }
@@ -1876,6 +1936,7 @@ namespace MortalModHost
             SceneController scenes = SceneController.Instance;
             if (stat == null || scenes == null)
             {
+                PlaytestStatusRuntime.Fail("无法演出 MOD：人物状态或场景系统单例尚未就绪", null, null);
                 Logger.LogError("无法演出 mod：PlayerStatManagerData/SceneController 单例尚未就绪");
                 return;
             }

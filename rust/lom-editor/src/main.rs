@@ -1,4 +1,5 @@
 mod asset_extraction;
+mod asset_query;
 mod authoring;
 mod automation;
 mod components;
@@ -23,16 +24,28 @@ mod play_bundle;
 mod preview;
 mod preview_event_fade;
 mod preview_layout;
+mod preview_report;
 mod route_map;
 mod shell;
+mod stage_export;
 mod standalone_smoke;
 mod tool_report;
 mod tools_panel;
 mod vanilla_panel;
+mod video_render;
+mod video_worker;
 mod workspace;
 
 fn main() -> eframe::Result {
     let args: Vec<_> = std::env::args().skip(1).collect();
+    if matches!(args.first().map(String::as_str), Some("--help" | "-h")) {
+        println!("活侠传剧情编辑器 {}\n用法：lom-editor [工程目录/JSON/lommod]\n  --cli <命令>               执行 CLI，不打开编辑器\n  --cli automation-schema    查询素材、舞台出图、试玩接口\n  --cli sdk -o <新目录>      导出 Python SDK\n  --smoke-preview <工程>     编译、表单与离线模拟检查（不渲染画面）\n  --help / --version         显示帮助／版本", env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
+    if matches!(args.first().map(String::as_str), Some("--version" | "-V")) {
+        println!("lom-editor {}", env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
     if args.first().is_some_and(|s| s == "--cli") {
         if let Some(result) = automation::run(&args[1..]) {
             match result {

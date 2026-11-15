@@ -1,12 +1,12 @@
 # Python 对象 API 与 Rust CLI
 
-查签名与字段：[Python 接口参考](python_api.md)；查命令输入输出：[CLI 参数参考](cli_parameters.md)；AI 工作流：[lom-modkit-authoring skill](../../skills/lom-modkit-authoring/SKILL.md)。SDK 导出包内附带这两份参考文档和 skill，可将 skill/lom-modkit-authoring 复制到自己的 Codex skills 目录。
+本文对应 1.6.0。查签名与字段：[Python 接口参考](python_api.md)；查命令输入输出：[CLI 参数参考](cli_parameters.md)；AI 工作流：[lom-modkit-authoring skill](https://github.com/mohui666/lom_modkit/blob/v1.6.0/skills/lom-modkit-authoring/SKILL.md)。SDK 导出后本文为根目录 `README.md`，两份参考文档与它同目录，skill 位于 `skill/lom-modkit-authoring/`，可复制到自己的 Codex skills 目录。
 
 推荐用户和 AI 使用 [Python 节点构造函数](#主要入口python-构造函数)批量制作剧本：每个节点是对象，构造时检查参数，生成失败抛出含完整诊断的异常。安装 Python 3.10+ 即可，无第三方包依赖。底层 Rust 核心负责校验、保存为编辑器工程、编译和导出；需要其他工具接入时也能直接使用下面的 Rust CLI。包／章节／内容契约保持 **3 / 2 / 1**。
 
 ## 直接使用 exe
 
-以下命令需要包含此功能的新构建。`request.json` 是工程生成说明：
+Windows 正式附件只有内置组件的 `lom-editor.exe`；下面的 CLI、SDK 导出、舞台出图和后台视频均从这个 exe 调用。`request.json` 是工程生成说明：
 
 ```json
 {
@@ -32,7 +32,7 @@
 
 生成 `作品/manifest.json` 和 `作品/story/main.json`，编辑器可打开目录或 MOD 包继续编辑。普通步骤依数组顺序执行，分支和 `goto` 使用节点 ID。请先使用新输出目录；不会自动覆盖不属于当前来源的工程。
 
-批量多章节示例见 [samples/cli-authoring/request.json](../../samples/cli-authoring/request.json)，包含两个章节、选项分支和跨章跳转。AI 可一次提交整个 stories 集合，不必逐节点启动命令。源码目录中可执行 `lomc project samples/cli-authoring/request.json -o out/cli-story --json`。
+批量多章节示例见 [samples/cli-authoring/request.json](https://github.com/mohui666/lom_modkit/blob/v1.6.0/samples/cli-authoring/request.json)，包含两个章节、选项分支和跨章跳转。AI 可一次提交整个 stories 集合，不必逐节点启动命令。源码目录中可执行 `lomc project samples/cli-authoring/request.json -o out/cli-story --json`。
 
 源码构建：`cargo build --locked --release -p lomc`。把本文的 `lom-editor.exe --cli` 换成 `target/release/lomc.exe` 即可使用独立 CLI；其他平台为 `lomc`。两种入口使用同一个 Rust 编译器。
 
@@ -48,6 +48,8 @@
 .\lom-editor.exe --cli schema project --json
 ```
 
+目录可用 `schema catalog --filter "雨"` 先筛选；写出大文件时加 `-o catalog.json --summary --json`，文件保留完整内容，标准输出只返回简短计数。`schema nodes` 等大结果也支持这个组合，`--summary` 必须配合 `-o`。图像和布局证据用下文的 `asset-query` 查询，目录中的编号本身不能证明素材外观。
+
 | 入口 | 内容 |
 | --- | --- |
 | `schema nodes` | 所有节点的必填／可选字段、类型、枚举和通用字段；以此为接口契约 |
@@ -60,7 +62,9 @@
 
 > 阅读 ai_cli.md，查询 schema nodes/catalog，用节点对象制作剧本。通过 project 生成可编辑工程，按体检的章节／节点位置修正错误，再 export 和 inspect。保留原工程与存档身份，不猜测官方资源 ID。
 
-完整嵌套条件、选项、奖励和原版来源信息见 [Mod 格式参考](mod_format.md)。原版整章来源信息不能凭空编造。
+编排演出前先读 skill 的[演出节奏与站位](https://github.com/mohui666/lom_modkit/blob/v1.6.0/skills/lom-modkit-authoring/SKILL.md#演出节奏与站位)，按剧情处理位移、动作等待和人物距离；工程校验不代替这些演出判断。
+
+完整嵌套条件、选项、奖励和原版来源信息见 [Mod 格式参考](https://github.com/mohui666/lom_modkit/blob/v1.6.0/docs/chs/mod_format.md)。原版整章来源信息不能凭空编造。
 
 ## 工程请求字段
 
@@ -90,7 +94,7 @@
 }}
 ```
 
-此片段合并到工程请求。具体字段见 [用户内容](user_content.md)、[自定义玩法](custom_gameplay.md)。事件和任务使用 [事件任务格式](events_and_tasks.md)；翻译放入章节 `localization`，离线测试放入 `_editor.tests`。所有现有节点和嵌套动作均能直接用对象表达。
+此片段合并到工程请求。具体字段见 [用户内容](https://github.com/mohui666/lom_modkit/blob/v1.6.0/docs/chs/user_content.md)、[自定义玩法](https://github.com/mohui666/lom_modkit/blob/v1.6.0/docs/chs/custom_gameplay.md)。事件和任务使用 [事件任务格式](https://github.com/mohui666/lom_modkit/blob/v1.6.0/docs/chs/events_and_tasks.md)；翻译放入章节 `localization`，离线测试放入 `_editor.tests`。所有现有节点和嵌套动作均能直接用对象表达。
 
 ## 主要入口：Python 构造函数
 
@@ -102,7 +106,7 @@ cd .\python-authoring
 python .\example.py C:\Tools\lom-editor.exe C:\Stories\mountain
 ```
 
-导出 `lom_modkit/__init__.py`、`authoring.py`、配套 `contract.json`、简单示例、`complex_story.py`、配套自有素材生成器和剧本委托、本说明。目标文件存在则拒绝覆盖，升级请导出到新目录。发布仍可只有一个 exe。
+导出 `lom_modkit/__init__.py`、`authoring.py`、`presentation.py`、配套 `contract.json`、简单示例、`complex_story.py`、配套自有素材生成器和剧本委托、三份指南与 AI skill。目标文件存在则拒绝覆盖，升级请导出到新目录。Python 需要自己已有的 3.10+ 解释器，SDK 不安装第三方依赖。
 
 ```python
 from lom_modkit import CLI, Chapter, End, Project, Say, Show
@@ -139,6 +143,8 @@ group = Parallel(id="surprise", actions=[
 构造时检查未知字段、必填项、基本类型、枚举、重复 ID 和入口。复杂条件、跳转目标、资源引用、并发冲突和游戏规则由 CLI 校验；构造成功不表示已经通过完整体检。
 
 `Chapter(id=..., title=..., nodes=[...], start=None, **metadata)` 默认入口为首节点，元数据支持 mood/localization/_editor 等现有字段。`Project` 支持 `author`、`version`、`entry`、`mode`、`target`、`scenario`、`assets`、`manifest`；assets 的本地文件转成绝对路径，manifest 的同名项以显式参数为准。`project.write(path)` 保存请求 JSON。
+
+可选 `NodeIds`／`Staging` 处理编号、登退场、动作组合和声明过的站位恢复，具体签名见 [演出助手](python_api.md#可选演出助手)。它们返回原有 Show／Hide／Parallel 对象，不推测游戏当前状态、人物脚底或素材裁切。
 
 ```python
 old = Project.open(cli, r"C:\Stories\旧作品.lommod")
@@ -188,7 +194,7 @@ picture = ImageAsset(id="demo.letter", name="来信", main="letter.png")
 | `VariableChange` | op=set/add、Int32 value |
 | `Outcome` | tasks={任务ID:状态}、variables={变量ID:VariableChange(...)}、actions=[OutcomeAction(...)]；均可省略 |
 | `OutcomeAction` | type=stat/affinity/game_flag 时传 key/op/value；flag 仅 key；talent 传 key/value=±1；item 传 key/kind/op/value；time 传 year/month/stage |
-| `Event` | id/name/script/trigger 必填；position、when、outcomes 可选；once=True、enabled=True、check=stage、priority=0、chance=100、weight=1；可填 pool 和 weight_modifiers |
+| `Event` | id/name/script/trigger 必填；trigger=start/auto/position/story_entry；position、when、outcomes 可选；story_entry 必填 target，可选 from_（序列化为 from）；其他触发不能填 target/from_；once=True、enabled=True、check=stage、priority=0、chance=100、weight=1；可填 pool 和 weight_modifiers |
 | `WeightModifier` | when、add（-100000～100000） |
 | `Scenario` | events、tasks=()、entry_event=None；sandbox 设置 entry_event，addon 不设置；检查任务引用与重复 ID |
 | `Translation` | locale=cht/ja/ko 等、texts={可翻译路径:文字} |
@@ -246,17 +252,27 @@ chapter = Chapter(id="main", title="第一章", nodes=nodes,
 | `extract-story` | game，可选 target：原版章节清单或指定章节源码／译文 |
 | `extract-routes` | game：原版章节路线索引 |
 | `extract-audio` | game、kind=music/sound/env、name、output=新 .wav 路径；提取并解码一段音频 |
-| `preview` | project、script、node：返回离线预览最终状态，不打开窗口 |
+| `asset-query` | 可选 library/project/game、kind/query/id/portrait/position、分页和缩略图参数；返回实际图片、透明边界和有来源的布局资料 |
+| `preview` | project、script、node：返回离线预览最终状态及能力说明，明确未渲染图片 |
+| `render-preview`／`render-previews` | project、单帧 script/node 或 frames、output；生成纯舞台 PNG，批量另含对照图和清单，复用同一隐藏图形会话 |
+| `render-video` | project、game、output；同步生成游戏原生 MP4，默认独立桌面后台 Worker，按自动播放时长及预设选项推进 |
 | `open-editor` | project，可选 output/script/node：读取工程、MOD 或 Lua；output 提供时另存为编辑器工程目录，再打开新窗口，可定位章节和节点 |
 | `preview-adjust` | project、script、node、target、x、y、output；可选 scale（默认100）、effect_scale=[横缩放,纵缩放]；复用编辑器拖动的修改规则并保存工程 |
 | `prepare-playtest` | project、script、output，可选 node（默认章节入口）：生成隔离演出试玩包，不安装或启动游戏 |
-| `playtest` | project、script、game，可选 node/runtime：执行编辑器同一套 Host 更新、试玩包安装、请求与启动流程 |
+| `playtest` | project、script、game，可选 node/runtime：安装／更新 Host、发布试玩请求并返回 request_id，不把发出请求当作已进入剧情 |
+| `playtest-status` | game、request_id：查询一次当前可读的执行证据，不启动游戏或自动轮询 |
+| `prepare-event-playtest`／`playtest-event` | project、event_id、output 或 game；前者仅生成隔离包，后者走真实事件调度；story_entry 默认从原版前置章播放 |
 | `capture-effects` | game，可选 runtime/names：调用现有游戏采样流程，启动游戏并生成粒子预览 |
 
 target 为 `{"kind":"mood","id":"人物ID"}`，也可 kind=character/overlay（id 为 slot）/cg；effect 使用 `{"kind":"effect","node":"特效源节点ID","action":组内序号}`，action 可省略。气泡偏移与人物偏移以舞台原始单位保存；图片 x/y 为百分比，scale 为百分比；effect_scale 对应有符号的两轴缩放。目标定位、路径和冲突规则与编辑器一致。
 
 ```python
 state = cli.operation("preview", project="作品", script="crossing", node="shock_and_mood")
+images = cli.query_assets(library="本机预览库", kind="character", query="小师妹", limit=6)
+cli.render_previews("作品", [
+    {"script":"crossing", "node":"shock_and_mood"},
+    {"script":"crossing", "node":"after_move", "time":0.4},
+], "关键帧", library="本机预览库")
 cli.operation("preview-adjust", project="作品", script="crossing", node="shock_and_mood",
     target={"kind":"mood", "id":"user:mist.shen"}, x=36, y=24, output="调整版")
 cli.operation("prepare-playtest", project="调整版", script="crossing",
@@ -267,11 +283,19 @@ cli.open_editor("作品.lommod", output="导入工程", script="crossing", node=
 
 直接 CLI 打开：请求文件写 `{"project":"作品.lommod","output":"导入工程"}`，然后 `lom-editor.exe --cli open-editor request.json --json`。不传 output 时直接打开原工程或包，不自动保存。读取失败或定位无效不会打开窗口；成功响应包含新窗口进程 pid。
 
-`prepare-playtest` 不推进 scenario 任务或发奖励。`playtest/capture-effects` 会操作游戏，只在作者明确调用时执行；不会因 build/export 自动启动。音频的实时混音、游戏随机历史和总线效果仍以游戏试听为准。
+素材结果中的锚点是舞台 Transform 锚点，不是可见脚底；`framing=unknown` 时需打开缩略图或原图确认半身／全身。`rendering_performed` 与 `visual_review_performed` 分别说明是否真的绘制、是否有人看过；`preview_states` 只计离线模拟状态。纯舞台图不执行原版前置章，不能检查原版遗留的菜单或 UI。
+
+`playtest` 返回 request_id 后，用 `cli.playtest_status(game, request_id)` 查询一次。sent／game_started、chapter_entered／node_entered 分别对应发布／进程与实际脚本／节点证据，restart_required 需退出游戏后重发。事件请求另区分原版前置进入、事件 ID 获选、事件 Lua／节点进入与 event_not_triggered；准备章不会充当所测事件成功。
+
+`story_entry` 的 `playtest-event` 默认 `entry_mode="predecessor"`，用显式 source_script 或事件 from 作为真实原版起点，沿原版选项和跳转进入事件；不强跳 target 或额外清 UI。显式 boundary 只检查入口边界。完整参数、时钟与条件规则见 [CLI 参数](cli_parameters.md#原版前置章节与事件衔接试玩)。
+
+`render-video` 默认 1080p30、auto_speed=game，预设选项序号从0开始，未指定默认首个可用选项；可选720p、60 FPS和前台模式。它直接取游戏合成帧与原生音轨，后台任务使用独立 Host／临时包／存档，不要求手动录屏。普通试玩与视频均关闭可见、隐藏水印，包身份和存档隔离不变。CLI 在 stderr 输出进度，SDK 方法等待最终成片；不会自动替代画面验收。
+
+`prepare-playtest` 不推进 scenario 任务或发奖励。`playtest/playtest-event/render-video/capture-effects` 会操作游戏，只在作者明确调用时执行；不会因 build/export 自动启动。视频遇到当前不支持的战斗、商店等人工交互会明确停止，不能跳过后声称完整生成。
 
 ## 复杂样例与重跑
 
-[《雾渡夜灯》完整 Python 文件](../../samples/python-api-complex/build_story.py)由独立新对话按[剧本委托](../../samples/python-api-complex/BRIEF.md)制作，随后更新为使用新增的配置构造函数。10 章、184 个顶层节点、24 类节点；包含调查循环、跨章旗标、三个结局、4 个事件、2 项任务、30:70 日常池、自定义图像／人物／音频、cht/ja 译文和 8 条离线路线。美术为自有几何示意，音频为合成测试音。
+[《雾渡夜灯》完整 Python 文件](https://github.com/mohui666/lom_modkit/blob/v1.6.0/samples/python-api-complex/build_story.py)由独立新对话按[剧本委托](https://github.com/mohui666/lom_modkit/blob/v1.6.0/samples/python-api-complex/BRIEF.md)制作，随后更新为使用新增的配置构造函数。10 章、184 个顶层节点、24 类节点；包含调查循环、跨章旗标、三个结局、4 个事件、2 项任务、30:70 日常池、自定义图像／人物／音频、cht/ja 译文和 8 条离线路线。美术为自有几何示意，音频为合成测试音。
 
 在仓库根目录，指定尚不存在的 SDK 和输出目录：
 
@@ -303,7 +327,7 @@ lomc release PROJECT -o OUTPUT/release --json
 
 `texts` 输出可翻译路径。`test` 读取 `_editor.tests`，unsupported 不等同通过。`compile` 只生成 Lua，不能替代整工程导出和资源检查；`release` 只生成本地发布文件。`export` 支持原生可读的工程和包，原 `pack DIRECTORY` 入口保留。
 
-CLI 的离线校验和测试不能代替 Windows 游戏实机试玩；不包含 GUI 操作和画面截图。生成格式与编辑器相同，游戏表现需实际试玩确认。
+check／preflight／test 与 `--smoke-preview` 的离线校验不能代替 Windows 游戏实机试玩或人工看图。需要图片时显式调用 render-preview(s)，需要原版衔接时调用 playtest-event，成片使用 render-video；这些是不同的执行与验证范围。
 
 ## 原受控操作兼容
 
@@ -326,4 +350,4 @@ CLI 的离线校验和测试不能代替 Windows 游戏实机试玩；不包含 
 
 `edit story.json --operations operations.json [-o edited.json] --json` 批量操作，每项省略 story，共享上一步结果；失败不写回。不带 -o 时改写原章节；不接受 new_story/new_node。旧操作沿用表单检查，完整原生字段使用对象与 project。
 
-其他既有命令包括 new-story、migrate、content-inspect、content-import、play-bundle、install-play-bundle、detect-watermark、detect-watermark-video。完整参数见 `--help`、[Rust 工具端](rust.md) 及各专题。安装游戏组件沿用已有目录和加载器契约。
+其他既有命令包括 new-story、migrate、content-inspect、content-import、play-bundle、install-play-bundle、detect-watermark、detect-watermark-video。完整参数见 `--help`、[Rust 工具端](https://github.com/mohui666/lom_modkit/blob/v1.6.0/docs/chs/rust.md) 及各专题。检测器继续支持旧版媒体，当前输出不嵌入水印。1.6.0 顶层 `--help`／`--version` 直接输出，不打开窗口；查询旧版时使用 `--cli --version`。版本变化见 [GitHub Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.0)，仓库不保留独立版本 notes。

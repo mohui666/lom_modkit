@@ -1,13 +1,15 @@
 # lom_modkit 文档
 
-当前版本为 **1.5.19**，编辑器和编译器使用 Rust，C# Host 提供游戏接入。更新内容见 [本版说明](../RELEASE_NOTES_v1.5.19.md)，下载见 [发布页](https://github.com/mohui666/lom_modkit/releases/latest)。
+当前版本为 **1.6.0**，编辑器和编译器使用 Rust，C# Host 提供游戏接入。更新内容见 [GitHub Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.0)，下载见 [发布页](https://github.com/mohui666/lom_modkit/releases/latest)。仓库维护当前操作与接口文档，历史更新正文仅保留在 GitHub Release。
+
+本版加入多工程标签与恢复、跨窗口步骤复制、后台游戏原生视频和预览分辨率选择；CLI／Python 新增素材查询、舞台图与视频导出、试玩状态查询及可选演出助手。
 
 ## 开始使用
 
 | 文档 | 内容 |
 | --- | --- |
 | [Windows 快速开始](chs/windows_quick_start.md) | 安装、升级、配置游戏和提取素材 |
-| [软件使用](chs/software_usage.md) | 章节、分组、步骤、气泡、预览和导出 |
+| [软件使用](chs/software_usage.md) | 多工程标签、步骤、预览分辨率、后台视频和导出 |
 | [原版剧情编辑与路线图](chs/software_usage.md#原版剧情编辑与路线图) | 整章导入、条件插入、游戏标记与定位 |
 | [Mac 编辑器](chs/macos.md) | 源码构建、启动与素材设置 |
 | [当前能力与边界](chs/current_capabilities.md) | 功能范围、Host 需求和本版验证范围 |
@@ -23,7 +25,7 @@
 | [多语言](chs/i18n.md) | 界面、资源名称与作品翻译 |
 | [自动恢复](chs/editor_recovery.md) | 恢复位置、流程和保存边界 |
 | [自由模式与人物立绘](chs/free_mode_portraits.md) | 赵活外观与旧战役触发器 |
-| [Showcase 样例](../samples/showcase3/README.md) | 10 章、73 类节点与生成入口 |
+| [Showcase 样例](../samples/showcase3/README.md) | 全节点样例、73 类节点与生成入口 |
 
 ## AI 与脚本制作
 
@@ -32,8 +34,8 @@
 | 文档 | 内容 |
 | --- | --- |
 | [Python 对象 API 与 CLI](chs/ai_cli.md) | 推荐的全节点构造函数接口、批量创作、异常诊断及底层 CLI |
-| [Python 接口参考](chs/python_api.md) | 节点、工程、事件任务、翻译、素材与测试构造函数 |
-| [CLI 命令参数](chs/cli_parameters.md) | 输入、选项、输出、退出码与操作类命令 |
+| [Python 接口参考](chs/python_api.md) | 节点、工程、演出助手、素材查询与画面导出 |
+| [CLI 命令参数](chs/cli_parameters.md) | 目录筛选、输出摘要、素材、舞台图、原生视频与试玩状态 |
 | [AI 剧本制作 skill](../skills/lom-modkit-authoring/SKILL.md) | 给 AI 的接口发现、生成与验收工作流 |
 
 ## 契约与开发
@@ -42,7 +44,7 @@
 | --- | --- |
 | [Mod 格式 v3](chs/mod_format.md) | 包结构、字段、节点和运行时约定 |
 | [脚本与 API 索引](chs/script_reference.md) | 字段契约与受控接口 |
-| [来源水印](chs/watermark.md) | 嵌入、来源判定和截图／视频检测 |
+| [旧媒体来源检测](chs/watermark.md) | 当前水印策略、旧截图与视频的来源检测 |
 | [反编译接口](chs/decompiled_api.md) | 查询当前游戏类型和已用入口 |
 | [Gameplay API 笔记](../research/gameplay_api.md) | 已确认签名与使用边界 |
 | [接口片段](../research/gameplay_api_contract.json) | 与 API 笔记配合查阅 |
@@ -63,4 +65,4 @@
 
 [繁體中文](cht/README.md) · [日本語](ja/README.md) · [한국어](ko/README.md)。当前操作和契约以简体中文指南为准，各语言索引标注译文适用范围。
 
-仓库保留本版更新说明。历史更新内容和附件从 [GitHub Releases](https://github.com/mohui666/lom_modkit/releases) 查阅。
+仓库不保留逐版本 note；各版本的更新正文和附件统一从 [GitHub Releases](https://github.com/mohui666/lom_modkit/releases) 查阅。

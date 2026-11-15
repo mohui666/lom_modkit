@@ -15,12 +15,19 @@ pub fn schema() -> Value {
         "extract-routes":{"required":["game"],"result":"official chapter routes"},
         "extract-audio":{"required":["game","kind","name","output"],"kind":["music","sound","env"],"result":"WAV file"},
         "capture-effects":{"required":["game"],"optional":["runtime","names"],"side_effect":"launches game, captures local particle previews"},
-        "preview":{"required":["project","script","node"],"result":"offline final preview state, no GUI or game"},
+        "asset-query":{"required":[],"optional":crate::asset_query::OPTIONAL_FIELDS,"result":"filtered images, thumbnails, canvas/bounds/anchor/crop evidence; unknown framing requires visual review"},
+        "preview":{"required":["project","script","node"],"optional":["library","game"],"result":"offline state and explicit simulation/rendering/asset capability assessment; no image rendered"},
+        "render-preview":{"required":["project","script","node","output"],"optional":["library","game","width","height","time"],"result":"pure editor-stage PNG, actual image rendering, no human visual review or game execution"},
+        "render-previews":{"required":["project","frames","output"],"optional":["library","game","width","height"],"result":"ordered PNGs, contact sheet and frames.json; one hidden graphics session, shared texture cache"},
+        "render-video":{"required":["project","game","output"],"optional":["script","node","scope","width","height","fps","auto_speed","choices","choice_hold","runtime","overwrite","background"],"side_effect":"renders native game frames and audio to MP4, default isolated background worker; blocks until completion, progress JSON on stderr and one final result on stdout"},
         "open-editor":{"required":["project"],"optional":["output","script","node"],"side_effect":"imports optionally to output directory, opens a new editor window at script/node"},
         "preview-adjust":{"required":["project","script","node","target","x","y","output"],"optional":["scale","effect_scale"],
             "target":{"kind":["character","mood","overlay","cg","effect"],"id":"character/slot ID","node":"effect source node","action":"optional parallel child index"}},
         "prepare-playtest":{"required":["project","script","output"],"optional":["node"],"result":"isolated presentation-only .lommod, no game writes"},
-        "playtest":{"required":["project","script","game"],"optional":["node","runtime"],"side_effect":"installs preview/Host and starts or requests game playback"}})
+        "prepare-event-playtest":{"required":["project","event_id","output"],"optional":["entry_mode","source_script","year","month","stage","values","include_official_events"],"result":"isolated event scenario .lommod, preserving conditions and priorities; no game writes or original context execution"},
+        "playtest-event":{"required":["project","event_id","game"],"optional":["entry_mode","source_script","year","month","stage","values","include_official_events","runtime"],"side_effect":"installs a temporary event campaign and starts real scheduling; story_entry defaults to playing its original predecessor, not forcing the target"},
+        "playtest-status":{"required":["game","request_id"],"result":"one status snapshot with execution evidence, last host observation and current process presence"},
+        "playtest":{"required":["project","script","game"],"optional":["node","runtime"],"side_effect":"installs preview/Host and starts playback; returns a queryable request_id, not a claim of visual acceptance"}})
 }
 
 pub fn run(args: &[String]) -> Option<Result<Value>> {
@@ -96,6 +103,83 @@ pub(crate) fn execute(command: &str, request: &Value, base: &Path) -> Result<Val
         );
     }
     match command {
+        "playtest-status" => {
+            let mut status = lom_core::game_tools::read_preview_status(
+                &file(base, request, "game")?,
+                text(request, "request_id")?,
+            )?;
+            status["last_confirmed_state"] = status["state"].clone();
+            let running = lom_core::game_tools::is_game_running()?;
+            status["game_running"] = json!(running);
+            status["process_check_scope"] =
+                json!("Mortal.exe process name; current scene is not polled");
+            status["historical_observation"] = json!(!running);
+            status["host_responded"] = json!(matches!(
+                status["evidence"].as_str(),
+                Some(
+                    "host_request"
+                        | "lua_start"
+                        | "node_trace"
+                        | "host_error"
+                        | "original_lua_start"
+                        | "event_dispatch"
+                )
+            ));
+            status["game_execution_confirmed"] = if status["event_id"].is_string() {
+                json!(status["event_entered"] == true)
+            } else {
+                json!(matches!(
+                    status["state"].as_str(),
+                    Some("chapter_entered" | "node_entered")
+                ))
+            };
+            if status["state"] == "sent" && running {
+                status["state"] = json!("game_started");
+                status["evidence"] = json!("process_check");
+                status["message"] = json!("已检测到游戏进程，等待 Host 确认目标章节");
+            }
+            status["ok"] = json!(true);
+            status["visual_review_performed"] = json!(false);
+            Ok(status)
+        }
+        "asset-query" => crate::asset_query::query(request, base),
+        "render-video" => {
+            let output = file(base, request, "output")?;
+            let overwrite = request
+                .get("overwrite")
+                .map(|value| value.as_bool().context("overwrite 必须是布尔值"))
+                .transpose()?
+                .unwrap_or(false);
+            crate::video_render::validate_output(&output, overwrite)?;
+            let project = Project::open(&file(base, request, "project")?)?;
+            let prepared = crate::video_render::prepare_request(&project, request)?;
+            crate::video_render::render(
+                prepared,
+                &file(base, request, "game")?,
+                &runtime(base, request)?,
+                &output,
+                overwrite,
+                Arc::new(AtomicBool::new(false)),
+                |value| eprintln!("{}", json!({"event":"video_progress","progress":value})),
+            )
+        }
+        "prepare-event-playtest" | "playtest-event" => {
+            let project = Project::open(&file(base, request, "project")?)?;
+            let prepared = crate::scenario_test::prepare_request(&project, request)?;
+            if command == "prepare-event-playtest" {
+                let output = prepared.project.export(&file(base, request, "output")?)?;
+                Ok(
+                    json!({"ok":true,"output":output,"event_context":prepared.context(),"game_modified":false,"game_tested":false,"original_predecessor_executed":false,"inherited_ui_checked":false,"visual_review_performed":false}),
+                )
+            } else {
+                crate::tools_panel::play_event_tracked(
+                    &prepared,
+                    &file(base, request, "game")?,
+                    &runtime(base, request)?,
+                )
+            }
+        }
+        "render-preview" | "render-previews" => crate::stage_export::render(command, request, base),
         "open-editor" => {
             let (path, project) = prepare_editor_open(request, base)?;
             let mut args = vec![path.clone().into_os_string()];
@@ -198,7 +282,7 @@ pub(crate) fn execute(command: &str, request: &Value, base: &Path) -> Result<Val
                 .context("节点不存在")?;
             match command {
                 "preview" => Ok(
-                    json!({"ok":true,"state":crate::preview::simulate(story,node),"game_tested":false}),
+                    json!({"ok":true,"state":crate::preview::simulate(story,node),"assessment":crate::preview_report::assessment(&project,request,base)?,"rendering_performed":false,"visual_review_performed":false,"game_tested":false}),
                 ),
                 "preview-adjust" => {
                     use crate::preview_layout::{Change, Target};
@@ -266,16 +350,13 @@ pub(crate) fn execute(command: &str, request: &Value, base: &Path) -> Result<Val
                         json!({"ok":true,"output":output,"script":script,"node":node,"game_modified":false}),
                     )
                 }
-                "playtest" => {
-                    let message = crate::tools_panel::play_project(
-                        &project,
-                        script,
-                        node,
-                        &file(base, request, "game")?,
-                        &runtime(base, request)?,
-                    )?;
-                    Ok(json!({"ok":true,"message":message}))
-                }
+                "playtest" => crate::tools_panel::play_project_tracked(
+                    &project,
+                    script,
+                    node,
+                    &file(base, request, "game")?,
+                    &runtime(base, request)?,
+                ),
                 _ => anyhow::bail!("未知自动化操作"),
             }
         }
@@ -441,6 +522,161 @@ fn prepare_editor_open(request: &Value, base: &Path) -> Result<(PathBuf, Project
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn video_command_rejects_bad_requests_before_any_game_or_output_writes() {
+        let temp = tempfile::tempdir().unwrap();
+        let source = temp.path().join("author");
+        Project::new().save_to(&source).unwrap();
+        let original = std::fs::read(source.join("manifest.json")).unwrap();
+        let output = temp.path().join("keep.mp4");
+        std::fs::write(&output, b"existing movie").unwrap();
+        let request = json!({"project":"author","game":"not-a-game","output":"keep.mp4"});
+        assert!(execute("render-video", &request, temp.path())
+            .unwrap_err()
+            .to_string()
+            .contains("overwrite=true"));
+        let request = json!({"project":"author","game":"not-a-game","output":"new.mp4","scope":"step","script":"main","node":"missing"});
+        assert!(execute("render-video", &request, temp.path()).is_err());
+        assert!(!temp.path().join("not-a-game").exists());
+        assert!(!temp.path().join("new.mp4").exists());
+        assert_eq!(std::fs::read(output).unwrap(), b"existing movie");
+        assert_eq!(
+            std::fs::read(source.join("manifest.json")).unwrap(),
+            original
+        );
+    }
+
+    #[test]
+    fn released_event_package_prepares_full_context_without_changing_the_author_source() {
+        let root = tempfile::tempdir().unwrap();
+        let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../lom-core/tests/fixtures/released-1.5.9-scenario-modes.lommod");
+        let original = std::fs::read(&fixture).unwrap();
+        let mut author = Project::open(&fixture).unwrap();
+        let identity =
+            json!({"id":author.manifest["id"],"campaign_id":author.manifest["campaign_id"]});
+        let visit = &mut author.scenario.as_mut().unwrap()["events"][1];
+        assert_eq!(visit["id"], "visit");
+        visit["trigger"] = json!("story_entry");
+        visit.as_object_mut().unwrap().remove("position");
+        visit["target"] = json!("section_01_free_03");
+        visit["from"] = json!("section_01_free_start_02");
+        author.manifest["description"] = json!("旧版作品编辑后检查真实前置衔接");
+        // This edit adds a newer entry-hook capability to the released package.
+        author.manifest["tested_host_version"] = json!(env!("CARGO_PKG_VERSION"));
+        let source = root.path().join("author");
+        author.save_to(&source).unwrap();
+        let saved_manifest = std::fs::read(source.join("manifest.json")).unwrap();
+        let saved_scenario = std::fs::read(source.join("scenario.json")).unwrap();
+        let result = execute(
+            "prepare-event-playtest",
+            &json!({"project":"author","event_id":"visit","output":"event-preview.lommod"}),
+            root.path(),
+        )
+        .unwrap();
+        assert_eq!(result["game_modified"], false);
+        assert_eq!(result["game_tested"], false);
+        assert_eq!(result["event_context"]["entry_mode"], "predecessor");
+        assert_eq!(result["original_predecessor_executed"], false);
+        let preview = Project::open(&root.path().join("event-preview.lommod")).unwrap();
+        assert_eq!(
+            preview.scenario.as_ref().unwrap()["events"][0],
+            author.scenario.as_ref().unwrap()["events"][1]
+        );
+        assert_eq!(preview.stories["side"], author.stories["side"]);
+        assert_eq!(preview.assets, author.assets);
+        let entry = author.stories["side"]["start"].as_str().unwrap();
+        let assessment = execute(
+            "preview",
+            &json!({"project":"author","script":"side","node":entry}),
+            root.path(),
+        )
+        .unwrap();
+        assert_eq!(
+            assessment["assessment"]["original_context"]["inherited_ui_simulated"],
+            false
+        );
+        assert_eq!(
+            assessment["assessment"]["original_context"]["story_entry_events"][0]["event_id"],
+            "visit"
+        );
+        assert_eq!(
+            std::fs::read(source.join("manifest.json")).unwrap(),
+            saved_manifest
+        );
+        assert_eq!(
+            std::fs::read(source.join("scenario.json")).unwrap(),
+            saved_scenario
+        );
+        let exported = root.path().join("author.lommod");
+        Project::open(&source).unwrap().export(&exported).unwrap();
+        let reopened = Project::open(&exported).unwrap();
+        assert_eq!(
+            json!({"id":reopened.manifest["id"],"campaign_id":reopened.manifest["campaign_id"]}),
+            identity
+        );
+        assert_eq!(reopened.scenario, author.scenario);
+        assert_eq!(reopened.stories, author.stories);
+        assert_eq!(std::fs::read(fixture).unwrap(), original);
+        let mut entries = lom_core::package::read_package(&exported).unwrap();
+        entries.remove("package-content.sha256");
+        entries
+            .get_mut("lua/main.lua")
+            .unwrap()
+            .extend_from_slice(b"\nerror('unrelated Lua')\n");
+        let bad = root.path().join("tampered.lommod");
+        lom_core::package::write_package(entries, &bad).unwrap();
+        assert!(Project::open(&bad).is_err());
+    }
+
+    #[test]
+    fn status_query_never_confuses_sending_with_execution_or_visual_review() {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::write(temp.path().join("Mortal.exe"), b"status protocol fixture").unwrap();
+        std::fs::create_dir_all(temp.path().join("Mortal_Data/Managed")).unwrap();
+        let id = "0123456789abcdef0123456789abcdef";
+        lom_core::game_tools::write_preview_launch_status(
+            temp.path(),
+            "main",
+            "start",
+            id,
+            "sent",
+            "waiting",
+        )
+        .unwrap();
+        let request = json!({"game":temp.path(),"request_id":id});
+        let value = execute("playtest-status", &request, temp.path()).unwrap();
+        assert_eq!(value["last_confirmed_state"], "sent");
+        assert_eq!(value["game_execution_confirmed"], false);
+        assert_eq!(value["host_responded"], false);
+        assert_eq!(value["visual_review_performed"], false);
+        lom_core::game_tools::write_preview_launch_status(
+            temp.path(),
+            "main",
+            "start",
+            id,
+            "failed",
+            "failure reason",
+        )
+        .unwrap();
+        let value = execute("playtest-status", &request, temp.path()).unwrap();
+        assert_eq!(value["state"], "failed");
+        assert_eq!(value["message"], "failure reason");
+        let status_path = PathBuf::from(value["status_file"].as_str().unwrap());
+        let mut observed = lom_core::load_json(&status_path).unwrap();
+        observed["state"] = json!("original_target_entered");
+        observed["event_id"] = json!("visit");
+        observed["event_entered"] = json!(false);
+        observed["evidence"] = json!("original_lua_start");
+        lom_core::project::atomic_write(&status_path, &lom_core::stable_json(&observed).unwrap())
+            .unwrap();
+        let value = execute("playtest-status", &request, temp.path()).unwrap();
+        assert_eq!(
+            value["game_execution_confirmed"], false,
+            "reaching the original target is not proof that the event fired"
+        );
+        assert_eq!(value["host_responded"], true);
+    }
     #[test]
     fn headless_mood_adjustment_and_playtest_use_the_editor_contracts() {
         let temp = tempfile::tempdir().unwrap();

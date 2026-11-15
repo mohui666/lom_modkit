@@ -86,8 +86,9 @@ namespace MortalModHost
         private volatile float _volume = 1f;
         private byte[] _encoded;
         private string _ext;
+        private VideoAudioMixer.Channel _video;
 
-        public bool IsPlaying { get { return _playing && !_stopping; } }
+        public bool IsPlaying { get { return _video != null ? _video.IsPlaying : _playing && !_stopping; } }
 
         public void Play(byte[] encoded, string extension, bool loop)
         {
@@ -96,6 +97,11 @@ namespace MortalModHost
             Stop();
             _encoded = encoded;
             _ext = (extension ?? "").ToLowerInvariant();
+            if (VideoAudioMixer.Active)
+            {
+                _video = VideoAudioMixer.Play(encoded, _ext, loop, _volume);
+                return;
+            }
             _loop = loop;
             _stopping = false;
             _playing = true;
@@ -112,6 +118,7 @@ namespace MortalModHost
             if (linear01 < 0f) linear01 = 0f;
             if (linear01 > 1f) linear01 = 1f;
             _volume = linear01;
+            if (_video != null) _video.Volume = linear01;
             uint word = (uint)(linear01 * 0xFFFF);
             uint packed = word | (word << 16);
             lock (_gate)
@@ -123,6 +130,7 @@ namespace MortalModHost
 
         public void Stop()
         {
+            if (_video != null) { _video.Dispose(); _video = null; }
             _stopping = true;
             _playing = false;
             IntPtr ev;
@@ -309,14 +317,14 @@ namespace MortalModHost
             return true;
         }
 
-        private static ISampleSource OpenSource(byte[] encoded, string ext)
+        internal static ISampleSource OpenSource(byte[] encoded, string ext)
         {
             if (ext == ".ogg")
                 return new OggSource(encoded);
             return new WavSource(encoded);
         }
 
-        private interface ISampleSource : IDisposable
+        internal interface ISampleSource : IDisposable
         {
             int Channels { get; }
             int SampleRate { get; }

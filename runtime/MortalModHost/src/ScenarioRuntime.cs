@@ -108,6 +108,7 @@ namespace MortalModHost
                 Store(package,engine);
                 if (selected==null) continue;
                 script=package.GetRegisteredScriptName(selected.Script);
+                if (PlaytestStatusRuntime.Tracked) PlaytestStatusRuntime.EventSelected(package.Id,selected.Id);
                 Log?.LogInfo("事件触发："+package.Id+"/"+selected.Id+" → "+script);
                 return true;
             }

@@ -3,6 +3,7 @@ use super::*;
 
 impl App {
     pub(super) fn shortcuts(&mut self, ctx: &egui::Context) {
+        let node_paste_requested = std::mem::take(&mut self.node_paste_requested);
         let windows_settings_release = cfg!(windows)
             && ctx.input(|input| {
                 if !input.focused {
@@ -37,9 +38,11 @@ impl App {
                 requested
             });
         if self.chapter_dialog.is_some()
+            || self.project_choice.is_some()
             || self.delete_chapter_dialog.is_some()
             || self.rename_dialog.is_some()
             || self.asset_import_dialog.is_some()
+            || self.video_dialog.is_some()
             || self.settings_open
             || self.updater.open
             || self.tools_panel.dialog_open()
@@ -126,31 +129,37 @@ impl App {
         if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::F1)) {
             self.tools_panel.open_help();
         }
-        if !ctx.wants_keyboard_input()
+        if (!ctx.wants_keyboard_input() || node_paste_requested)
             && matches!(self.center, Center::Node | Center::Chapter)
             && !self.is_vanilla_patch()
         {
-            let (copy, paste) = ctx.input_mut(|input| {
+            let (copy, paste, text) = ctx.input_mut(|input| {
                 let mut copy = input.consume_key(egui::Modifiers::COMMAND, egui::Key::C);
                 let mut paste = input.consume_key(egui::Modifiers::COMMAND, egui::Key::V);
+                let mut text = None;
                 input.events.retain(|event| match event {
                     egui::Event::Copy => {
                         copy = true;
                         false
                     }
-                    egui::Event::Paste(_) => {
+                    egui::Event::Paste(contents) => {
                         paste = true;
+                        text = Some(contents.clone());
                         false
                     }
                     _ => true,
                 });
-                (copy, paste)
+                (copy, paste, text)
             });
             if copy {
-                self.copy();
+                self.copy_to_system(ctx);
             }
             if paste {
-                self.paste();
+                if let Some(text) = text {
+                    self.paste_from_system(&text);
+                } else {
+                    self.request_system_paste(ctx);
+                }
             }
             if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Delete)) {
                 self.delete();
@@ -184,6 +193,10 @@ impl App {
         }
     }
     pub(super) fn toolbar(&mut self, ctx: &egui::Context) {
+        self.menu_toolbar(ctx);
+        self.section_toolbar(ctx);
+    }
+    pub(super) fn menu_toolbar(&mut self, ctx: &egui::Context) {
         let shortcut =
             |modifiers, key| ctx.format_shortcut(&egui::KeyboardShortcut::new(modifiers, key));
         egui::TopBottomPanel::top("commands")
@@ -348,11 +361,11 @@ impl App {
                             ui.close();
                         }
                         if ui.add_enabled(matches!(self.center, Center::Node | Center::Chapter) && !self.is_vanilla_patch(), egui::Button::new(tr("复制"))).clicked() {
-                            self.copy();
+                            self.copy_to_system(ctx);
                             ui.close();
                         }
                         if ui.add_enabled(matches!(self.center, Center::Node | Center::Chapter) && !self.is_vanilla_patch(), egui::Button::new(tr("粘贴"))).clicked() {
-                            self.paste();
+                            self.request_system_paste(ctx);
                             ui.close();
                         }
                         let editable = matches!(self.center, Center::Node | Center::Chapter) && !self.is_vanilla_patch();
@@ -474,6 +487,10 @@ impl App {
                         self.tools_panel.open_help();
                     }
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui.add_enabled(cfg!(windows), egui::Button::new(crate::i18n::key("video.title")))
+                            .on_hover_text(crate::i18n::key("video.hint")).clicked() {
+                            self.open_video_export();
+                        }
                         if ui.add_enabled(self.test_event_id().is_some(), egui::Button::new(crate::i18n::key("usability.testing.event")))
                             .on_hover_text(crate::i18n::key("usability.testing.event_hint")).clicked() {
                             self.open_event_test(ctx);
@@ -499,7 +516,12 @@ impl App {
                         }
                     });
                 });
-                ui.add_space(6.0);
+            });
+    }
+    pub(super) fn section_toolbar(&mut self, ctx: &egui::Context) {
+        egui::TopBottomPanel::top("workspace-sections")
+            .frame(surface(ctx, false))
+            .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     for (section, label) in [
                         (Section::Story, "剧情编辑"),
@@ -507,7 +529,13 @@ impl App {
                         (Section::Game, "游戏与 MOD"),
                         (Section::Release, "发布"),
                     ] {
-                        if ui.add_sized([112.0, 30.0], egui::Button::selectable(self.section() == section, tr(label))).clicked() {
+                        if ui
+                            .add_sized(
+                                [112.0, 30.0],
+                                egui::Button::selectable(self.section() == section, tr(label)),
+                            )
+                            .clicked()
+                        {
                             self.navigate(section);
                         }
                     }

@@ -52,5 +52,12 @@ ilspycmd -t Mortal.Combat.CombatEnemyController "$managed\Mortal.Combat.dll"
 | MOD 读档页 | 保持已有的 MOD 战役读档页：主手动档加三类自动档；不改原版读档 UI 的槽布局 |
 | MOD 保存页 | `SaveGamePanel.OnPanelOpen` / `SaveSlotPanel.Setup`：只显示当前 `campaign_id` 的 `mod_campaign_<id>` 手动槽；确认保存走官方 `SaveGameData(string)`，sidecar 与 Gameplay checkpoint 同步写入该 MOD 槽 |
 | 商店 | `ShopDatabase` 三类列表 + `ShopPanel` |
+| 原版前置章衔接 | `LuaManager.SetNextScript/SetCurrentStoryScript/Init/ExecuteLuaScript`。前置模式只播放真实 `source_script`，原版目标与所测事件必须由实际调度进入；分别记录原版 Lua 放行、事件 ID 获选和 MOD Lua／节点执行，准备章不能充当事件成功 |
+| 原生视频画面 | `LuaManager.Init`／`SceneController.UnloadLoading` 的先后顺序决定录制起点；`ScreenCapture.CaptureScreenshotIntoRenderTexture` 读取最终合成画面。支持时用 `AsyncGPUReadback.RequestIntoNativeArray`，按提交顺序消费有界缓冲；不把编辑器绘制当成游戏帧 |
+| 原生视频选项与音轨 | `StoryManager.AutoDialog`、`MenuDialog.CachedButtons`／按钮 `onClick`；Wwise `SetOfflineRendering/SetOfflineRenderingFrameTime` 和主设备 `StartDeviceCapture/UpdateCaptureSampleCount/GetCaptureSamples/StopDeviceCapture`，与既有 `RenderAudio` 帧时钟配合。参数与采样计数语义见 gameplay_api，不能另造混音或跳过交互结果 |
+| 后台视频存档隔离 | 专用 Worker 的 `SaveSystem.GetUserFolder/GetSaveDataFile/GetLegendDataFile/GetBackupDataFile` 前缀只映射本任务 profile，常规游戏进程不启用。四个入口分别核对，不能凭单个保存路径推断完整隔离 |
+| 立绘容器与跨槽移动 | `PortraitController.SetupPortrait/SetRectTransform/DoMoveTween`：官方容器尺寸来自 from 槽，普通位移只改坐标；并行独立位移保留容器。自定义人物移动结束才按目标槽重新适配。锚点不是可见脚底，预览不得提前按目标槽尺寸切换 |
 
 禁止：猜不存在的 `draw`/`escape` 结果、改官方 ScriptableObject 资产、把 Addressables 里的玩家技能 Animator 当成可生成 NPC prefab。
+
+1.6.0 的普通试玩和原生视频统一停用可见与隐藏画面水印；这不解除 Host 的包身份、脚本注册与存档归属规则。当前挂钩事实写入接口笔记，具体构建、离线和实机结果写入 [测试矩阵](test_matrix.md)；仓库不另存版本 notes。

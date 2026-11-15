@@ -1,6 +1,22 @@
 # 测试入口与验证边界
 
-本版变化见 [更新说明](../../RELEASE_NOTES_v1.5.19.md)；历史 1.4.19 验证记录见 [当前能力](current_capabilities.md#1419-验证范围)。
+本版变化见 [1.6.0 GitHub Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.0)。仓库不保存版本 notes；测试事实和未覆盖范围记录在本页，发布正文不设置验证或已知限制栏目。
+
+## 1.6.0 本次结果
+
+2026-11-15：Rust workspace 954 项通过、15 项默认忽略；Release 配置 Runtime 离线回归通过；最终 Windows 单 exe 导出的 SDK 9 项通过。另用实际发布的 1.5.20 编译器产包，完成打开 → 修改 → 保存／导出 → 重开，核对原文件、素材与作品身份保持。无关 Lua 替换被拒绝的证据来自另行执行的 Rust／Runtime 安全回归（含旧 fixture），不是对这个新 1.5.20 输入做攻击测试。这些结果分别统计，不把预览状态或重复运行累加为测试数。本次未构建或实测 Mac。
+
+Windows 后台原生视频短样例通过：720p／30 FPS，291 帧、9.7 秒，H.264＋AAC 48 kHz 双声道，预设第二分支执行正确；实际抽帧确认无可见水印、颜色和方向正常，音轨非静音。四类 SaveSystem 路径均进入任务独立目录，独立桌面观察未见前台 Worker，任务结束退出并清除临时 Worker/core，原输入保持不变。总耗时约 18.96 秒，running→encoding 约 4.89 秒；约 1.98 倍内容时长的取帧阶段速度仅代表本机这段短片，不是所有作品的性能保证。
+
+本机 Ryzen 9 7940HX／32 个逻辑处理器，发布版 1.5.20→1.6.0 原生编辑器对照：每项独立偏好、同一预览图片库、无特效库，客户区 1280×760，预热后采样 5 秒，表中为最后约 2 秒。旧版用 recent 路径与窗口标题确认工程，新版另确认只有一个对应标签；全部测试进程正常退出。
+
+| 场景 | WS MiB 前→后 | private MiB 前→后 | 单核空闲 CPU 前→后 |
+| --- | --- | --- | --- |
+| 空工程 | 153.51→157.81 | 156.24→159.47 | 5.49%→0.75% |
+| showcase | 195.18→194.55 | 196.42→195.65 | 3.99%→采样 0 |
+| 2 万节点＋64 MiB 输入 | 327.10→325.62 | 332.10→329.87 | 3.01%→采样 0 |
+
+CPU 百分比以一个逻辑核为 100%；采样 0 表示短窗口内没有测得处理器时间增长，不保证持续零占用。每场景每版本仅一次短观测，不能据此评估交互、多个活动工程或视频生成时的整体占用。另有包含特效库的 headless 冷开检查，不能与这组 GUI 空闲指标混作同一条件。同一 2 万节点＋64 MiB 样本的新标签准备耗时另测由约 1.14 秒降至 0.40 秒，也仅适用于这次本机输入与缓存条件。
 
 ## 验证层次
 
@@ -8,12 +24,15 @@
 | --- | --- | --- |
 | Rust 格式 | `cargo fmt --all -- --check` | 源码格式，不证明运行正确 |
 | Rust workspace | `cargo test --locked --workspace`；发行配置另加 `--release` | 编译、包格式、受控创作 API、内容管理、编辑状态、表单、保存／恢复、模态与语言等单元／集成回归 |
-| 样例预览 | `cargo run --locked -p lom-editor -- --smoke-preview samples/showcase3` | 逐节点校验、编译与预览状态模拟；不是逐场游戏实机验收 |
+| 样例预览 | `cargo run --locked -p lom-editor -- --smoke-preview samples/showcase3` | 逐节点校验、编译与预览状态模拟；明确返回未渲染，preview_states 不代表图片数 |
+| 舞台出图 | 编辑器 `--cli render-preview`／`render-previews` | 实际绘制纯编辑器舞台和对照图，报告缺失素材；不运行游戏、不继承原版前置章 UI，也不等于人工看图 |
+| 跟踪试玩 | `playtest`／`playtest-event` 后查询 `playtest-status` | 区分请求、Host 收件、Lua／节点和事件入口证据；状态查询成功不代表画面验收 |
 | 样例生成与包检查 | `lomc` 的 `build_showcase3` example 和 `inspect` | 源 JSON 校验、73 类型覆盖、打包、包内源码／Lua 一致性 |
 | Mac 应用构建 | `sh scripts/build-macos.sh` | 原生程序、应用资源、签名检查与内置预览烟测；GUI 仍需另外打开检查 |
 | C# 离线回归 | `dotnet run --project runtime/MortalModHost/test/SmokeTest/SmokeTest.csproj --configuration Release` | 使用离线测试工程；不启动 Unity，也不验证真实游戏生命周期 |
 | Windows 原生工具 | `scripts/build-windows.ps1 -NoArchive` | 使用正式 Host DLL 构建；构建、自动化与实际 UI 结果分开记录 |
 | Windows 单 exe | 发布版 `lom-editor.exe --standalone-smoke <项目> <游戏目录> <空输出目录>` | 使用内嵌组件完成项目导出重开、完整游玩包导出及 13 项音频播放／停止／取消；组件缓存必须与旧安装隔离 |
+| 游戏原生视频 | `render-video` 或编辑器“生成视频” | 原生画面、音轨、预设分支及后台隔离需实测；不能用 PNG 预览或请求已发送代替成片检查 |
 | Rust 资源读取 | `lom-assets` 与 `vanilla_routes` 定向测试；本机游戏对照另行显式执行 | 合成音频包与路线 fixture 不含官方素材；全量游戏图片、动画、剧情及 45 分支对照不进入仓库，不等于游戏运行验收 |
 | 游戏实机 | [Showcase 手动流程](../../samples/showcase3/README.md#手动测试顺序) | 按具体场景记录结果，本版范围见当前能力 |
 

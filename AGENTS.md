@@ -79,7 +79,7 @@ or Host Combat/Battle contracts, update the affected sample and rebuild the nati
 Rust editor. Keep C# Host integration and v3 package compatibility.
 
 Showcase source is `samples/showcase3/source.json`. It must use the new fields,
-not merely compile them. Generate and validate all 64 node types with:
+not merely compile them. Generate and validate all 73 node types with:
 
 ```sh
 cargo run --locked -p lomc --example build_showcase3 -- out/showcase3-native
@@ -92,12 +92,12 @@ scope includes game installation/testing.
 
 Build the Mac editor with `scripts/build-macos.sh`; open `out/LoM Modkit Rust.app`.
 Windows build entry: `scripts/build-windows.ps1 -NoArchive`, using prebuilt Host
-DLLs; output is `out/windows/lom_modkit/lom-editor.exe`. Only build a release ZIP
+DLLs; the final output is `out/windows/lom-editor.exe`. Only build a release ZIP
 when asked. User restrictions on Windows/game testing take precedence.
 
 ## Release 文本格式与发布后清理
 
-每次发布统一更新仓库 `RELEASE_NOTES_v<版本>.md`，GitHub Release 正文使用该文件；标题固定为 `<版本>：<一句话概括>`。正文按下列结构编写：
+发布正文仅保存在 GitHub Release，不再向分支提交或保留逐版本 note（如 `RELEASE_NOTES_v<版本>.md`）。需要给发布命令传入正文时，使用被 Git 忽略的临时文件，发布成功后删除。标题固定为 `<版本>：<一句话概括>`。正文按下列结构编写：
 
 ```markdown
 # <版本> 更新内容
@@ -112,14 +112,10 @@ when asked. User restrictions on Windows/game testing take precedence.
 ## 升级说明
 
 <下载附件、升级操作及必要的 Host／格式兼容说明>
-
-## 验证与已知限制
-
-<实际执行的验证及未覆盖范围；性能数据注明测试条件>
 ```
 
-更新事项使用一份连续的 `1. 2. 3.` 有序列表，不按分类重新编号，不改用无序项目符号；没有实际内容的栏目省略。区分已验证结果与未运行项目，不能把某个样例的内存、耗时或 FPS 写成所有机器和工程的保证。Windows 正式附件继续只提供内置组件的 `lom-editor.exe`。
+更新事项使用一份连续的 `1. 2. 3.` 有序列表，不按分类重新编号，不改用无序项目符号；没有实际内容的栏目省略。今后的版本说明与 GitHub Release 正文不写「验证」或「已知限制」栏目，也不另设同义栏目罗列测试结果、未覆盖项目或限制。必要检查照常执行；性能描述不能把某个样例的内存、耗时或 FPS 写成所有机器和工程的保证。Windows 正式附件继续只提供内置组件的 `lom-editor.exe`。
 
-发布成功并核验远端附件的大小与摘要后，**默认清理本次可再生成的构建产物，无需再次询问**：Cargo `target/`、本次编译生成的 `bin/obj`、临时打包和验证目录、重复的暂存 exe／组件包。保留最终发布 exe、版本说明、必要验证记录，以及仍需用于重现问题的独有输入。
+发布成功并核验远端附件的大小与摘要后，**默认清理本次可再生成的构建产物，无需再次询问**：Cargo `target/`、本次编译生成的 `bin/obj`、临时打包和验证目录、重复的暂存 exe／组件包及临时发布正文。保留最终发布 exe、必要验证记录，以及仍需用于重现问题的独有输入。
 
 清理前列明实际路径，确认其位于工作区内且属于本次构建，确认没有运行任务或仍需的依赖引用；Windows 使用原生 PowerShell 的绝对 `-LiteralPath`，递归删除前核对路径，不使用 `-Force`。遇到符号链接或目录联接，只处理链接本身，不能递归进入目标。保留工程、素材库、游戏存档、用户改动，以及共享 Cargo 下载缓存、Rust 工具链和仍需复用的第三方依赖；不整体删除混有历史数据的 `out/`，也不为清理而新增备份副本。

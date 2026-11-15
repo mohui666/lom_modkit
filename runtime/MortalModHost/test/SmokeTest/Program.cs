@@ -36,6 +36,10 @@ namespace MortalModHost
             CharacterRotationRuntimeTests.Run();
             CharacterMovementRuntimeTests.Run();
             AutoDialogueTimingTests.Run();
+            VideoRenderRequestTests.Run();
+            VideoFrameWriterTests.Run();
+            VideoWorkerRuntimeTests.Run();
+            PlaytestStatusTests.Run();
             ModSaveBrowserTests.Run();
             AddonSaveDependencyTests.Run();
             EffectPlaybackTests.Run();
@@ -1415,10 +1419,12 @@ namespace MortalModHost
         }
 
         /// <summary>
-        /// 可见披露只在官方枢纽（Title / Free）关掉；Loading 必须保持，否则进死亡/结局卡时标已经没了。
+        /// 包身份会话在 Title / Free 结束；可见和隐形画面水印统一停用。
         /// </summary>
         private static void TestDisclosurePolicy()
         {
+            Assert(!ModDisclosurePolicy.WatermarksEnabled && !ModDisclosurePolicy.VisibleWatermarks,
+                "普通试玩与视频导出均不应建立可见或隐形画面水印，保留包身份会话");
             Assert(ModDisclosurePolicy.ShouldKeepOnScene("Story"), "Story 应保持披露");
             Assert(ModDisclosurePolicy.ShouldKeepOnScene("GameOver"), "GameOver 应保持披露");
             Assert(ModDisclosurePolicy.ShouldKeepOnScene("End"), "End 应保持披露");
@@ -1509,14 +1515,14 @@ namespace MortalModHost
         {
             const string fingerprint = "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
             Assert(DisclosureIntegrity.FixedStamp() == "MOD / UNOFFICIAL",
-                "固定水印必须始终明确说明 MOD 非官方来源");
+                "关闭可见绘制不能改变已有会话封印的固定身份载荷");
             Assert(DisclosureIntegrity.IsFixedStampIntact(),
                 "固定水印摘要完整性校验失败");
             string watermark = DisclosureIntegrity.VisibleWatermarkText("ABCDEF0123456789");
             Assert(watermark.Contains("MOD / UNOFFICIAL")
                     && watermark.Contains("ABCDEF0123456789")
                     && watermark.IndexOf('\n') < 0,
-                "对白栏水印必须以紧凑单行显示固定标记和包指纹");
+                "既有身份文本编码仍应保留固定标记和包指纹");
             byte[] seal = DisclosureIntegrity.CreateSessionSeal("demo_mod", fingerprint);
             Assert(DisclosureIntegrity.VerifySessionSeal("demo_mod", fingerprint, seal),
                 "原始会话身份应通过 HMAC 完整性校验");

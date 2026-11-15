@@ -379,7 +379,7 @@ namespace MortalModHost
 
         private static void Postfix(CharacterIntroPanel __instance, ref IEnumerator __result)
         {
-            if (ModDisclosure.Active)
+            if (ModDisclosure.Active && ModDisclosurePolicy.VisibleWatermarks)
             {
                 Transform anchor = __instance.transform;
                 try

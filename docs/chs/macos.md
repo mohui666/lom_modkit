@@ -1,16 +1,18 @@
 # Mac 编辑器
 
-Mac 版与 Windows 版共用 Story、编译器和 `.lommod` 格式，支持编辑、预览、内容库、校验和导出。游戏运行时仍在 Windows 使用，Mac 的安装按钮和 F5 试玩入口不可用。
+Mac 版与 Windows 版共用 Story、编译器和 `.lommod` 格式，支持编辑、预览、内容库、校验和导出。游戏运行时仍在 Windows 使用，Mac 的安装、F5 试玩和游戏原生视频入口不可用。本次 1.6.0 未构建或实测 Mac；下文说明当前源码和构建脚本，不把 Windows 的验证结果计为 Mac 验证。
 
 ## 启动与外观
 
-当前构建为 Apple Silicon（arm64）的 `LoM Modkit Rust.app`，不需要另外安装 Python。可将整个 `.app` 拖入应用程序目录，也可以直接双击运行。
+构建脚本生成本机 Rust 目标架构的 `LoM Modkit Rust.app`，没有强制跨编译成 Universal 或固定 arm64。不需要另外安装 Python。生成后可将整个 `.app` 拖入应用程序目录，也可以直接双击运行。
 
 当前先提供 Rust 通用外壳：浅色界面、三栏布局和系统标准标题栏。窗口顶部显示作品名称及“活侠传剧情编辑器”；未保存时有 `*` 标记。标题只在内容变化时更新，避免重复刷新。
 
 早期 AppKit 玻璃叠层与当前 OpenGL 窗口发生冲突，导致标题栏异常或正文被遮挡，已移除。当前版本不提供液态玻璃；Mac 专用 Swift 外壳按计划留待后续实现。当前版本的 macOS GUI 专项验收仍待补齐。
 
 编辑器偏好、自动恢复和用户内容保存在 `~/Library/Application Support/lom_modkit/`，应用程序目录不保存这些数据。
+
+工程标签支持同窗切换多个工程，关闭后由 `rust/workspace.json` 恢复打开的工程与章节／步骤位置；未保存修改仍须保存或走恢复流程。步骤系统剪贴板支持跨窗口复制粘贴，资源文件不随节点引用自动复制。舞台分辨率与界面主题属于全局偏好，不改写作品格式。
 
 常规操作先选动作再填写内容：“＋”菜单的新建/复制章节会打开独立命名窗口，内部标识自动生成；素材导入先选类型和文件，再确认名称。人物、表情、模式与语音可直接选择，“默认/无”恢复省略字段。修改技术标识位于“编辑 → 高级”。内容属性与离线测试的有效修改随项目统一保存；未完成的输入会保留并阻止误保存或切换，不再需要另点“应用修改”。
 
@@ -24,14 +26,10 @@ Mac 版与 Windows 版共用 Story、编译器和 `.lommod` 格式，支持编�
 
 在“文件 → 预览素材 → 选择预览素材库…”中选择包含 `preview_map.json` 与 `assets/portraits/` 的目录。选中人物或表情后，右侧“人物立绘”页显示完整图片。
 
-可用「文件 → 预览素材 → 从游戏提取预览素材…」从自己安装的游戏提取，完成后自动载入；Mac 可以选择自己的 Whisky 游戏安装目录，也可以载入从自己 Windows 游戏中提取后传来的完整素材库。支持 `StandaloneWindows64` 和 `StandaloneWindows` 两种资源目录。应用程序和导出的 MOD 不包含这些官方图片。仅从源码使用旧的命令行提取脚本时：
+可用「文件 → 预览素材 → 从游戏提取预览素材…」从自己安装的游戏提取，完成后自动载入；Mac 可以选择自己的 Whisky 游戏安装目录，也可以载入从自己 Windows 游戏中提取后传来的完整素材库。支持 `StandaloneWindows64` 和 `StandaloneWindows` 两种资源目录。应用程序和导出的 MOD 不包含这些官方图片。当前提取器是 `lom-assets` 原生程序，不需要 UnityPy 或 Pillow；旧 Python 提取脚本仅作为研究对照。
 
-```powershell
-python tools/extract_preview_assets.py --game-dir "C:\Program Files (x86)\Steam\steamapps\common\LegendOfMortal" --output-dir out/previews --max-size 640 --portraits-only
-```
-
-提取环境需要 UnityPy 和 Pillow。将整个 `out/previews` 目录传到 Mac，再从编辑器选择它。自定义人物则使用项目及用户内容库中的图片。
+将提取器返回的整个素材库目录传到 Mac，再从编辑器选择它。自定义人物使用项目及用户内容库中的图片。CLI 的 `render-preview`／`render-previews` 复用编辑器舞台绘制，仍需要可用图形环境，不能当作游戏原生视频。
 
 ## 从源码构建
 
-安装 Rust，在仓库根目录运行 `scripts/build-macos.sh`。产物为 `out/LoM Modkit Rust.app`，包含 `lom-editor` 和 `lomc`；编辑和编译不依赖 Python 或 Qt。构建会检查样例节点预览。详见 [Rust 构建](rust.md)。
+安装 Rust，在仓库根目录运行 `sh scripts/build-macos.sh`。产物为 `out/LoM Modkit Rust.app`，包含 `lom-editor`、`lomc` 和原生提取器；编辑和编译不依赖 Python 或 Qt。脚本执行签名检查、提取器自检及样例离线预览；有现成 Host DLL 时可一并拷入应用，但不安装或启动游戏。详见 [Rust 构建](rust.md)。版本变化在对应 [GitHub Release](https://github.com/mohui666/lom_modkit/releases) 查阅，仓库不保留版本 notes。

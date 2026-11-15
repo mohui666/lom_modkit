@@ -17,6 +17,87 @@ fn recipe(path: &Path, value: &Value) {
     fs::write(path, serde_json::to_vec(value).unwrap()).unwrap();
 }
 #[test]
+fn catalog_filter_writes_full_matching_rows_and_only_summarizes_stdout() {
+    let directory = tempfile::tempdir().unwrap();
+    let output = directory.path().join("catalog.json");
+    let (code, summary) = cli(&[
+        "schema",
+        "catalog",
+        "--filter",
+        "ARTIST1",
+        "-o",
+        output.to_str().unwrap(),
+        "--summary",
+    ]);
+    assert_eq!(code, 0, "{summary}");
+    let catalog = lom_core::load_json(&output).unwrap();
+    assert_eq!(catalog["schema"], 3);
+    let expected = lom_core::validate::editor_data()["characters"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|row| row["id"] == "artist1")
+        .unwrap()
+        .clone();
+    assert!(catalog["characters"]
+        .as_array()
+        .unwrap()
+        .contains(&expected));
+    assert_eq!(
+        summary["counts"]["characters"],
+        catalog["characters"].as_array().unwrap().len()
+    );
+    assert_eq!(summary["output"], output.to_str().unwrap());
+    assert_eq!(summary["section"], "catalog");
+    assert!(summary.get("characters").is_none());
+    assert!(serde_json::to_vec(&summary).unwrap().len() < 4096);
+    let (code, chinese) = cli(&["schema", "catalog", "--filter", "武师"]);
+    assert_eq!(code, 0, "{chinese}");
+    assert!(chinese["characters"]
+        .as_array()
+        .unwrap()
+        .contains(&expected));
+}
+
+#[test]
+fn summaries_require_an_output_and_unmatched_catalog_entries_stay_empty() {
+    let (code, error) = cli(&["schema", "nodes", "--summary"]);
+    assert_eq!(code, 1);
+    assert_eq!(error["ok"], false);
+    let directory = tempfile::tempdir().unwrap();
+    let project = directory.path().join("project");
+    lom_core::project::Project::new().save_to(&project).unwrap();
+    let output = directory.path().join("read.json");
+    let (code, summary) = cli(&[
+        "project-read",
+        project.to_str().unwrap(),
+        "-o",
+        output.to_str().unwrap(),
+        "--summary",
+    ]);
+    assert_eq!(code, 0, "{summary}");
+    assert_eq!(summary["counts"]["chapters"], 1);
+    assert_eq!(summary["counts"]["nodes"], 2);
+    assert!(lom_core::load_json(output).unwrap()["project"]["stories"]["main"]["nodes"].is_array());
+    let (code, error) = cli(&["schema", "nodes", "--filter", "show"]);
+    assert_eq!(code, 1);
+    assert_eq!(error["ok"], false);
+    let (code, catalog) = cli(&[
+        "schema",
+        "catalog",
+        "--filter",
+        "__no_catalog_entry_7f6382__",
+    ]);
+    assert_eq!(code, 0);
+    for (key, value) in catalog.as_object().unwrap() {
+        match value {
+            Value::Array(rows) => assert!(rows.is_empty(), "{key}"),
+            Value::Object(rows) => assert!(rows.is_empty(), "{key}"),
+            _ => assert_eq!(key, "schema"),
+        }
+    }
+}
+#[test]
 fn all_showcase_nodes_and_assets_roundtrip_through_declarative_cli() {
     let dir = tempfile::tempdir().unwrap();
     let source = Path::new(env!("CARGO_MANIFEST_DIR"))

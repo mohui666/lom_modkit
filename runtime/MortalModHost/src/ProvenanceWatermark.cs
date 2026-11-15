@@ -30,6 +30,8 @@ namespace MortalModHost
 
         internal static void Enable(string modId, string fingerprint)
         {
+            if (!ModDisclosurePolicy.WatermarksEnabled)
+                throw new InvalidOperationException("画面水印已停用，不建立来源载体");
             byte[] packet = ProvenanceWatermarkProtocol.Encode(
                 modId, ProvenanceWatermarkCodec.AlgorithmVersion);
             byte[] tile = ProvenanceWatermarkCodec.BuildTileRgba(packet);
@@ -63,6 +65,11 @@ namespace MortalModHost
 
         internal static bool Maintain()
         {
+            if (!ModDisclosurePolicy.WatermarksEnabled)
+            {
+                LastError = "画面水印已停用，未执行载体维护";
+                return false;
+            }
             if (!Active || !_visible) return true;
             try
             {
@@ -100,6 +107,7 @@ namespace MortalModHost
 
         internal static void SetVisible(bool visible)
         {
+            if (!ModDisclosurePolicy.WatermarksEnabled) { Disable(); return; }
             _visible = visible;
             if (_root != null && !visible) _root.SetActive(false);
         }

@@ -17,15 +17,28 @@ mod flow_graph;
 #[path = "preview_handles.rs"]
 mod handles;
 use handles::{opaque_bounds, LayoutClipboard, LayoutCommand, LayoutDrag, LayoutObject};
+#[cfg(test)]
+#[path = "preview/export_tests.rs"]
+mod export_tests;
+#[path = "preview/resolution.rs"]
+pub(crate) mod resolution;
 #[path = "preview_simulation.rs"]
 mod simulation;
+#[cfg(test)]
+#[path = "preview/stage_geometry_tests.rs"]
+mod stage_geometry_tests;
 #[path = "preview/stage_inspector.rs"]
 mod stage_inspector;
 #[cfg(test)]
 #[path = "preview/stage_scale_tests.rs"]
 mod stage_scale_tests;
+#[cfg(test)]
+#[path = "preview/stage_slot_state_tests.rs"]
+mod stage_slot_state_tests;
 #[path = "preview/viewer.rs"]
 mod viewer;
+#[path = "preview/viewport.rs"]
+mod viewport;
 
 pub fn edges(story: &Value) -> Vec<(String, String, String)> {
     let mut out = Vec::new();
@@ -322,7 +335,15 @@ pub fn build_playtest_prelude(story: &Value, target: &str) -> Vec<Value> {
         pos(x).total_cmp(&pos(y)).then(a.cmp(b))
     });
     for (id, actor) in actors {
-        let mut node = json!({"type":"show","character":id,"position":actor["position"],"portrait":actor["portrait"],"facing":actor["facing"]});
+        let holder = actor_slot(actor);
+        let restore_holder = !id.starts_with("user:")
+            && slot_size(&positions, holder, Vec2::new(1920.0, 1080.0))
+                != slot_size(
+                    &positions,
+                    text(actor, "position"),
+                    Vec2::new(1920.0, 1080.0),
+                );
+        let mut node = json!({"type":"show","character":id,"position":if restore_holder {json!(holder)} else {actor["position"].clone()},"portrait":actor["portrait"],"facing":actor["facing"]});
         if let Some(appearance) = actor["appearance"].as_str().filter(|s| !s.is_empty()) {
             node["appearance"] = appearance.into();
         }
@@ -330,6 +351,11 @@ pub fn build_playtest_prelude(story: &Value, target: &str) -> Vec<Value> {
             node["scale"] = actor["layout_scale"].clone();
         }
         nodes.push(node);
+        if restore_holder {
+            // Native stage.show retains its source container after moving. F5
+            // must recreate that container before restoring the logical slot.
+            nodes.push(json!({"type":"move","character":id,"from":holder,"to":actor["position"],"duration":0}));
+        }
         if actor["layout_active"] == true {
             nodes.push(json!({"type":"offset","character":id,"x":number(actor,"offset_x",0.0),"y":number(actor,"offset_y",0.0),"absolute":true,"scale":number(actor,"layout_scale",100.0),"duration":0}));
             if number(actor, "rotation", 0.0) != 0.0 {
@@ -546,11 +572,11 @@ fn apply(s: &mut Value, n: &Value) {
                         .total_cmp(&lom_core::parallel::start_delay(right))
                 });
                 for action in ordered {
-                    apply(s, action);
+                    apply_parallel_action(s, n, action);
                 }
             } else {
                 for action in actions {
-                    apply(s, action);
+                    apply_parallel_action(s, n, action);
                 }
             }
         }
@@ -635,6 +661,7 @@ fn apply(s: &mut Value, n: &Value) {
             if !cid.is_empty() {
                 let dimmed = s["dimming"].get(cid).cloned().unwrap_or(json!(false));
                 s["actors"][cid] = json!({"position":n.get("position").cloned().unwrap_or(json!("M")),"portrait":n.get("portrait").cloned().unwrap_or(json!("normal")),"facing":n.get("facing").cloned().unwrap_or(json!("right")),"appearance":n["appearance"],"layout_scale":n.get("scale").cloned().unwrap_or(json!(100)),"offset_x":0.0,"offset_y":0.0,"rotation":0.0,"dimmed":dimmed});
+                s["actors"][cid]["holder_slot"] = s["actors"][cid]["position"].clone();
             }
         }
         "hide_all" => {
@@ -648,6 +675,12 @@ fn apply(s: &mut Value, n: &Value) {
         "hide" => {
             if let Some(actor) = s["actors"].get(cid).cloned() {
                 s["hidden_actors"][cid] = actor;
+                if !cid.starts_with("user:") {
+                    // Native Hide calls SetupPortrait from State.position,
+                    // which can differ from the previous holder's dimensions.
+                    s["hidden_actors"][cid]["holder_slot"] =
+                        s["hidden_actors"][cid]["position"].clone();
+                }
                 if n["to"].is_string() {
                     s["hidden_actors"][cid]["position"] = n["to"].clone();
                 }
@@ -673,13 +706,28 @@ fn apply(s: &mut Value, n: &Value) {
                 let a = &mut s["actors"][cid];
                 match kind {
                     "move" => {
+                        a["holder_slot"] = if cid.starts_with("user:") {
+                            // Custom MoveTo fits the destination only on finish.
+                            n["to"].clone()
+                        } else {
+                            // stage.show copies fromPosition's complete rect;
+                            // its move tween changes position, never sizeDelta.
+                            n.get("from")
+                                .cloned()
+                                .unwrap_or_else(|| a["position"].clone())
+                        };
                         a["position"] = n["to"].clone();
                         // Named stage movement starts from its explicit slot,
                         // just like the runtime stage.show call.
                         a["offset_x"] = json!(0.0);
                         a["offset_y"] = json!(0.0);
                     }
-                    "face" => a["facing"] = n["facing"].clone(),
+                    "face" => {
+                        a["facing"] = n["facing"].clone();
+                        if !cid.starts_with("user:") {
+                            a["holder_slot"] = a["position"].clone();
+                        }
+                    }
                     "rotate" => a["rotation"] = n["angle"].clone(),
                     "dim" => {
                         a["dimmed"] = if n["mode"] == "auto" {
@@ -782,6 +830,21 @@ fn apply(s: &mut Value, n: &Value) {
         _ => {}
     }
 }
+
+fn apply_parallel_action(state: &mut Value, group: &Value, action: &Value) {
+    let character = text(action, "character");
+    let holder = (!character.starts_with("user:")
+        && matches!(text(action, "type"), "move" | "face")
+        && state["actors"][character].is_object()
+        && lom_core::parallel::independent_transforms(group, character))
+    .then(|| actor_slot(&state["actors"][character]).to_owned());
+    apply(state, action);
+    if let Some(holder) = holder {
+        // Host MovePreserving/FacePreserving skip SetupPortrait entirely.
+        state["actors"][character]["holder_slot"] = holder.into();
+    }
+}
+
 fn text<'a>(v: &'a Value, key: &str) -> &'a str {
     v[key].as_str().unwrap_or("")
 }
@@ -862,14 +925,33 @@ pub fn playback_duration(node: &Value) -> f64 {
     }
 }
 
-fn position(positions: &Value, name: &str) -> (f64, f64) {
-    let key = if name.eq_ignore_ascii_case("c") {
+fn position_key(name: &str) -> String {
+    if name.eq_ignore_ascii_case("c") {
         "M".to_owned()
+    } else if name.eq_ignore_ascii_case("talk") {
+        "Talk".to_owned()
     } else {
         name.to_uppercase()
-    };
-    let entry = &positions["positions"][key];
+    }
+}
+
+fn position(positions: &Value, name: &str) -> (f64, f64) {
+    let entry = &positions["positions"][position_key(name)];
     (number(entry, "x", 0.5), number(entry, "feet", 1.003))
+}
+
+fn actor_slot(actor: &Value) -> &str {
+    actor["holder_slot"]
+        .as_str()
+        .unwrap_or_else(|| text(actor, "position"))
+}
+
+fn slot_size(positions: &Value, name: &str, stage: Vec2) -> Vec2 {
+    let size = &positions["positions"][position_key(name)]["size"];
+    Vec2::new(
+        size[0].as_f64().unwrap_or(1920.0) as f32 / 1920.0 * stage.x,
+        size[1].as_f64().unwrap_or(1080.0) as f32 / 1080.0 * stage.y,
+    )
 }
 
 /// Actions use the group clock minus their own start delay; shorter animations
@@ -913,7 +995,7 @@ fn animate_frame(state: &mut Value, before: &Value, node: &Value, elapsed: f64, 
         begin_step(&mut partial);
         for action in &ordered {
             if elapsed >= lom_core::parallel::start_delay(action) {
-                apply(&mut partial, action);
+                apply_parallel_action(&mut partial, node, action);
             }
         }
         for field in ["reached", "steps", "effects"] {
@@ -973,6 +1055,9 @@ fn animate_action(
         if fade > elapsed && fade > 0.0 {
             for (cid, actor) in before["actors"].as_object().into_iter().flatten() {
                 state["actors"][cid] = actor.clone();
+                if !cid.starts_with("user:") {
+                    state["actors"][cid]["holder_slot"] = actor["position"].clone();
+                }
                 state["actors"][cid]["preview_opacity"] =
                     (1.0 - elapsed / fade).clamp(0.0, 1.0).into();
                 state["actors"][cid]["preview_hide_mood"] = true.into();
@@ -1047,6 +1132,9 @@ fn animate_action(
             let alpha = 1.0 - progress(number(action, "fadeDuration", 0.0));
             if alpha > 0.0 {
                 state["actors"][cid] = old.clone();
+                if !cid.starts_with("user:") {
+                    state["actors"][cid]["holder_slot"] = old["position"].clone();
+                }
                 state["actors"][cid]["preview_opacity"] = alpha.into();
                 state["actors"][cid]["preview_hide_mood"] = true.into();
             }
@@ -1095,6 +1183,9 @@ fn animate_action(
             };
             let to = position(positions, text(action, "to"));
             let p = progress(number(action, "duration", 1.0));
+            if cid.starts_with("user:") && p < 1.0 {
+                state["actors"][cid]["holder_slot"] = actor_slot(old).into();
+            }
             state["actors"][cid]["preview_x"] = (from.0 + (to.0 - from.0) * p).into();
             state["actors"][cid]["preview_feet"] = (from.1 + (to.1 - from.1) * p).into();
         }
@@ -1284,6 +1375,11 @@ fn editable_mood<'a>(node: &'a Value, character: &str) -> Option<(Option<usize>,
     }
 }
 pub struct Preview {
+    pub(crate) resolution: [u32; 2],
+    pub(crate) stage_only: bool,
+    pub(crate) missing_images: std::collections::BTreeSet<String>,
+    pub(crate) stage_snapshot: Value,
+    pub(crate) stage_time: Option<f64>,
     pub mapping: Value,
     pub library: PathBuf,
     positions: Value,
@@ -1311,6 +1407,9 @@ pub struct Preview {
     camera_filter: filters::Settings,
 }
 impl Preview {
+    pub(crate) fn stage_effect_error(&self) -> Option<&str> {
+        self.effect_library_error.as_deref()
+    }
     fn character_rotation(&self, degrees: f32) -> f32 {
         // egui's Y axis points down; Unity's positive Z rotates counterclockwise.
         if self.legacy_character_rotation {
@@ -1320,6 +1419,29 @@ impl Preview {
         }
     }
     pub fn new(_repo: &Path) -> Self {
+        let (effect_library, effect_library_error) = match effects::Library::current() {
+            Ok(library) => (library.map(std::sync::Arc::new), None),
+            Err(error) => (None, Some(crate::error_ui::capture(error))),
+        };
+        Self::with_effect_library(effect_library, effect_library_error)
+    }
+
+    pub(crate) fn for_another_project(&self, repo: &Path) -> Self {
+        if let (Some(library), None) = (&self.effect_library, &self.effect_library_error) {
+            // Frame metadata was already validated by this workspace. Images,
+            // playback, simulation and edit state still belong to the new tab.
+            Self::with_effect_library(Some(library.clone()), None)
+        } else {
+            // Keep normal loading when no verified snapshot can be shared;
+            // repairing a library must not leave a cached failure in new tabs.
+            Self::new(repo)
+        }
+    }
+
+    fn with_effect_library(
+        effect_library: Option<std::sync::Arc<effects::Library>>,
+        effect_library_error: Option<String>,
+    ) -> Self {
         // Embedded mappings keep a standalone app independent of its build machine.
         // Never touch the compilation-time Documents checkout during app startup.
         let library = if let Some(root) = std::env::var_os("LOM_MODKIT_ROOT") {
@@ -1341,11 +1463,12 @@ impl Preview {
         let positions: Value =
             serde_json::from_str(include_str!("../../../data/stage_positions.json"))
                 .unwrap_or(json!({}));
-        let (effect_library, effect_library_error) = match effects::Library::current() {
-            Ok(library) => (library.map(std::sync::Arc::new), None),
-            Err(error) => (None, Some(crate::error_ui::capture(error))),
-        };
         Self {
+            resolution: resolution::DEFAULT,
+            stage_only: false,
+            missing_images: Default::default(),
+            stage_snapshot: Value::Null,
+            stage_time: None,
             mapping,
             library,
             positions,
@@ -1581,6 +1704,25 @@ impl Preview {
         self.mood_clocks.clear();
         Ok(())
     }
+    /// Export checks only images actually painted; an unrelated missing image
+    /// must not hide the requested frame. asset() still confines every file.
+    pub(crate) fn set_export_library(&mut self, path: &Path) -> anyhow::Result<()> {
+        let root = if path.join("preview_map.json").is_file() {
+            path.to_path_buf()
+        } else {
+            path.join("data")
+        };
+        let mapping = lom_core::load_json(root.join("preview_map.json"))?;
+        anyhow::ensure!(
+            mapping["characters"].is_object() && mapping["views"].is_object(),
+            "预览素材索引缺少 characters/views"
+        );
+        self.mapping = mapping;
+        self.library = root;
+        self.cache.clear();
+        self.mood_clocks.clear();
+        Ok(())
+    }
     fn asset<'a>(
         &self,
         p: &'a Project,
@@ -1704,6 +1846,23 @@ impl Preview {
         ))
     }
     fn texture(
+        &mut self,
+        ctx: &egui::Context,
+        p: &Project,
+        name: &str,
+        character: bool,
+        portrait: &str,
+    ) -> Option<(TextureHandle, Value)> {
+        let result = self.texture_inner(ctx, p, name, character, portrait);
+        if self.stage_only && result.is_none() && !name.is_empty() {
+            self.missing_images.insert(format!(
+                "{}:{name}:{portrait}",
+                if character { "character" } else { "image" }
+            ));
+        }
+        result
+    }
+    fn texture_inner(
         &mut self,
         ctx: &egui::Context,
         p: &Project,
@@ -1952,10 +2111,20 @@ impl Preview {
     ) -> Option<(TextureHandle, Value)> {
         let animation = &self.mapping["moods"][icon][if flipped { "right" } else { "left" }];
         let Some(frames) = animation["frames"].as_array() else {
+            if self.stage_only {
+                self.missing_images.insert(format!(
+                    "mood:{icon}:{}",
+                    if flipped { "right" } else { "left" }
+                ));
+            }
             self.mood_clocks.remove(cid);
             return None;
         };
-        let now = ctx.input(|i| i.time);
+        let now = if self.stage_only {
+            0.0
+        } else {
+            ctx.input(|i| i.time)
+        };
         let key = format!("{icon}:{flipped}");
         let clock = self
             .mood_clocks
@@ -1964,7 +2133,11 @@ impl Preview {
         if clock.0 != key {
             *clock = (key, now);
         }
-        let elapsed = now - clock.1;
+        let elapsed = if self.stage_only {
+            self.stage_time.unwrap_or(0.0)
+        } else {
+            now - clock.1
+        };
         let duration = number(animation, "duration", 1.0);
         let loop_start = animation["loop_start"]
             .as_f64()
@@ -2051,9 +2224,10 @@ impl Preview {
             self.layout_context = context;
         }
         let mut state = self.state_with_revision(story, target, revision).clone();
-        if state["camera_filters"]
-            .as_object()
-            .is_some_and(|items| items.values().any(|active| active == true))
+        if !self.stage_only
+            && state["camera_filters"]
+                .as_object()
+                .is_some_and(|items| items.values().any(|active| active == true))
         {
             ui.small(crate::i18n::key("editor.preview.camera_approximation"));
         }
@@ -2066,7 +2240,11 @@ impl Preview {
                 &self.positions,
             );
         }
-        let now = ui.input(|input| input.time);
+        let now = if self.stage_only {
+            0.0
+        } else {
+            ui.input(|input| input.time)
+        };
         self.camera_filter = filters::Settings::from_state(&state);
         let has_effects = self.simulation.as_ref().unwrap().has_effects;
         if has_effects {
@@ -2091,7 +2269,8 @@ impl Preview {
                 .into_iter()
                 .flatten()
                 .any(|item| matches!(text(item, "cache_status"), "play" | "tail"));
-        if captured
+        if !self.stage_only
+            && captured
             && self
                 .effect_clock
                 .ui(ui, effect_cycle.is_some(), self.layout_mode)
@@ -2106,7 +2285,7 @@ impl Preview {
                 .effects
                 .sample(time, effect_library.as_deref());
         }
-        if has_effects {
+        if has_effects && !self.stage_only {
             let missing = effect_library.is_none()
                 || state["effects"]
                     .as_array()
@@ -2168,7 +2347,9 @@ impl Preview {
                     ));
             }
         }
-        self.layout_controls(ui, p, &state);
+        if !self.stage_only {
+            self.layout_controls(ui, p, &state);
+        }
         if has_effects && self.layout_mode {
             state["effects"] = self
                 .simulation
@@ -2178,7 +2359,10 @@ impl Preview {
                 .sample(0.0, effect_library.as_deref());
         }
         self.apply_layout_draft(&mut state);
-        for action in lom_core::parallel::actions(node) {
+        for action in lom_core::parallel::actions(node)
+            .iter()
+            .filter(|_| !self.stage_only)
+        {
             let cid = text(action, "character");
             if action["type"] == "mood"
                 && action["enabled"] == true
@@ -2194,7 +2378,7 @@ impl Preview {
                 );
             }
         }
-        if elapsed.is_none() || self.layout_mode {
+        if !self.stage_only && (elapsed.is_none() || self.layout_mode) {
             let action = ui
                 .ctx()
                 .data(|data| {
@@ -2214,7 +2398,8 @@ impl Preview {
                 && lom_core::parallel::actions(node)
                     .iter()
                     .any(|action| action["type"] == "mood")))
-            && !self.layout_mode)
+            && !self.layout_mode
+            && !self.stage_only)
             .then(|| {
                 if node["type"] == "parallel" {
                     return crate::i18n::tr("表情气泡");
@@ -2239,43 +2424,45 @@ impl Preview {
                 .color(Color32::from_rgb(25, 90, 145)),
             );
         }
-        if state["actors"].as_object().is_some_and(|actors| {
-            actors
-                .keys()
-                .any(|id| !id.starts_with("user:") && self.mapping["characters"][id].is_object())
-        }) {
-            self.portrait_canvas_notice(ui);
-        }
-        if node["type"] == "use_item" {
-            ui.small(crate::i18n::tr(
-                "消耗品使用效果仅在游戏内执行；此预览不改变背包或属性。",
-            ));
-        }
-        if node["type"] == "mood" {
-            if !text(node, "character").is_empty() {
-                ui.small(crate::i18n::key("editor.preview.individual_bubble"));
-            } else {
-                ui.small(crate::i18n::tr(if state["mood_enabled"] == true {
-                    "表情气泡已开启，图标由游戏中的人物表情决定。"
-                } else {
-                    "表情气泡已关闭。"
-                }));
+        if !self.stage_only {
+            if state["actors"].as_object().is_some_and(|actors| {
+                actors.keys().any(|id| {
+                    !id.starts_with("user:") && self.mapping["characters"][id].is_object()
+                })
+            }) {
+                self.portrait_canvas_notice(ui);
             }
-        }
-        if (state["mood_enabled"] == true
-            || state["mood_overrides"]
-                .as_object()
-                .is_some_and(|v| !v.is_empty()))
-            && !self.mapping["moods"].is_object()
-        {
-            ui.small(crate::i18n::key("editor.preview.bubble_extract"));
-            if ui.button(crate::i18n::tr("从游戏提取预览素材…")).clicked() {
-                self.extract_requested = true;
+            if node["type"] == "use_item" {
+                ui.small(crate::i18n::tr(
+                    "消耗品使用效果仅在游戏内执行；此预览不改变背包或属性。",
+                ));
+            }
+            if node["type"] == "mood" {
+                if !text(node, "character").is_empty() {
+                    ui.small(crate::i18n::key("editor.preview.individual_bubble"));
+                } else {
+                    ui.small(crate::i18n::tr(if state["mood_enabled"] == true {
+                        "表情气泡已开启，图标由游戏中的人物表情决定。"
+                    } else {
+                        "表情气泡已关闭。"
+                    }));
+                }
+            }
+            if (state["mood_enabled"] == true
+                || state["mood_overrides"]
+                    .as_object()
+                    .is_some_and(|v| !v.is_empty()))
+                && !self.mapping["moods"].is_object()
+            {
+                ui.small(crate::i18n::key("editor.preview.bubble_extract"));
+                if ui.button(crate::i18n::tr("从游戏提取预览素材…")).clicked() {
+                    self.extract_requested = true;
+                }
             }
         }
         self.mood_clocks
             .retain(|cid, _| state["actors"][cid].is_object());
-        if state["raw_preview"].is_object() {
+        if !self.stage_only && state["raw_preview"].is_object() {
             ui.small(raw_preview_notice(
                 &state["raw_preview"],
                 crate::i18n::locale(),
@@ -2286,12 +2473,19 @@ impl Preview {
             ui.available_height().max(120.0),
         );
         let (outer, _) = ui.allocate_exact_size(size, egui::Sense::hover());
-        ui.painter()
-            .rect_filled(outer, 8.0, Color32::from_black_alpha(4));
-        let width = size.x.min(size.y * 16.0 / 9.0);
-        let rect = Rect::from_center_size(outer.center(), Vec2::new(width, width * 9.0 / 16.0));
+        if !self.stage_only {
+            ui.painter()
+                .rect_filled(outer, 8.0, Color32::from_black_alpha(4));
+        }
+        let rect = viewport::fit(outer, self.resolution);
+        let previous_clip = ui.clip_rect();
+        ui.set_clip_rect(previous_clip.intersect(rect));
         let painter = ui.painter().with_clip_rect(rect);
-        painter.rect_filled(rect, 6.0, Color32::from_rgb(29, 35, 42));
+        painter.rect_filled(
+            rect,
+            if self.stage_only { 0.0 } else { 6.0 },
+            Color32::from_rgb(29, 35, 42),
+        );
         let priorities = &state["render_priorities"];
         let sorting = lom_core::render_priority::active(priorities);
         let mut scene_order = ShapeOrder::new(sorting);
@@ -2302,7 +2496,12 @@ impl Preview {
             .or_else(|| state["view"].as_str())
             .unwrap_or("");
         if let Some((tex, _)) = self.texture(&ctx, p, bg, false, "") {
-            painter.image(tex.id(), rect, uv(), Color32::WHITE);
+            painter.image(
+                tex.id(),
+                viewport::background(rect, tex.size_vec2(), bg.starts_with("user:")),
+                uv(),
+                Color32::WHITE,
+            );
         } else {
             painter.text(
                 rect.center(),
@@ -2533,6 +2732,8 @@ impl Preview {
                 continue;
             }
             if layer == "actors" || layer == "unfiltered_actors" {
+                let viewport_rect = rect;
+                let rect = viewport::character_canvas(rect);
                 let mut actors: Vec<(&String, &Value)> = state["actors"]
                     .as_object()
                     .map(|o| o.iter().collect())
@@ -2564,6 +2765,7 @@ impl Preview {
                         cid
                     };
                     let (x, feet) = self.anchor(text(a, "position"));
+                    let slot = slot_size(&self.positions, actor_slot(a), rect.size());
                     let x = number(a, "preview_x", x as f64) as f32;
                     let feet = number(a, "preview_feet", feet as f64) as f32;
                     let opacity = number(a, "preview_opacity", 1.0).clamp(0.0, 1.0) as f32;
@@ -2593,15 +2795,15 @@ impl Preview {
                         let flipped = (text(a, "facing") == "left") != art_left;
                         let sign = if flipped { -1.0 } else { 1.0 };
                         let dest =
-                            portrait_rect(rect, base, size, body_scale, calibration, sign, &meta);
-                        if !self.layout_mode && node["type"] == "parallel" {
+                            portrait_rect(slot, base, size, body_scale, calibration, sign, &meta);
+                        if !self.stage_only && !self.layout_mode && node["type"] == "parallel" {
                             if let Some(index) = lom_core::parallel::actions(node)
                                 .iter()
                                 .position(|action| action["character"] == *cid)
                             {
                                 if ui
                                     .interact(
-                                        dest.intersect(rect),
+                                        dest.intersect(viewport_rect),
                                         egui::Id::new((target, cid, "pick-stage-action")),
                                         egui::Sense::click(),
                                     )
@@ -2649,7 +2851,8 @@ impl Preview {
                             });
                         }
                         let mood_action = editable_mood(node, cid);
-                        let editing_mood = mood_action.is_some() && !self.layout_mode;
+                        let editing_mood =
+                            mood_action.is_some() && !self.layout_mode && !self.stage_only;
                         let icon = visible_mood(&state, cid, a);
                         if icon.is_some() || editing_mood {
                             let unit = rect.height() / 1080.0
@@ -2669,21 +2872,20 @@ impl Preview {
                                         let value =
                                             lom_core::portrait_alignment::layout(&meta, reference);
                                         let scale = value[2] as f32 / 100.0;
-                                        let fit = (rect.width() / size.x)
-                                            .min(rect.height() / size.y)
+                                        let fit = (slot.x / size.x).min(slot.y / size.y)
                                             * body_scale
                                             * scale;
                                         mood_rect = Rect::from_min_size(
                                             Pos2::new(
                                                 base.x - size.x * fit / 2.0
                                                     + sign * value[0] as f32 / 1920.0
-                                                        * rect.width()
+                                                        * slot.x
                                                         * body_scale,
                                                 base.y
-                                                    - rect.height() * body_scale * scale / 2.0
+                                                    - slot.y * body_scale * scale / 2.0
                                                     - size.y * fit / 2.0
                                                     - value[1] as f32 / 1080.0
-                                                        * rect.height()
+                                                        * slot.y
                                                         * body_scale,
                                             ),
                                             size * fit,
@@ -2709,7 +2911,7 @@ impl Preview {
                                     base.x
                                         + sign * position[0].as_f64().unwrap_or(0.0) as f32 * unit,
                                     base.y
-                                        - rect.height() * instance_scale * 0.5
+                                        - slot.y * instance_scale * 0.5
                                         - position[1].as_f64().unwrap_or(0.0) as f32 * unit,
                                 )
                             };
@@ -3168,19 +3370,21 @@ impl Preview {
                     rect.height() * 0.045,
                     Color32::from_rgb(231, 221, 202),
                 );
-                paint_text(
-                    &painter,
-                    relative(rect, 0.28, 0.84, 0.6, 0.10),
-                    &crate::i18n::message(
-                        "editor.preview.death_next",
-                        &[
-                            ("id", text(node, "death_id").into()),
-                            ("next", text(node, "next").into()),
-                        ],
-                    ),
-                    rect.height() * 0.028,
-                    Color32::GRAY,
-                );
+                if !self.stage_only {
+                    paint_text(
+                        &painter,
+                        relative(rect, 0.28, 0.84, 0.6, 0.10),
+                        &crate::i18n::message(
+                            "editor.preview.death_next",
+                            &[
+                                ("id", text(node, "death_id").into()),
+                                ("next", text(node, "next").into()),
+                            ],
+                        ),
+                        rect.height() * 0.028,
+                        Color32::GRAY,
+                    );
+                }
             }
         }
         let mut choice = None;
@@ -3212,7 +3416,8 @@ impl Preview {
                 Color32::BLACK,
             );
         }
-        if covered == 0.0
+        if !self.stage_only
+            && covered == 0.0
             && !state["official_pictures"]
                 .as_object()
                 .is_some_and(|images| !images.is_empty())
@@ -3222,13 +3427,16 @@ impl Preview {
         } else {
             self.layout_drag = None;
         }
-        painter.rect_stroke(
-            rect,
-            4.0,
-            Stroke::new(1.0_f32, Color32::from_rgb(173, 161, 134)),
-            egui::StrokeKind::Inside,
-        );
-        if !state["reached"].as_bool().unwrap_or(false) {
+        if !self.stage_only {
+            painter.rect_stroke(
+                rect,
+                4.0,
+                Stroke::new(1.0_f32, Color32::from_rgb(173, 161, 134)),
+                egui::StrokeKind::Inside,
+            );
+        }
+        ui.set_clip_rect(previous_clip);
+        if !self.stage_only && !state["reached"].as_bool().unwrap_or(false) {
             ui.painter().text(
                 outer.left_bottom() + Vec2::new(8.0, -6.0),
                 egui::Align2::LEFT_BOTTOM,
@@ -3238,6 +3446,9 @@ impl Preview {
             );
         }
         self.camera_filter = filters::Settings::default();
+        if self.stage_only {
+            self.stage_snapshot = state;
+        }
         choice
     }
     pub fn show_portrait(
@@ -3590,7 +3801,7 @@ mod render_priority_tests {
     }
 }
 fn portrait_rect(
-    stage: Rect,
+    slot: Vec2,
     base: Pos2,
     size: Vec2,
     body_scale: f32,
@@ -3624,14 +3835,16 @@ fn portrait_rect(
         (size, Rect::from_min_size(Pos2::ZERO, size))
     };
     let scale = calibration[2] as f32 / 100.0;
-    let factor = (stage.width() / canvas.x).min(stage.height() / canvas.y) * body_scale * scale;
+    // Native Image stretches to the holder, then preserves the Sprite canvas
+    // aspect around its centre. The holder's bottom pivot remains the anchor.
+    let factor = (slot.x / canvas.x).min(slot.y / canvas.y) * body_scale * scale;
     let top_left = Pos2::new(
         base.x - canvas.x * factor / 2.0
-            + sign * calibration[0] as f32 / 1920.0 * stage.width() * body_scale,
+            + sign * calibration[0] as f32 / 1920.0 * slot.x * body_scale,
         base.y
-            - stage.height() * body_scale * scale / 2.0
+            - slot.y * body_scale * scale / 2.0
             - canvas.y * factor / 2.0
-            - calibration[1] as f32 / 1080.0 * stage.height() * body_scale,
+            - calibration[1] as f32 / 1080.0 * slot.y * body_scale,
     );
     let x = if sign < 0.0 {
         canvas.x - image.right()
@@ -5493,6 +5706,89 @@ end
 mod content_tests {
     use super::*;
     #[test]
+    fn project_tabs_share_verified_effect_metadata_but_refresh_and_edit_independently() {
+        fn write_library(root: &Path, name: &str) {
+            std::fs::create_dir_all(root).unwrap();
+            image::RgbaImage::from_pixel(2, 2, image::Rgba([128, 96, 64, 255]))
+                .save(root.join("frame.png"))
+                .unwrap();
+            std::fs::write(
+                root.join("effect_map.json"),
+                serde_json::to_vec(&json!({
+                    "format":1,"source":"game-render","alpha_mode":"premultiplied",
+                    "width":2,"height":2,"world_width":19.2,"world_height":10.8,
+                    "effects":{name:{"duration":1.0,"looping":false,"complete":true,
+                        "frames":[{"time":0.0,"file":"frame.png"}],"preview_time":0.0}}
+                }))
+                .unwrap(),
+            )
+            .unwrap();
+        }
+        let root = tempfile::tempdir().unwrap();
+        let first = root.path().join("first");
+        let refreshed = root.path().join("refreshed");
+        write_library(&first, "first");
+        let mut active = Preview::with_effect_library(
+            Some(std::sync::Arc::new(effects::Library::load(&first).unwrap())),
+            None,
+        );
+        let story = json!({"id":"main","start":"show","nodes":[
+            {"id":"show","type":"show","character":"player","position":"L1","portrait":"normal"},
+            {"id":"line","type":"say","mode":"narrative","text":"独立状态"}]});
+        active.state(&story, "line");
+        active.layout_mode = true;
+        active
+            .mood_clocks
+            .insert("player".into(), ("normal".into(), 1.0));
+        let ctx = egui::Context::default();
+        let texture = ctx.load_texture(
+            "private-to-first-tab",
+            egui::ColorImage::filled([1, 1], Color32::WHITE),
+            Default::default(),
+        );
+        active.cache.insert(
+            "first".into(),
+            Cached {
+                texture,
+                filter_image: None,
+                opaque: Rect::from_min_size(Pos2::ZERO, Vec2::splat(1.0)),
+                bytes: 4,
+                touched: 0,
+            },
+        );
+        let other = active.for_another_project(Path::new("/unused"));
+        let original = active.effect_library.as_ref().unwrap();
+        assert!(std::sync::Arc::ptr_eq(
+            original,
+            other.effect_library.as_ref().unwrap()
+        ));
+        assert!(other.simulation.is_none());
+        assert!(other.cache.is_empty());
+        assert!(other.mood_clocks.is_empty());
+        assert!(!other.layout_mode);
+        // A failed refresh keeps the old valid snapshot, then the same explicit
+        // refresh entry can recover and replace it without mutating other tabs.
+        std::fs::create_dir_all(&refreshed).unwrap();
+        std::fs::write(refreshed.join("effect_map.json"), b"{}").unwrap();
+        assert!(active.set_effect_library(&refreshed).is_err());
+        assert!(active.stage_effect_error().is_some());
+        write_library(&refreshed, "added");
+        active.set_effect_library(&refreshed).unwrap();
+        assert!(active.stage_effect_error().is_none());
+        let newest = active.for_another_project(Path::new("/unused"));
+        assert!(std::sync::Arc::ptr_eq(
+            active.effect_library.as_ref().unwrap(),
+            newest.effect_library.as_ref().unwrap()
+        ));
+        assert!(!std::sync::Arc::ptr_eq(
+            other.effect_library.as_ref().unwrap(),
+            newest.effect_library.as_ref().unwrap()
+        ));
+        assert!(!other.effect_library.as_ref().unwrap().contains("added"));
+        assert!(newest.effect_library.as_ref().unwrap().contains("added"));
+        assert!(active.simulation.is_none());
+    }
+    #[test]
     fn legacy_cropped_portraits_match_the_original_canvas_in_both_directions() {
         let geometry: Value =
             serde_json::from_str(include_str!("../../../data/portrait_geometry.json")).unwrap();
@@ -5517,11 +5813,18 @@ mod content_tests {
             for sign in [-1.0, 1.0] {
                 for scale in [0.5, 1.0, 1.5] {
                     let calibration = [15.0, 20.0, 115.0];
-                    let full =
-                        portrait_rect(stage, base, canvas, scale, calibration, sign, &json!({}));
+                    let full = portrait_rect(
+                        stage.size(),
+                        base,
+                        canvas,
+                        scale,
+                        calibration,
+                        sign,
+                        &json!({}),
+                    );
                     let meta = json!({"_preview_geometry": data});
                     let legacy = portrait_rect(
-                        stage,
+                        stage.size(),
                         base,
                         crop.size() * 0.8,
                         scale,
@@ -5542,7 +5845,7 @@ mod content_tests {
                     assert!(legacy.min.distance(expected.min) < 0.01);
                     assert!(legacy.max.distance(expected.max) < 0.01);
                     assert_eq!(
-                        portrait_rect(stage, base, canvas, scale, calibration, sign, &meta),
+                        portrait_rect(stage.size(), base, canvas, scale, calibration, sign, &meta),
                         full
                     );
                 }

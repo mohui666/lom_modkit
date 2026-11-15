@@ -62,13 +62,23 @@ impl App {
         self.reset_recovery_tracking();
     }
     pub(super) fn idle_repaint_delay(&self) -> Duration {
-        let mut delay = Duration::MAX;
+        let mut delay = self.idle_save_delay();
         if self.needs_compile {
             delay = delay.min(Duration::from_millis(400).saturating_sub(self.last_edit.elapsed()));
         }
         if self.pending_history.is_some() {
             delay = delay.min(Duration::from_millis(650).saturating_sub(self.last_edit.elapsed()));
         }
+        if self.audio.playing() || self.preview_audio.needs_tick() {
+            delay = delay.min(Duration::from_millis(200));
+        }
+        if self.screenshot.is_some() {
+            delay = delay.min(Duration::from_millis(70));
+        }
+        delay
+    }
+    pub(super) fn idle_save_delay(&self) -> Duration {
+        let mut delay = Duration::MAX;
         if self.saving() {
             delay = delay.min(Duration::from_millis(50));
         } else {
@@ -86,12 +96,6 @@ impl App {
                         .saturating_sub(self.last_auto_save.elapsed()),
                 );
             }
-        }
-        if self.audio.playing() || self.preview_audio.needs_tick() {
-            delay = delay.min(Duration::from_millis(200));
-        }
-        if self.screenshot.is_some() {
-            delay = delay.min(Duration::from_millis(70));
         }
         delay
     }

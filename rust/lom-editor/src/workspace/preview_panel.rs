@@ -381,6 +381,23 @@ impl App {
                     }
                 });
                 ui.separator();
+                if matches!(self.view, View::Stage | View::Portraits) {
+                    if let Some(resolution) =
+                        preview::resolution::controls(ui, self.preview.resolution)
+                    {
+                        match preview::resolution::save(
+                            &user_root().join("rust/preferences.json"),
+                            resolution,
+                        ) {
+                            Ok(()) => {
+                                self.preview.cancel_layout_drag();
+                                self.preview.resolution = resolution;
+                            }
+                            Err(error) => self.error = Some(crate::error_ui::capture(error)),
+                        }
+                    }
+                    ui.separator();
+                }
                 let story = self
                     .project
                     .stories

@@ -1,30 +1,33 @@
 # Windows 测试包人工清单
 
-使用本次构建的完整 Windows 编辑器测试，记录版本与实际结果。A～G 编号对应本测试包的回归样例。
+使用当前 Windows 编辑器测试，记录版本与实际结果。A～H 编号对应本测试包的历史回归范围，当前功能说明见 [软件使用](../../docs/chs/software_usage.md)。
 
 ## 准备与顺序
 
 1. 将完整测试包解压到可写目录，例如 `D:\LoM测试`；保留原包，从 `projects` 复制项目作为工作副本。
-2. 使用当前源码构建的完整 `lom_modkit` 目录，运行里面的 `lom-editor.exe`。不要只替换一个 EXE，也不要使用 Mac 的 `.app`。
+2. 使用当前发布或源码构建的 `lom-editor.exe`。1.6.0 的配套组件已内置，只需一个 EXE，不需要旧目录包或 Python；不要使用 Mac 的 `.app`。
 3. 记录 Windows、游戏版本、编辑器 EXE 的位置与构建日期。先跑下面的离线检查，再测 A/B/C，最后按需测其他项和游戏。
 4. 表格的“结果”填：通过 / 失败 / 未测。失败附操作、截图和错误原文。一次只改一个问题，保存前保留原样例。
 
-有源码时，在 Windows 的仓库根目录构建（需 Rust、已构建的 Host DLL、提取器构建依赖）：
+有源码且已准备 Rust、Host DLL 与配套组件构建输入时，在 Windows 的仓库根目录构建：
 
 ```powershell
-python -m pip install -r tools/requirements-preview-extractor.txt
-.\scripts\build-windows.ps1 -NoArchive -RuntimeDirectory 'D:\现有完整发行包\lom_modkit\runtime'
+.\scripts\build-windows.ps1 -NoArchive
 ```
 
-完整程序默认输出到仓库 `out\windows\lom_modkit`。普通使用者拿到完整程序目录后不需要安装 Python。测试包本身只有样例、说明和脚本，不含 Windows 编辑器。
+正式单文件输出到仓库 `out\windows\lom-editor.exe`；构建参数和输入见 [维护者手册](../../docs/chs/maintainers.md)。测试包本身只有样例、说明和脚本，不含 Windows 编辑器。
 
-在**测试包目录**运行（路径替换成新构建目录）：
+在**测试包目录**用当前单 exe 执行检查（替换编辑器路径）：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\Run-OfflineChecks.ps1 -BundleDirectory 'D:\源码\out\windows\lom_modkit'
+& 'D:\源码\out\windows\lom-editor.exe' --cli check .\projects\04_editor\story\main.json --json
+& 'D:\源码\out\windows\lom-editor.exe' --cli test .\projects\04_editor --json
+& 'D:\源码\out\windows\lom-editor.exe' --smoke-preview .\projects\04_editor
 ```
 
-脚本仅校验样例、打包到新的结果目录、运行编辑器无窗口预览检查、测试提取器自检与错误拦截；不启动游戏、不安装 MOD、不提取游戏素材。每次结果单独写入 `results`。脚本通过仍需做下面的界面与游戏检查。
+这些命令分别检查章节、运行样例路线测试和编辑器无窗口预览，不启动游戏或安装 MOD。其他样例、打包与重开按同样方式使用当前 CLI，结果单独保存。
+
+`Run-OfflineChecks.ps1` 保留旧目录包接口，要求 `-BundleDirectory` 中同时存在 `lomc.exe`、`lom-editor.exe` 和 `asset-extractor/lom-asset-extractor.exe`。仅在已有这种兼容目录时运行旧脚本；单个 1.6.0 exe 不满足该接口。旧脚本的结果仍单独写入 `results`，不是游戏或界面通过证明。
 
 ## 样例索引
 
@@ -58,7 +61,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\Run-OfflineChecks.ps1 -Bun
 
 | 编号 | 操作 | 通过标准 | 结果 |
 | --- | --- | --- | --- |
-| B01 | 未安装 Python 的 Windows 环境运行脚本自检，或运行 `asset-extractor/lom-asset-extractor.exe --self-check` | `sprite_decoder_ready=true`，正常退出；完整组件齐全 | 未测 |
+| B01 | 未安装 Python 的 Windows 环境运行 `lom-editor.exe --component-task --self-check` | `sprite_decoder_ready=true`，正常退出；内置提取组件无需 Python | 未测 |
 | B02 | 文件 → 从游戏提取预览素材，选择含游戏 EXE 和 `Mortal_Data` 的游戏根目录 | 有进度；可查看最新结果；完成后自动载入，人物/背景可预览；成功数应大于零，失败信息不能被隐藏 | 未测 |
 | B03 | 用“选择预览素材库”分别选择游戏根目录、`Mortal_Data` | 自动进入提取流程，不要求用户猜游戏预览素材目录 | 未测 |
 | B04 | 已有有效素材库后，选择 `fixtures/not_a_library`、`fixtures/incomplete_library` | 提示目录/缺图原因；原可用素材库仍可使用，不因失败选择变空 | 未测 |
@@ -101,7 +104,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\Run-OfflineChecks.ps1 -Bun
 | E03 | 在副本制造必填错误后校验，点击报错条目 | 定位对应章节/节点；修正再校验后错误消失 | 未测 |
 | E04 | 内容库试听 `fixtures/valid.wav`，停止；再导入 `broken.wav` 试听 | 正常 WAV 实际出声且可停止；坏 WAV 显示失败，不报告成功 | 未测 |
 | E05 | Ctrl+, 打开设置，切换语言与字号，关闭重开；检查四种界面语言 | 设置持久化；外观/同时执行/结果窗口可读；设置不改项目 | 未测 |
-| E06 | F1 / 帮助按钮；搜索“同时执行”“黑幕”“外观” | 帮助可打开、搜索和跳转；含新增第 64 类节点说明及快捷键 | 未测 |
+| E06 | F1 / 帮助按钮；搜索“同时执行”“黑幕”“外观” | 帮助可打开、搜索和跳转；包含对应步骤说明及快捷键 | 未测 |
 | E07 | 运行检查、打包等工具操作；关闭结果后再次查看最近结果 | 有明确成功/失败结论；详细数据可展开；长操作有进度；关闭窗口后仍能复查最近结果 | 未测 |
 | E08 | 导出 04 为 lommod 再打开；检查图片、声音、介绍卡、两条离线路径 | 内容完整；不丢自制素材；默认两条分支离线测试通过 | 未测 |
 
@@ -136,7 +139,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\Run-OfflineChecks.ps1 -Bun
 
 | 编号 | 操作 | 通过标准 | 结果 |
 | --- | --- | --- | --- |
-| H01 | 安装匹配位数的官方 BepInEx，修复 Steam 启动，安装本版 runtime 内的 C# 宿主 | 成功或明确指出失败阶段与路径；不能只剩 raw `changed:false` | 未测 |
+| H01 | 在「游戏与 MOD」一键配置游戏环境，修复 Steam 启动并安装或同步内置 C# 宿主 | 成功或明确指出失败阶段与路径；不能只剩 raw `changed:false` | 未测 |
 | H02 | 再安装一次相同宿主 | 提示内容一致、无需更新；不把正常无改动当错误 | 未测 |
 | H03 | 打开带自制素材的 02 样例，预览、导出、导入并准备 F5 试玩 | 不因共享系统 TEMP 不可写而中断；使用当前用户缓存工作目录 | 未测 |
 | H04 | 查看仍然失败的安装报告（若有） | 区分工作目录、宿主源文件与游戏目标；有 error 时显示未完成。记录具体路径，不要求用户修改系统 TEMP 权限来完成测试 | 未测 |

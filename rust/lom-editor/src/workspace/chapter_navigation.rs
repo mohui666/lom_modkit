@@ -362,14 +362,11 @@ impl App {
                             ctx.format_shortcut(&egui::KeyboardShortcut::new(modifiers, key))
                         };
                         if ui.button(tr("复制")).clicked() {
-                            self.copy();
+                            self.copy_to_system(ctx);
                             ui.close();
                         }
-                        if ui
-                            .add_enabled(!self.clipboard.is_empty(), egui::Button::new(tr("粘贴")))
-                            .clicked()
-                        {
-                            self.paste();
+                        if ui.button(tr("粘贴")).clicked() {
+                            self.request_system_paste(ctx);
                             ui.close();
                         }
                         if ui
@@ -838,11 +835,11 @@ impl App {
                                 self.select_step(index, false, false);
                             }
                             if ui.button(tr("复制")).clicked() {
-                                self.copy();
+                                self.copy_to_system(ctx);
                                 ui.close();
                             }
                             if ui.button(tr("粘贴")).clicked() {
-                                self.paste();
+                                self.request_system_paste(ctx);
                                 ui.close();
                             }
                             if ui.button(tr("删除")).clicked() {

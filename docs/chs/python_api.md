@@ -1,6 +1,6 @@
 # Python API 接口参考
 
-适用于包含对象 API 的新构建；完整教程见 [对象创作指南](ai_cli.md)，命令参数见 [CLI 参数](cli_parameters.md)。Python 3.10+，只用标准库。SDK 必须从使用中的 exe 导出，不能复用已退役的旧 Python 编辑器模块。
+本文对应 1.6.0 配套 SDK；完整教程见 [对象创作指南](https://github.com/mohui666/lom_modkit/blob/v1.6.0/docs/chs/ai_cli.md)，SDK 中对应本地 `README.md`，命令参数见 [CLI 参数](cli_parameters.md)。Python 3.10+，只用标准库。SDK 必须从使用中的 exe 导出，不能复用已退役的旧 Python 编辑器模块。Windows 正式发布只提供该内置组件 exe，不另发 SDK 安装包。
 
 ```powershell
 .\lom-editor.exe --cli sdk -o .\authoring --json
@@ -12,7 +12,7 @@
 
 | 接口 | 参数与返回 |
 | --- | --- |
-| `Say/Show/CharacterTitle/Choice/...(*, id=None, **fields)` | 所有 71 类节点均有构造函数，type 按下划线转首字母大写；必填字段、类型、枚举与 `schema nodes` 完全对应，未知字段报错 |
+| `Say/Show/CharacterTitle/Choice/...(*, id=None, **fields)` | 所有支持的节点均有构造函数，type 按下划线转首字母大写；必填字段、类型、枚举与 `schema nodes` 完全对应，未知字段报错 |
 | `NODE_TYPES[type](...)` | 按原始 type 动态构造同一种对象 |
 | `Node.from_dict(node)` | 从现有节点对象构造，执行同样的参数检查 |
 | `node.to_dict()` | 返回独立 JSON 对象 |
@@ -29,6 +29,38 @@ chapter = Chapter(id="main", title="开场", nodes=[
     End(id="e", next_script="chapter2"),
 ])
 ```
+
+## 可选演出助手
+
+`NodeIds` 和 `Staging` 只生成既有节点对象，不会自动把节点插入章节；底层 `Say`、`Show`、`Parallel` 等接口保持原样。
+
+| 接口 | 行为 |
+| --- | --- |
+| `NodeIds(existing=())` | 接受已有节点、节点字典或 ID 字符串的序列，避开已用编号；`ids("say")` 依次返回 say1、say2 等，`ids.reserve("opening")` 保留手写编号 |
+| `Staging(ids=None)` | 共享一个可选 ID 池；不提供时创建独立池，每章应使用自己的池 |
+| `stage.enter(character, position, id=None, **fields)` | 返回 Show，默认等待登场完成，并记录作者明确填写的 Show 参数 |
+| `stage.exit(character, id=None, **fields)` | 返回 Hide，默认等待退场完成；支持 fadeDuration 等原节点字段 |
+| `stage.together(*actions, id=None)` | 返回 Parallel，复制 2～32 个动作；不改原动作，带 goto 或不支持并行的节点会报错 |
+| `stage.remember(show)` | 只记录一个 Show 对象／字典，供后续恢复，不新增节点 |
+| `stage.restore(character, id=None, **fields)` | 根据上次 enter／remember 的 Show 参数返回新 Show，可覆盖 moveDuration 等字段；不继承 goto、备注或 wait_after；没有记录时明确报错 |
+
+```python
+from lom_modkit import NodeIds, Staging, Chapter, Move, Shock, Mood, End
+
+ids = NodeIds()
+stage = Staging(ids)
+chapter = Chapter(id="main", title="登场与归位", nodes=[
+    stage.enter("player", "L", portrait="normal", facing="right", fadeDuration=0.25),
+    Move(id=ids("move"), character="player", from_="L", to="R", duration=0.4),
+    stage.together(Shock(character="player", duration=0.2),
+                   Mood(enabled=True, character="player", icon="shock")),
+    stage.restore("player", moveDuration=0.4),
+    stage.exit("player", fadeDuration=0.2),
+    End(id=ids("end")),
+])
+```
+
+恢复依据是作者记录的 Show 声明，包括站位、立绘、方向和大小，不读取游戏当前状态，也不会因中途的 Move 自动更新记录。位置只是舞台锚点；半身或全身取决于实际素材，助手不根据锚点猜测裁切。已有章节可用 `NodeIds(chapter.nodes)` 避开其编号，其他手写节点仍可与这些助手混用。
 
 ## 工程与执行
 
@@ -47,11 +79,26 @@ entry 默认首章；mode=story/addon/sandbox/vanilla_patch，最后一种需要
 | `CLI(executable)` | 接受 lom-editor.exe 或独立 lomc；自动为编辑器入口加 --cli |
 | `cli.build(project, output)` | 体检、临时编译打包重开，通过后保存工程并再次重开；返回 checks 和 issues |
 | `cli.export(project_path, output)` | 编译并导出 .lommod |
+| `cli.prepare_event_playtest(project, event_id, output, **options)` | 生成保留真实条件的隔离事件测试包；不启动游戏，options 见 CLI 事件试玩 |
+| `cli.playtest_event(project, event_id, game, **options)` | 发布真实事件试玩，返回 request_id；原版入口默认从前置章播放，不自动跳过选项或轮询 |
 | `cli.run(command, *args)` | 调用命令，自动加 --json；返回 JSON 对象 |
 | `cli.operation(command, **request)` | 调用编辑器扩展操作，路径转绝对值；见 CLI 参数文档 |
 | `cli.open_editor(project, output=None, script=None, node=None)` | 可选导入为新工程，再打开真实界面并定位；返回 pid |
+| `cli.render_preview(project, script, node, output, **options)` | 转发 render-preview；可传 library、width、height、time，输出一张离线预览 PNG |
+| `cli.render_previews(project, frames, output, **options)` | 转发 render-previews；frames 为 script/node 与可选 time 的字典列表，output 为输出目录 |
+| `cli.render_video(project, game, output, **options)` | 同步生成游戏原生 MP4；默认后台独立渲染，不弹出游戏窗口。options 支持范围、尺寸、帧率、自动播放速度、预设选项与 background=False 前台模式。直接运行 CLI 可实时读取 stderr 进度，SDK 方法等待最终结果 |
+| `cli.playtest_status(game, request_id)` | 查询一次指定试玩请求状态，不自行轮询 |
+| `cli.query_assets(**options)` | 转发 asset-query；可传 library/project/game、kind/query/id/portrait、limit/offset、thumbnail_size/cache_dir/position |
 
 `Project.open` 的 recipe 通常依靠 source 保留资源，没有 assets 键也正常。删除章节、scenario 或资源后另存新目录。不要更换旧作品的 campaign_id。assets 可传路径映射，也可传下面的素材对象列表。
+
+预览、素材查询和试玩状态便利方法需要配套编辑器的 `--cli` 操作入口；独立 `lomc` 只提供核心命令。`operation` 仍可调用完整协议；project/game/runtime/output/library/cache_dir 路径会先转为绝对路径，其他选项按原字段传递。
+
+`query_assets` 返回缩略图、实际画布、透明边界和有出处的锚点／裁切资料；未知半身／全身标注仍需看图，不拿舞台锚点当脚底。`render_preview(s)` 的 `rendering_performed` 表示实际绘制编辑器舞台，缺失素材单独报告，`visual_review_performed=false` 不代表人工看过。`preview`／`--smoke-preview` 的模拟状态数不能当成已生成或检查的图片数。
+
+`playtest` 用 `cli.operation("playtest", project=..., script=..., game=...)`，返回 request_id 后再按需调用一次 `playtest_status`。sent／game_started 不表示目标脚本已进入；chapter_entered／node_entered 来自实际 Host Lua／节点证据，restart_required 需退出游戏后重发。`playtest_event` 对 story_entry 默认实际播放原版前置章，沿真实调度确认所测事件 ID、event_entered 和 event_node_entered；准备章不算成功，event_not_triggered 表示已到原版目标却未进入所测事件。SDK 不自动轮询，所有状态都不代替连续画面验收。
+
+`render_video` 默认游戏自动播放速度，选项预设从0编号，未指定默认首个可用项；后台 Worker 用任务独立的 Host、临时包与存档，结束后退出。它取游戏原生合成帧和音轨，普通试玩与视频均关闭可见、隐藏水印；包身份和存档归属仍校验。CPU／GPU 与音轨生成会实际执行，SDK 方法等到成片落盘才返回，实时进度需直接读取 CLI stderr。
 
 ## 事件与任务
 
@@ -65,7 +112,7 @@ entry 默认首章；mode=story/addon/sandbox/vanilla_patch，最后一种需要
 | `Outcome` | tasks={任务ID:状态}、variables={变量ID:VariableChange}、actions=[OutcomeAction] |
 | `OutcomeAction` | type=stat/affinity/game_flag 时 key/op/value；flag 仅 key；talent 用 key/value=±1；item 用 key/kind/op/value；time 用 year/month/stage |
 | `WeightModifier` | when、add |
-| `Event` | id、name、script、trigger 必填；position/when/outcomes 可选；once=True、enabled=True、check=stage、priority=0、chance=100、weight=1；可选 pool/weight_modifiers |
+| `Event` | id、name、script、trigger 必填；trigger=start/auto/position/story_entry；position/when/outcomes 可选；story_entry 必填 target，可选 from_（序列化为 from）；其他触发不能填 target/from_；once=True、enabled=True、check=stage、priority=0、chance=100、weight=1；可选 pool/weight_modifiers |
 | `Scenario` | events、tasks=()、entry_event=None |
 
 每个事件 outcomes 必须有 completed；不提供 outcomes 时自动生成。sandbox 必须且只能有一个 start 事件，与 entry_event、manifest.entry 对应；开场启用、chance=100、无条件。addon 不设置开场事件。Scenario 检查任务／状态引用，工程跨章结果由 Rust 完整检查。
@@ -84,7 +131,7 @@ entry 默认首章；mode=story/addon/sandbox/vanilla_patch，最后一种需要
 | `ChoiceStep` | node、option（0 基下标） |
 | `RouteTest` | name、story，choices=()、reaches_node=()、reaches_ending=True、flags/variables/initial_flags/initial_variables |
 
-素材对象的 `.ref` 是 user:namespace.name，供节点引用；`Project(assets=[...])` 自动生成内嵌 content.json 与资源路径映射。高级 metadata 及嵌套玩法字段沿用 [用户内容](user_content.md)，Rust 负责语义校验。翻译路径用 `cli.run("texts", chapter_path)` 查询；默认语言不重复放入 translations。
+素材对象的 `.ref` 是 user:namespace.name，供节点引用；`Project(assets=[...])` 自动生成内嵌 content.json 与资源路径映射。高级 metadata 及嵌套玩法字段沿用 [用户内容](https://github.com/mohui666/lom_modkit/blob/v1.6.0/docs/chs/user_content.md)，Rust 负责语义校验。翻译路径用 `cli.run("texts", chapter_path)` 查询；默认语言不重复放入 translations。
 
 ```python
 chapter = Chapter(..., _editor={"tests":[
@@ -109,8 +156,8 @@ except CLIError as error:
     raise
 ```
 
-构造参数问题抛 TypeError/ValueError，文件缺失抛 FileNotFoundError；Rust 命令失败抛 CLIError，含 result 和 returncode。不要捕获后仍声称成功。build 不自动执行游戏；open_editor 会开窗口，playtest/capture-effects 会执行明确的游戏操作。
+构造参数问题抛 TypeError/ValueError，文件缺失抛 FileNotFoundError；Rust 命令失败抛 CLIError，含 result 和 returncode。不要捕获后仍声称成功。build 不自动执行游戏；open_editor 会开窗口，playtest/playtest_event/render_video/capture-effects 会执行明确的游戏操作。
 
-复杂可运行示例和一键重跑方法见 [创作指南](ai_cli.md#复杂样例与重跑)。
+复杂可运行示例和一键重跑方法见 [创作指南](https://github.com/mohui666/lom_modkit/blob/v1.6.0/docs/chs/ai_cli.md#复杂样例与重跑)，SDK 根目录也提供 `complex_story.py` 和本地 `README.md`。
 
 画外音使用 `Say(id="voice", mode="offscreen", text="救命！", speaker_name="？？？")`，不需要人物或立绘。临时高亮使用 `Dim(character="player", dimmed=False, mode="until_dialogue")`；解除持续亮暗使用 `Dim(character="player", dimmed=False, mode="auto")`。这些选项需要 Host 1.5.1，SDK 应由配套编辑器重新导出。

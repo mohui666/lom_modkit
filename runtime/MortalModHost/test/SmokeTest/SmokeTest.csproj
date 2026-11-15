@@ -8,6 +8,7 @@
     <Nullable>disable</Nullable>
     <AssemblyName>MortalModHost.SmokeTest</AssemblyName>
     <RootNamespace>MortalModHost</RootNamespace>
+    <DefineConstants>$(DefineConstants);LOM_OFFLINE_SMOKE</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>
@@ -40,6 +41,10 @@
     <Compile Include="..\..\src\PositionNameMap.cs" />
     <Compile Include="..\..\src\EffectPlaybackState.cs" />
     <Compile Include="..\..\src\PreviewRequest.cs" />
+    <Compile Include="..\..\src\PlaytestStatusRuntime.cs" />
+    <Compile Include="..\..\src\VideoRenderRequest.cs" />
+    <Compile Include="..\..\src\VideoFrameWriter.cs" />
+    <Compile Include="..\..\src\VideoWorkerRuntime.cs" />
     <Compile Include="..\..\src\ContentRef.cs" />
     <Compile Include="..\..\src\UserContent.cs" />
     <Compile Include="..\..\src\CharacterProfilePolicy.cs" />

@@ -1,5 +1,9 @@
 # Gameplay API 实证矩阵
 
+## 2026-11-15 原版前置章节事件试玩入口
+
+本次实时定向反编译安装游戏的 `Mortal.Story.LuaManager.SetCurrentStoryScript/SetNextScript/Init/ExecuteLuaScript`：`SetNextScript` 经 `SetCurrentStoryScript` 更新当前剧情，`Init` 初始化 Lua 环境后调用 `ExecuteLuaScript`，后者加载 `Story/ChineseTraditional/<ScriptName>` 并交给原版 LuaEnvironment 执行。前置模式只调用 `SetNextScript(source_script)`、`Init()` 播放作者指定的原版起点，随后由真实 `SetNextScript` 和既有 `StoryEntryRuntime` 进入事件；不设置虚构来源、不强制目标、不额外清理边界画面。旧边界测试仍设置 `from` 后直达 `target`，二者范围明确分开。只在原版脚本实际放行执行、所测事件 ID 实际获选和对应 MOD 脚本／节点执行时记录各自状态。此处记录接口依据，构建与离线验证不等于原版连续衔接的实机画面验证。
+
 ## 2026-11-14 图片淡出、字号与重复试玩
 
 本次只读实时核对当前 `Mortal.Story.StoryPicture.Show/Hide/Awake`、`StoryMainUI.ShowBigPicture/HideBigPicture`、`Mortal.Core.ItemDatabase.Miscs`、`ItemData.Image`、`Fungus.SayDialog.DoSay/StoryTextObject`、`Mortal.Core.CharacterSayDialog.DoSay`、`CustomSayDialog.DoSay`、`TextLineSpacingPanel.UpdateLineSpacing`、`Mortal.Story.StoryManager.SkipDialog` 与 `Mortal.Core.SceneController.StartLoadScene/UnloadLoading`。快进把 `Time.timeScale` 设为 10，事件图补间因此与 Lua 等待一起使用游戏时间；暂停时一起停止。大图隐藏时只临时覆盖当前实例的 `_fadeoutDuration`，原版 `Hide()` 仍负责资源释放，结束后恢复实例时长；自建大图使用同样的作者时长。
@@ -131,6 +135,14 @@ Host 在好感展示入口克隆当前 `RelationshipStat`，只替换克隆的�
 `DiceHeader.Setup(string)` 和 `DiceMenuDialog.UpdateAddition()` 将标题、加点名称与状态传给 `LeanLocalizationResolver.GetString(string)`，后者对未注册的作者原文不提供原样返回。Host 仅在自定义 MOD 轮盘的这两个渲染入口内，将本次配置的对应文字作为原文返回；`RollStatAddition.Setup` 继续使用原版正负分组和数值显示。旧包无需重导出即可使用修正。
 
 本轮隔离游戏验证已检查赵活、大师兄和自定义人物的设置、隐藏、恢复、跨章显示；实际保存后清除称号内存，再读取的称号仍一致，原版数值称号未变。自定义轮盘的标题、正负加点名称与状态已从游戏实际 UI Text 读回核对。
+
+## 2026-11-15 原生剧情视频
+
+2026-11-15 原生视频生成再次核对当前安装 DLL：`LuaManager.Init()` 先启动 `SceneController.UnloadLoading()`，再执行脚本，因此视频入口先等读取遮罩卸载完成才推进 Lua。画面使用 `ScreenCapture.CaptureScreenshotIntoRenderTexture(RenderTexture)`，读取最终合成画面并保留游戏原生 UI。1.6.0 普通试玩及视频均关闭可见、隐藏画面水印，包身份会话与存档归属检查继续执行。`StoryManager.AutoDialog(bool)` 开启原有 MOD 智能自动播放；`MenuDialog.CachedButtons` 保留隐藏项的位置，预设序号按原选项下标检查可见、可交互后调用该原生按钮的 `onClick`。
+
+当前 Wwise 2021.1.14 的 `AkSoundEngine.SetOfflineRendering(bool)`、`SetOfflineRenderingFrameTime(float)` 配合游戏现有每帧 `RenderAudio()` 推进原生混音。`StartDeviceCapture(ulong)` / `UpdateCaptureSampleCount(ulong)` / `GetCaptureSamples(ulong,float[],uint)` / `StopDeviceCapture(ulong)` 直接读取主输出设备；计数包含所有声道的 float 标量，读取消费完整原生块，停止回调后排空尾块。隔离游戏实测获得 48 kHz 双声道 PCM，与引擎文件捕获的声音逐样本相关系数约 0.99999993。自定义作品音频沿用已有解码器和音量，以同一帧时钟混音。取消时只停止开发演出的 LuaEnvironment，保留 LuaManager 的原生场景协程，并恢复帧率、窗口与音频设置。当前不自动执行战斗、商店及其他需要人工操作的面板。
+
+视频路径复用帧、PCM 与等待对象缓冲；终局卡的控制器及阅读时长只在内容就绪时计算一次。编码转换／混音各用 1 个滤镜线程，画面编码最多使用 4 个线程（不足 8 个逻辑处理器时最多使用一半），保留 CRF 18 与原生帧序。Ryzen 9 7940HX、RTX 4060 Laptop、窗口模式下，同一 1080p／30 FPS 短样例在进入生成阶段后约 6.1 秒完成 10.9 秒内容，不含启动游戏；此为单机短片结果，不代表其他工程或设备的速度保证。
 
 ## 2026-11-09 MOD 智能自动播放
 
@@ -412,6 +424,20 @@ Windows 实机还确认 `Mortal.Core.CharacterIntroPanel` 同时提供 `IEnumera
 单人气泡的 `offset_x`／`offset_y` 通过同一 `SetPosition` 接口叠加在官方 `StoryCharacterData.MoodPosition` 或用户人物百分比锚点上。官方位置仅在该人物有 Host 临时设置时恢复，用户人物偏移随体型缩放，离场和全场清除都会归零。
 
 本轮 Windows 隔离试玩观察了自定义人物气泡偏移、转身镜像、位移跟随、压暗隐藏与恢复、换表情、单独隐藏、退场重登和全场清除。自定义立绘的尺寸改为读取舞台 Canvas 的本地 RectTransform 高度；复验换表情后保持体型，避免屏幕像素高度随分辨率改变造成重算差异。
+
+### 2026-11-15 后台原生视频的独立存档路径
+
+本次从已安装游戏的 `Mortal.Core.dll` 实时反编译核对 `Mortal.Core.SaveSystem`：私有 `GetUserFolder()`、`GetSaveDataFile(string)`、`GetLegendDataFile(int)`、`GetBackupDataFile(string)` 返回存档路径；备份直接组合 `Application.persistentDataPath/Backup`，不经过 `GetUserFolder()`。`Instance` getter 只查找已加载的 SaveSystem 实例；`LoadUniverseData()` 在缺少 Universe 时会写入默认全局数据，不能当作只读探测。
+
+后台视频仅在 `--lom-video-worker <任务编号>` 专用进程中，在 Host Awake 的最前面给上述四个路径方法安装 prefix，统一返回本次任务的 `worker/profile` 内路径，并保留到进程退出。四个实际返回值验证通过后，才接受该任务的临时演出包请求；不加载用户的普通存档。独立桌面使用正常图形窗口和原有 `ScreenCapture` 取帧，不使用 `-batchmode`：本机该模式虽可推进剧情，但未产生可用的原生帧。正常 Host 未带专用参数时不启用这些路径补丁。
+
+同日从本机 `UnityEngine.CoreModule.dll` 核对 `SystemInfo.supportsAsyncGPUReadback/IsFormatSupported`、`AsyncGPUReadback.RequestIntoNativeArray(ref NativeArray<byte>, Texture, int, TextureFormat, Action<AsyncGPUReadbackRequest>)`、`AsyncGPUReadbackRequest.done/hasError/WaitForCompletion`。取帧使用三份持久 NativeArray，完成后按帧序复制到三份固定托管缓冲，由单独线程写编码器；缓冲满时在同一帧等待，不推进未捕获的演出或音频。持久数组避免借用 `GetData` 数据跨帧失效；释放目标纹理前先等待本任务的读回结束。未支持异步读回的设备继续使用原有 `ReadPixels` 取帧。
+
+### 2026-11-15 预览分辨率与人物容器坐标
+
+实时读取本机 Story 场景及 `Fungus.PortraitController`、`Fungus.View`、`Fungus.CameraManager`、`UnityEngine.UI.CanvasScaler/Image`：共享 ViewSize 为 5.4，原版背景 SpriteRenderer 通过 BackCamera 的固定可视高度投影；人物 CanvasScaler 使用 Shrink，即 `max(W/1920,H/1080)`，36 个站位锚点为顶部居中，holder pivot 为底部居中。因此人物坐标应以画面顶部换算，不能对所有图层统一拉伸或居中 Cover。自定义背景由已有 `CustomImageRuntime.ShowBackground` 的 `AspectRatioFitter.EnvelopeParent` 覆盖父区域。
+
+`PortraitController.SetRectTransform` 复制实际槽尺寸，`CreatePortraitObject` 的 Image 拉满 holder 并 preserveAspect。BC1 槽为 1920×1920，BC2/BCB2 为 3500×1920，Talk 为 1920×1245，其余为 1920×1080。官方普通移动通过 stage.show 的 from 槽创建容器，移动只改变位置；并行独立位移保留既有容器，自定义人物移动结束后重新适配目标槽。预览在内存记录 holder 槽，F5 临时前置节点使用已有 show/move 恢复它；不新增作品字段。此处是本机接口与布局数据核对，不能替代对第三方截图所用工程和窗口状态的实机复现。
 
 ### 1.4.2 书页事件图
 

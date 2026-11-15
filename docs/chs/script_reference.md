@@ -6,6 +6,7 @@
 
 - [Mod v3 格式与全部编译契约](mod_format.md)
 - [受控 API / CLI](ai_cli.md)
+- [CLI 请求与参数](cli_parameters.md)
 - [多语言契约](i18n.md)
 - [当前能力与边界](current_capabilities.md)
 
@@ -15,6 +16,12 @@
 [反编译接口](decompiled_api.md)。
 
 官方资源字段优先显示可读名称，同名不同资源附加数字，内部 ID 在高级输入或悬停信息中查看；脚本和包内只保存稳定 ID。用户内容统一使用 `user:<id>`，不得保存本机绝对路径。
+
+1.6.0 可用 `asset-query` 查询本地素材与布局资料，`render-preview`／`render-previews` 输出纯舞台图，`render-video` 按预设路线生成原生游戏视频。视频默认后台生成，仍会启动独立游戏进程；二维预览、模拟通过和实际游戏执行分别报告，不能相互代替。顶层 `--help` 与 `--version` 只输出信息，不打开编辑器窗口。
+
+Python `Event` 支持 `trigger="story_entry"`、`target` 和可选 `from_`，其中 `from_` 序列化为 `from`。`prepare-event-playtest` 离线生成隔离包；`playtest-event` 对原版章节入口事件默认实际播放其原版前置章，并可通过 `playtest-status` 查询执行状态。单章预览不模拟原版遗留界面。完整字段、起点规则和显式 `boundary` 模式见 [CLI 参数](cli_parameters.md)。
+
+支持的旧工程及 `.lommod` 继续可打开、编辑和导出；原文件与稳定身份保留，新导出使用当前生成器。兼容旧编译输出不代表允许任意替换 Lua，包完整性和源剧情归属检查仍保留。
 
 `parallel`（同时执行组）的动作范围、字段和等待规则见 [同时执行组](mod_format.md#34-同时执行组parallel)。普通表单创作可以直接选择动作类型，无需编写协程或 Lua。
 

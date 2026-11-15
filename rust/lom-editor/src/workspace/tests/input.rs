@@ -318,7 +318,7 @@ fn system_clipboard_events_copy_and_paste_steps_once() {
     let mut app = app();
     let original_count = app.story().clone()["nodes"].as_array().unwrap().len();
     let ctx = egui::Context::default();
-    let _ = ctx.run(
+    let copied = ctx.run(
         egui::RawInput {
             events: vec![
                 egui::Event::Copy,
@@ -329,10 +329,22 @@ fn system_clipboard_events_copy_and_paste_steps_once() {
         |ctx| app.shortcuts(ctx),
     );
     assert_eq!(app.clipboard.len(), 1);
+    let text = copied
+        .platform_output
+        .commands
+        .into_iter()
+        .find_map(|command| {
+            if let egui::OutputCommand::CopyText(text) = command {
+                Some(text)
+            } else {
+                None
+            }
+        })
+        .expect("steps are written to the OS clipboard");
     let _ = ctx.run(
         egui::RawInput {
             events: vec![
-                egui::Event::Paste(String::new()),
+                egui::Event::Paste(text),
                 key_event(egui::Key::V, egui::Modifiers::COMMAND),
             ],
             ..Default::default()

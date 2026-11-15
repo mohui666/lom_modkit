@@ -216,12 +216,19 @@ impl Preview {
                                     }),
                                 );
                             } else if let Some((texture, meta)) = texture {
-                                let stage =
-                                    Rect::from_min_size(Pos2::ZERO, Vec2::new(1920.0, 1080.0));
+                                let stage = Rect::from_min_size(
+                                    Pos2::ZERO,
+                                    Vec2::new(self.resolution[0] as f32, self.resolution[1] as f32),
+                                );
+                                let canvas = viewport::character_canvas(stage);
                                 let (x, feet) = self.anchor(text(actor, "position"));
                                 let base = Pos2::new(
-                                    x * 1920.0 + number(actor, "offset_x", 0.0) as f32,
-                                    feet * 1080.0 - number(actor, "offset_y", 0.0) as f32,
+                                    canvas.left()
+                                        + (x + number(actor, "offset_x", 0.0) as f32 / 1920.0)
+                                            * canvas.width(),
+                                    canvas.top()
+                                        + (feet - number(actor, "offset_y", 0.0) as f32 / 1080.0)
+                                            * canvas.height(),
                                 );
                                 let scale = number(&meta, "scale", 100.0) as f32 / 100.0
                                     * number(actor, "layout_scale", 100.0) as f32
@@ -233,7 +240,7 @@ impl Preview {
                                 let flipped = (text(actor, "facing") == "left")
                                     != (meta["art_facing"].as_str().unwrap_or("left") != "right");
                                 let bounds = portrait_rect(
-                                    stage,
+                                    slot_size(&self.positions, actor_slot(actor), canvas.size()),
                                     base,
                                     texture.size_vec2(),
                                     scale,

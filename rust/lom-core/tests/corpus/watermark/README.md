@@ -1,5 +1,9 @@
 # Screenshot detector corpus
 
+This corpus covers the legacy screenshot watermark detector. Runtime 1.6.0 no
+longer embeds visible or hidden picture watermarks; the detector remains
+available for existing media.
+
 `rust/lom-core/tests/watermark.rs` deterministically generates this corpus in a
 temporary directory so the repository does not carry six large derived image
 files. The source scene seed, dimensions and every transform are fixed:

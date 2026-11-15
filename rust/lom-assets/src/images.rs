@@ -157,6 +157,91 @@ pub fn decode(studio: &Studio, object: StudioObject<'_>, canvas: bool) -> Result
     );
     Ok(canvas)
 }
+
+/// Source Sprite geometry is distinct from the downscaled PNG and from the
+/// Story stage's Transform. None of these values classify the drawn anatomy.
+fn source_geometry(
+    studio: &Studio,
+    object: StudioObject<'_>,
+    restored_canvas: bool,
+) -> Result<Value> {
+    let sprite = object.read_sprite(Default::default())?;
+    let data = &sprite.render_data;
+    let mut rect = [
+        data.texture_rect.x,
+        data.texture_rect.y,
+        data.texture_rect.width,
+        data.texture_rect.height,
+    ];
+    let mut offset = [data.texture_rect_offset.x, data.texture_rect_offset.y];
+    let mut rotation = data.settings.packing_rotation;
+    if let Some(key) = sprite.render_data_key {
+        let atlas = if !sprite.sprite_atlas.is_null() {
+            Some(unity::resolve(
+                studio,
+                object,
+                unity_rs_core::serialized::ObjectReference {
+                    file_id: sprite.sprite_atlas.file_id,
+                    path_id: sprite.sprite_atlas.path_id,
+                },
+            )?)
+        } else {
+            studio.objects().find(|o| {
+                o.class_id() == 687078895
+                    && o.name()
+                        .is_some_and(|name| sprite.atlas_tags.iter().any(|tag| tag == name))
+            })
+        };
+        if let Some(atlas) = atlas {
+            let atlas = atlas.read_sprite_atlas(Default::default())?;
+            let data = atlas
+                .render_data(&key.into())
+                .context("图集缺少精灵几何数据")?;
+            rect = [
+                data.texture_rect.x,
+                data.texture_rect.y,
+                data.texture_rect.width,
+                data.texture_rect.height,
+            ];
+            offset = [data.texture_rect_offset.x, data.texture_rect_offset.y];
+            rotation = data.settings.packing_rotation();
+        }
+    }
+    Ok(
+        json!({"original_canvas":[sprite.rect.width,sprite.rect.height],
+        "sprite_pivot":{"normalized_bottom_left":[sprite.pivot.x,sprite.pivot.y],"pixels_per_unit":sprite.pixels_to_units},
+        "crop":{"canvas_restored":restored_canvas,"atlas_rect":rect,"texture_rect_offset":offset,
+            "offset_coordinate_space":"bottom_left_original_canvas","packing_rotation":rotation},
+        "source":"Unity.Sprite","body_framing":"unknown"}),
+    )
+}
+
+fn target_geometry<'a>(map: &'a Value, group: &str, id: &str, key: &str) -> &'a Value {
+    if group == "character" {
+        &map["characters"][id]["portrait_metadata"][key]
+    } else if group == "views" {
+        &map["view_metadata"][key]
+    } else {
+        &map["picture_metadata"][key]
+    }
+}
+
+fn set_geometry(map: &mut Value, group: &str, id: &str, key: &str, geometry: &Value) {
+    let mut geometry = geometry.clone();
+    if let Some(framing) = target_geometry(map, group, id, key)["body_framing"]
+        .as_str()
+        .filter(|value| matches!(*value, "half_body" | "full_body"))
+    {
+        geometry["body_framing"] = json!(framing);
+    }
+    if group == "character" {
+        map["characters"][id]["portrait_metadata"][key] = geometry;
+    } else if group == "views" {
+        map["view_metadata"][key] = geometry;
+    } else {
+        map["picture_metadata"][key] = geometry;
+    }
+}
 pub fn save(image: &RgbaImage, path: &Path, max_size: Option<u32>) -> Result<()> {
     fs::create_dir_all(path.parent().context("图片路径无效")?)?;
     let resized = max_size
@@ -389,6 +474,22 @@ pub fn extract(
         .collect();
     let mut map = previous.clone();
     map["portrait_canvas"] = json!("sprite_rect");
+    map["image_metadata_schema"] = json!(1);
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)?
+        .as_millis() as u64;
+    map["last_extraction_unix_ms"] = json!(now);
+    let catalog_path = aa.join("catalog.json");
+    let catalog_metadata = fs::metadata(&catalog_path)?;
+    let source_catalog = json!({"bytes":catalog_metadata.len(),"modified_unix_ms":catalog_metadata.modified()?.duration_since(std::time::UNIX_EPOCH)?.as_millis() as u64});
+    if existing.is_none() {
+        map["extracted_unix_ms"] = json!(now);
+        map["source_catalog"] = source_catalog;
+    } else {
+        // Supplementing missing entries does not refresh all retained pixels.
+        // Keep the original snapshot's stamp so stale libraries stay detectable.
+        map["supplemented_catalog"] = source_catalog;
+    }
     for group in ["characters", "views", "pictures", "moods"] {
         if map.get(group).is_none() {
             map[group] = json!({});
@@ -458,9 +559,15 @@ pub fn extract(
     let total = tasks.len();
     let mut cache: Vec<(String, Studio)> = vec![];
     for (i, ((address, portrait), (relative, targets))) in tasks.into_iter().enumerate() {
-        if reuse_targets(&mut map, &previous, existing.as_deref(), &targets)? {
+        let reused_images = reuse_targets(&mut map, &previous, existing.as_deref(), &targets)?;
+        if reused_images {
             reused += 1;
-            continue;
+            if targets
+                .iter()
+                .all(|(group, id, key)| target_geometry(&map, group, id, key).is_object())
+            {
+                continue;
+            }
         }
         let result = (|| -> Result<()> {
             let entry = addresses
@@ -478,15 +585,26 @@ pub fn extract(
                 .iter()
                 .find(|(name, _)| *name == entry.bundle)
                 .unwrap();
-            let image = decode(environment, sprite(environment, &entry.internal)?, portrait)?;
-            save(&image, &output.join(&relative), Some(max_size))?;
-            for (group, id, key) in targets {
-                set_target(&mut map, &group, &id, &key, &relative);
+            let object = sprite(environment, &entry.internal)?;
+            let geometry = source_geometry(environment, object, portrait)?;
+            if !reused_images {
+                let image = decode(environment, object, portrait)?;
+                save(&image, &output.join(&relative), Some(max_size))?;
+            }
+            for (group, id, key) in &targets {
+                set_geometry(&mut map, group, id, key, &geometry);
+                if !reused_images {
+                    set_target(&mut map, group, id, key, &relative);
+                }
             }
             Ok(())
         })();
         match result {
-            Ok(()) => succeeded += 1,
+            Ok(()) => {
+                if !reused_images {
+                    succeeded += 1;
+                }
+            }
             Err(error) => failures.push(json!({"address":address,"error":format!("{error:#}")})),
         }
         if i == 0 || (i + 1) % 10 == 0 || i + 1 == total {

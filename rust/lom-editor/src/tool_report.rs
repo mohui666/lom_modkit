@@ -3,6 +3,12 @@ use eframe::egui;
 use serde_json::Value;
 
 fn known_label(key: &str) -> Option<String> {
+    match key {
+        "frames" => return Some(crate::i18n::key("video.frames")),
+        "seconds" => return Some(crate::i18n::key("video.seconds")),
+        "cleanup_warning" => return Some(crate::i18n::key("video.cleanup_warning")),
+        _ => (),
+    }
     let text = match key {
         "healthy" => "安装状态",
         "ok" => "检查结果",
