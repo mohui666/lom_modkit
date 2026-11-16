@@ -21,6 +21,12 @@ MortalModHost 是 BepInEx 6 / Harmony 宿主，负责加载 `.lommod`、把编�
 
 `detect-watermark` 与 `detect-watermark-video` 保留用于读取旧媒体，不表示当前成片仍嵌入来源标记；相关协议见 [旧媒体来源检测](../../docs/chs/watermark.md)。包指纹不是官方签名或作者认证。
 
+## 游戏内开发工具
+
+Host 1.6.2 的 F8「MOD 工坊」提供原版事件目录、可读触发条件、前后任务参照及显式授权的日期／章节跳转。普通「原版＋MOD」进度和允许原版事件的隔离测试可使用；不重建早期历史或强制命中事件。工具语言由 `General.ToolsLanguage` 独立保存，空值跟随游戏，其他值为 `chs/cht/ja/ko`，不改变作品对白语言。操作见 [F8 工坊](../../docs/chs/software_usage.md#游戏内-mod-工坊与开发工具)与[开发跳转](../../docs/chs/events_and_tasks.md#游戏内开发者跳转)。
+
+决斗专用背景按原版 `CombatLevel.BackImage` 引用读取，接受目录中的 `combat:<Sprite.name>`；旧场景背景映射继续保留。同名决斗人物结合剧情立绘关联解析，临时关卡不继承原版事件、胜负或条件结果旗标。作者字段与最低版本见 [格式契约](../../docs/chs/mod_format.md)。
+
 ## Rust 计算模块
 
 `rust/lom-host-native` 承担批量字节与文本计算：身份完整性校验、流式 SHA-256、JSON 结构／字符串扫描、长 JSON 字符串转义、原版剧情补丁与来源分类、事件候选排序／池分组、事件存档 UTF-8／Base64、对白可见文本元素计数、PCM16 转换、重采样混音及流式 Vorbis 解码。包路径词法检查也在 Rust 中执行，重复／大小写冲突与文件归属仍使用原托管规则。JSON 扫描直接写入可精确表示的 32 位整数及标准四位 ASCII 十六进制转义；负零、其他数值与特殊 HexNumber 写法仍按原顺序调用当前 C# 运行时转换。来源分类直接读取已验证 tape，不把 double 再格式化成 JSON。候选资格、概率、随机调用、结算与存档顺序仍由 C# 管理；包、存档和 Lua 格式不变。

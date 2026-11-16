@@ -1,7 +1,11 @@
 # 活侠传 · LoM Modkit
 
-現在のバージョンは **1.6.0** です。複数プロジェクトのタブと再起動時の復元、ウィンドウ間でのステップのコピー、ゲーム本体を使うバックグラウンド動画出力、プレビュー解像度の選択を追加しました。
+現在のバージョンは **1.6.2** です。ゲーム内の F8 ツールで4言語、原作イベントと前後のタスク、条件の説明、日付・章への移動に対応しました。決闘専用背景28枚を追加し、小梅の決闘読み込みを修正。実行時の計算処理には Rust のネイティブコンポーネントを使用します。
 
 エディターの日本語 UI は引き続き利用できます。操作・形式・API の最新情報は簡体字中国語の資料に統一しています。
 
-[エディターをダウンロード](https://github.com/mohui666/lom_modkit/releases/latest) · [更新内容](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.0) · [最新ドキュメント](docs/ja/README.md) · [README](README.md)
+[エディターをダウンロード](https://github.com/mohui666/lom_modkit/releases/latest) · [更新内容](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.2) · [最新ドキュメント](docs/ja/README.md) · [README](README.md)
+
+更新後はゲームを終了し、「ゲームと MOD」で環境を再設定して Host を 1.6.2 に更新してください。既存の素材ライブラリには追加抽出で決闘背景のサムネイルを追加できます。F8 の言語設定はゲームや作品の台詞言語と独立しています。日付・章への移動では、それ以前の物語の履歴は再現されません。
+
+[F8 開発ツール](docs/chs/software_usage.md#游戏内-mod-工坊与开发工具) · [決闘背景](docs/chs/software_usage.md#查找官方背景)

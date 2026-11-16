@@ -1,6 +1,6 @@
 # 当前能力与边界
 
-本文对应 **1.6.0**。Rust 编辑器与编译器提供结构化节点，C# `MortalModHost` 接入游戏，包／剧情／内容契约为 **3 / 2 / 1**。版本变化见 [1.6.0 Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.0)，本次验证范围见 [测试入口](test_matrix.md)，操作见 [软件使用](software_usage.md)。
+本文对应 **1.6.2**。Rust 编辑器与编译器提供结构化节点，C# `MortalModHost` 接入游戏，包／剧情／内容契约为 **3 / 2 / 1**。版本变化见 [1.6.2 Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.2)，本次验证范围见 [测试入口](test_matrix.md)，操作见 [软件使用](software_usage.md)。
 
 MOD 智能自动播放使用游戏的自动按钮，从文字显示完成后按有效字数计算阅读时间；有语音时等待结束并保留 0.3 秒。支持个人速度三档、菜单／日志暂停、手动继续、快进和选项等待；接口及既有证据见 [API 实证](../../research/gameplay_api.md#2026-11-09-mod-智能自动播放)。需要 Host 1.5.3。
 
@@ -41,6 +41,12 @@ MOD 智能自动播放使用游戏的自动按钮，从文字显示完成后按�
 
 完整样例与生成入口见 [Showcase 3.0](../../samples/showcase3/README.md)。
 
+## 游戏内开发工具
+
+- Host 1.6.2 的 F8「MOD 工坊」提供独立四语工具界面；工具语言单独保存，不改变编辑器、游戏或作品对白的语言。原版任务支持简繁显示和搜索，代号、原始变量名与已有开发备注可对照查看。
+- 原版事件目录显示日期、条件、任务系列及按下一任务状态关联的前后节点，提供主线／支线、当前时段和表内启用状态筛选。条件采用数学比较符号，简单常数显示实际数值；浏览目录不执行条件。
+- 普通「原版＋MOD」进度及允许原版事件的隔离测试可显式启用日期／原版章节跳转，保留最近八次请求与实际场景记录。准备参数不执行跳转；执行时使用所属进度，不重建前置历史或保证特定事件触发。操作见 [F8 工坊](software_usage.md#游戏内-mod-工坊与开发工具)。
+
 ## 当前桌面界面
 
 - Rust／egui 桌面界面，提供工程标签栏、可调栏宽和剧情／素材／游戏／发布页面；标准标题栏显示作品名称与未保存状态。
@@ -61,7 +67,7 @@ Swift 外壳与原生 Liquid Glass 尚未完成。当前浅色面板和正常系
 - `enemy`：`ModifyEnemyTeam` / `ModifyEnemyLevel` / `ModifyEnemyPeople` / `ModifyEnemyId`；
 - `battle_skill`：`SetPlayerBattleSkill` / `SetBattleSkillActive` / `ResetBattleSkill`；
 - `goto_scene`：只用于普通场景跳转，不再向作者暴露 Combat / Battle 场景预设。
-- `combat`：人物只决定姓名与四类动画；背景从官方 `views` 独立选。对手 HP、气力、六维、评语、技能、天赋和行动概率由节点填写。赵活的 `player_*` 覆盖写入本场 Combat 基准值，生命仍先按原版 `GameStat.FinalValue`（含体力和被动）结算，再叠加 `player_max_health`，不会覆盖原版加成或重复累加。无独立四帧时回退 normal 立绘并钉在官方待机中心。胜负来自 `CombatManager.GameOver(bool)`。
+- `combat`：人物决定姓名与四类动画；背景从官方 `views` 与 28 张决斗专用背景独立选择，专用 `combat:` ID 需要 Host 1.6.2。普通／入魔小梅等同名形态按剧情立绘与决斗资源关联解析，不绑定固定原版 CL。对手 HP、气力、六维、评语、技能、天赋和行动概率由节点填写。赵活的 `player_*` 覆盖写入本场 Combat 基准值，生命仍先按原版 `GameStat.FinalValue`（含体力和被动）结算，再叠加 `player_max_health`，不会覆盖原版加成或重复累加。无独立四帧时回退 normal 立绘并钉在官方待机中心。临时关卡清空原版事件及胜负、条件结果旗标，胜负来自 `CombatManager.GameOver(bool)`。
 - `battle`：每个附加阵营单独设人数，该方总人数 = 阵营人数 + 具名角色。可选 `title`（`ReadyPanel`）、`friend_health` / `enemy_health`（克隆 `HealthData`）。具名角色必须能对应原版可生成 preset 或 catalog 里已核实的 Battle Animator。不暴露地图、中立路人和技能预设。
 - `battle_result`：按包完整 SHA-256、剧情 id 和可选 Combat/Battle 类型读取 Host 的最后真实结果，只提供已验证的 win/lose 分支。
 - `reward`：把现有 `stat` / `affinity` / `talent` / `item` / `flag` 原子接口聚合为 1~32 项奖励。

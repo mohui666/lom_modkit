@@ -2,11 +2,11 @@
 
 用可视化步骤制作《活侠传》MOD，支持多章节、人物演出、分支、事件任务和自定义素材，也支持 Python 批量制作。
 
-**当前版本：1.6.0 · Windows x64 · 只需一个 exe**
+**当前版本：1.6.2 · Windows x64 · 只需一个 exe**
 
-[下载编辑器](https://github.com/mohui666/lom_modkit/releases/download/v1.6.0/lom-editor.exe) · [更新内容](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.0) · [全部文档](docs/README.md)
+[下载编辑器](https://github.com/mohui666/lom_modkit/releases/download/v1.6.2/lom-editor.exe) · [更新内容](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.2) · [全部文档](docs/README.md)
 
-1.6.0 新增多工程标签与重启恢复、跨窗口步骤复制、后台生成游戏原生视频，以及预览分辨率选择；素材查询、舞台图导出和视频生成也可通过 CLI／Python 使用。
+游戏内 F8「MOD 工坊」支持四语言、原版事件与前后任务参照、条件说明和开发者日期／章节跳转。决斗支持 28 张原版专用背景，已修复小梅同名形态的加载冲突；Rust 原生组件承担包、文本、事件与音频等计算热点。
 
 [繁體中文](README.cht.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
@@ -19,12 +19,16 @@
 
 可通过“检查更新 → 更新并重启”升级，也可退出编辑器后手动替换 exe。已有作品、素材和存档身份保留。
 
+升级后先退出游戏，在「游戏与 MOD」点击「重新配置游戏环境」同步 Host 1.6.2，再重启游戏。已有素材库可用「补充提取」取得决斗专用背景缩略图；使用这些背景的作品需要 Host 1.6.2。
+
 | 要做什么 | 从这里开始 |
 | --- | --- |
 | 安装、更新、配置游戏 | [Windows 快速开始](docs/chs/windows_quick_start.md) |
 | 编写剧情、预览和导出 | [软件使用教程](docs/chs/software_usage.md) |
 | 导入立绘、图片和音频 | [素材使用](docs/chs/user_content.md) |
 | 设置事件和任务 | [事件与任务](docs/chs/events_and_tasks.md) |
+| 在游戏内查原版事件、切换工具语言和跳转测试 | [F8 MOD 工坊](docs/chs/software_usage.md#游戏内-mod-工坊与开发工具) |
+| 使用后山等原版决斗背景 | [查找背景](docs/chs/software_usage.md#查找官方背景) |
 | 查看完整步骤示例 | [全节点样例](samples/showcase3/README.md) |
 | 查询功能和限制 | [当前能力](docs/chs/current_capabilities.md) |
 

@@ -1,6 +1,6 @@
 # CLI 命令与参数
 
-本文对应 1.6.0。主入口 `lom-editor.exe --cli COMMAND ... --json`，不需要 Python；Windows 正式附件只有内置组件的 exe。独立 `lomc` 提供下表的核心命令；操作类命令由编辑器提供。Python 调用方法见 [接口参考](python_api.md)。SDK 根目录的 `README.md` 对应仓库创作指南，两份参考文件与它同目录。
+本文对应 1.6.2。主入口 `lom-editor.exe --cli COMMAND ... --json`，不需要 Python；Windows 正式附件只有内置组件的 exe。独立 `lomc` 提供下表的核心命令；操作类命令由编辑器提供。Python 调用方法见 [接口参考](python_api.md)。SDK 根目录的 `README.md` 对应仓库创作指南，两份参考文件与它同目录。
 
 所有 JSON 输出为 UTF-8，退出码：0 成功；1 参数／校验／执行失败；水印未检出为 2。命令失败输出 `{ok:false,errors:[...]}` 或 `{ok:false,issues:[...]}`。issues 带 severity/code/story_id/node_id/message。--json 可放命令前后。自动化不要解析默认中文文本输出。
 
@@ -36,7 +36,7 @@
 | `detect-watermark IMAGE` | 无 | 图片来源水印检测 |
 | `detect-watermark-video VIDEO` | --ffmpeg 路径、--interval 秒默认2、--max-frames 默认12 | 视频检测，需可用 FFmpeg |
 
-工程请求字段：source（可选旧工程）、mode（新建模式）、target（原版补丁目标）、manifest（顶层合并）、stories（完整替换章节集合）、scenario（完整替换，null移除）、assets（路径或内嵌JSON）、remove_assets（明确移除路径）。完整示例见 [创作指南](https://github.com/mohui666/lom_modkit/blob/v1.6.0/docs/chs/ai_cli.md#工程请求字段)，SDK 中为本地 `README.md`。相对 source/资源路径相对请求文件；-o 相对命令工作目录。
+工程请求字段：source（可选旧工程）、mode（新建模式）、target（原版补丁目标）、manifest（顶层合并）、stories（完整替换章节集合）、scenario（完整替换，null移除）、assets（路径或内嵌JSON）、remove_assets（明确移除路径）。完整示例见 [创作指南](https://github.com/mohui666/lom_modkit/blob/v1.6.2/docs/chs/ai_cli.md#工程请求字段)，SDK 中为本地 `README.md`。相对 source/资源路径相对请求文件；-o 相对命令工作目录。
 
 `schema catalog --filter 关键词` 不区分大小写，匹配条目的 ID、名称和其他文本／数字，以及映射目录的条目键；不按目录分类名称筛选。命中时保留整条记录和 schema 编号，无匹配的分类保留空数组／对象。省略 --filter 仍返回完整目录。
 
@@ -161,4 +161,4 @@ Windows 正式 exe 内置专用于原生导出的精简 FFmpeg，保留 H.264、
 
 可选 `developer_mode=true` 必须同时设置 `include_official_events=true`。它为本次隔离事件测试授权游戏内的开发者跳转入口；进入养成后按默认 F8，勾选开发测试，可改日期或从原版章节开头开始。`developer_mode` 不写回作者工程，也不重建更早的历史或改变事件的条件、概率、优先级。此功能的实时请求使用 `format=3`，并要求完整的跟踪事件字段；旧 Host 会明确拒绝它，常规事件请求仍保持 `format=2`。离线 `prepare-event-playtest` 只准备包，不表示已经授权运行中的游戏。
 
-1.6.0 顶层 `lom-editor --help`／`--version` 直接输出文字，不准备组件、不打开窗口。查询不支持该顶层入口的旧版时使用 `lom-editor --cli --version`，避免误开窗口。版本变化以对应 [GitHub Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.0) 为准，仓库不保留版本 notes。
+1.6.0 顶层 `lom-editor --help`／`--version` 直接输出文字，不准备组件、不打开窗口。查询不支持该顶层入口的旧版时使用 `lom-editor --cli --version`，避免误开窗口。版本变化以对应 [GitHub Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.2) 为准，仓库不保留版本 notes。
