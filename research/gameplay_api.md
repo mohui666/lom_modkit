@@ -1,5 +1,21 @@
 # Gameplay API 实证矩阵
 
+## 2026-11-16 严格固定字号
+
+本次实时定向读取 `Fungus.SayDialog.DoSay/StoryTextObject/Clear/OnDestroy`、`Fungus.Writer.UpdateOpenMarkup/ConcatenateString`、`TextTagParser.Tokenize`、`Mortal.Core.CharacterSayDialog.DoSay`、`CustomSayDialog.DoSay` 与当前 `UnityEngine.UI.Text.GetGenerationSettings`。Writer 对已显示字符添加 `<size>`，尚未显示的部分使用隐藏颜色；正文逐字增长时，开启的 best-fit 会重复改变整体比例。直接关闭 best-fit 则让旧版长句原有的最终适配消失，表现为原有 40 号长文变大。
+
+用户明确要求字号完全不随字数自动缩小，因此 Host 不做句首全文适配，也不重写已发布编译器的 `{size=...}` token。`SayDialog.DoSay` 进入 MOD 正文前关闭当前 Text 实例的 best-fit，显式 1～200 直接采用作者字号；没有字号 wrapper 的 0／默认采用控件原始字号，同样关闭 best-fit。长文超出文本框仍保持字号。旧剧情需要缩小时由作者明确执行编辑器批量换算，不在播放中自动修改源值、Lua、原版资源或姓名。
+
+实时定向复核 `SayDialog.DoSay`、`CharacterSayDialog.DoSay`、`CustomSayDialog.DoSay`、`Writer.Write/ProcessTokens/DoWords`：正文流程不重新启用 best-fit；两个具名对白子类只在基础调用前更新行距。`SayDialog.Clear` 清空正文并停止该实例协程，`OnDestroy` 移除实例；下一句或所属对白 `Clear/OnDestroy` 恢复临时覆盖的正文原值，人物退场不提前恢复。作者在正文中主动写入的 size 标签仍由原版 Writer 处理，不属于自动缩放。
+
+实机逐帧确认某些对白实例 `closeOtherDialogs=false`，新旁白开始时旧角色对白仍可见。原来的单一静态槽在另一个实例 `DoSay` 时恢复旧 Text，导致 1280×720 下旧角色正文首字从约 28 px 降到 21 px。状态现按 Text 实例分别持有，仅同一实例的下一句、`Clear/OnDestroy` 释放；Host 真正卸载时统一恢复。另一个对白开始、换角色或退场不释放旧框的状态。
+
+## 2026-11-15 固定字号与人物退场
+
+实时定向核对当前 `Fungus.SayDialog.DoSay/Clear/OnDestroy/StoryTextObject`、`Mortal.Core.CharacterSayDialog.DoSay`、`CustomSayDialog.DoSay` 与 `TextLineSpacingPanel.UpdateLineSpacing`。`SayDialog.Clear()` 清空正文并停止自身协程；`OnDestroy()` 移除该对白实例。两个具名对白子类在进入正文前更新行距，再委托基础 `DoSay`，行距方法不修改字号或 best-fit。
+
+本项目 `CustomCharacterRuntime.HideAllOnStage()` 的人物清理发生时，官方对白仍可能在淡出；此前 `ClearAll()` 同时恢复 Text 的字号及 best-fit，造成可见正文提前缩字。固定字号现在只在下一句 `DoSay` 开始、所属 `SayDialog.Clear()` 或 `OnDestroy()` 时释放，不再由人物清理释放。只改活动对白实例，不改官方资源；字号 0 的游戏默认规则不变。
+
 ## 2026-11-15 原版前置章节事件试玩入口
 
 本次实时定向反编译安装游戏的 `Mortal.Story.LuaManager.SetCurrentStoryScript/SetNextScript/Init/ExecuteLuaScript`：`SetNextScript` 经 `SetCurrentStoryScript` 更新当前剧情，`Init` 初始化 Lua 环境后调用 `ExecuteLuaScript`，后者加载 `Story/ChineseTraditional/<ScriptName>` 并交给原版 LuaEnvironment 执行。前置模式只调用 `SetNextScript(source_script)`、`Init()` 播放作者指定的原版起点，随后由真实 `SetNextScript` 和既有 `StoryEntryRuntime` 进入事件；不设置虚构来源、不强制目标、不额外清理边界画面。旧边界测试仍设置 `from` 后直达 `target`，二者范围明确分开。只在原版脚本实际放行执行、所测事件 ID 实际获选和对应 MOD 脚本／节点执行时记录各自状态。此处记录接口依据，构建与离线验证不等于原版连续衔接的实机画面验证。

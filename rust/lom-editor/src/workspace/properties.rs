@@ -362,6 +362,12 @@ impl App {
                                         story["nodes"][self.selected] = node;
                                     }
                                 }
+                                if response.font_conversion {
+                                    self.begin_font_conversion();
+                                }
+                                if response.font_uniform {
+                                    self.begin_font_uniform();
+                                }
                             } else {
                                 ui.heading(tr("还没有步骤"));
                                 ui.label(crate::i18n::key("editor.workspace.empty"));

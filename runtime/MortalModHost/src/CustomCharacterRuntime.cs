@@ -71,7 +71,6 @@ namespace MortalModHost
             CharacterTitleRuntime.CustomSpeaker = null;
             AutoDialogueRuntime.Clear();
             CharacterPresentation.NarrativeLeft(false);
-            DialogueFontRuntime.Clear();
             CharacterDimming.Clear();
             CharacterLayoutRuntime.Clear();
             CharacterRotationRuntime.Clear();

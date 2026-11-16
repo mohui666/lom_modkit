@@ -8,7 +8,7 @@ use std::sync::Arc;
 const SNAPSHOT_BLOCK: usize = 32;
 pub(super) struct ChapterView {
     chapter: String,
-    revision: u64,
+    sections: Value,
     pub(super) ids: Vec<String>,
     pub(super) rows: Vec<authoring::Row>,
     pub(super) sections_error: Option<String>,
@@ -174,15 +174,37 @@ impl App {
         results
     }
     pub(super) fn chapter_view(&mut self) -> Arc<ChapterView> {
-        if let Some(view) = &self.chapter_view {
-            if view.chapter == self.current && view.revision == self.document_revision {
-                return view.clone();
+        if let Some((revision, view)) = &mut self.chapter_view {
+            if view.chapter == self.current {
+                if *revision == self.document_revision {
+                    return view.clone();
+                }
+                let story = self
+                    .project
+                    .stories
+                    .get(&self.current)
+                    .unwrap_or(&Value::Null);
+                if view.sections == story["_editor"]["sections"]
+                    && story["nodes"].as_array().is_some_and(|nodes| {
+                        nodes.len() == view.ids.len()
+                            && nodes
+                                .iter()
+                                .zip(&view.ids)
+                                .all(|(node, id)| node["id"].as_str() == Some(id.as_str()))
+                    })
+                {
+                    // A prose/action edit does not change the sidebar's row
+                    // structure. Rebuilding grouped rows scans chapter bounds
+                    // repeatedly and used to block every typed character.
+                    *revision = self.document_revision;
+                    return view.clone();
+                }
             }
         }
         let story = self.story();
         let view = Arc::new(ChapterView {
             chapter: self.current.clone(),
-            revision: self.document_revision,
+            sections: story["_editor"]["sections"].clone(),
             ids: story["nodes"]
                 .as_array()
                 .into_iter()
@@ -194,7 +216,7 @@ impl App {
                 .err()
                 .map(crate::error_ui::capture),
         });
-        self.chapter_view = Some(view.clone());
+        self.chapter_view = Some((self.document_revision, view.clone()));
         view
     }
     pub(super) fn dirty(&self) -> bool {

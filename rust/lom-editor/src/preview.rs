@@ -3212,11 +3212,16 @@ impl Preview {
                     Some("large") => 60,
                     _ => 0,
                 });
-            let font_scale = if font_size > 0 {
-                font_size as f32 / 40.0
+            // Explicit sizes share one scale across all dialogue modes. Only
+            // default 0 resolves to the live dialog's own default (28 or 45).
+            let resolved_size = if font_size > 0 {
+                font_size as f32
+            } else if mode == "center" {
+                45.0
             } else {
-                1.0
+                28.0
             };
+            let font_scale = resolved_size / 28.0;
             let centered = mode == "center"
                 && dialog.get("text_align").and_then(Value::as_str) != Some("left");
             let left_margin = if matches!(mode, "narrative" | "center")

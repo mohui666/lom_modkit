@@ -444,6 +444,19 @@ impl App {
                     self.open_center(Center::Chapter);
                 }
                 ui.separator();
+                let node_count = self.story()["nodes"].as_array().map_or(0, Vec::len);
+                if node_count >= 850 {
+                    ui.add(
+                        egui::Label::new(
+                            RichText::new(crate::i18n::message(
+                                "workspace.steps.long_chapter",
+                                &[("count", node_count.to_string())],
+                            ))
+                            .small(),
+                        )
+                        .wrap(),
+                    );
+                }
                 if !self.search.is_empty()
                     || ctx.data(|data| {
                         data.get_temp::<bool>(egui::Id::new("step-search-open"))

@@ -11,6 +11,7 @@ impl App {
             && self.rename_dialog.is_none()
             && self.asset_import_dialog.is_none()
             && self.video_dialog.is_none()
+            && self.font_conversion_dialog.is_none()
             && self.error.is_none()
             && self.pending.is_none()
             && self.pending_template.is_none()

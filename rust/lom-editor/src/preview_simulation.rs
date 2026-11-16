@@ -182,16 +182,76 @@ impl Cache {
             self.revision = revision;
             return false;
         }
+        let has_effects =
+            lom_core::parallel::story_actions(story).any(|(_, node)| node["type"] == "effect");
+        let managed_effects = effects::managed(story);
+        if has_effects == self.has_effects && managed_effects == self.managed_effects {
+            if let Some((depth, changed)) = self.unchanged_prefix_depth(story) {
+                // Text and action edits usually leave the route unchanged. Keep
+                // the stages before the first edited node instead of replaying
+                // hundreds of preceding steps on every keystroke or drag.
+                self.checkpoints.retain(|point| point.depth < depth);
+                self.checkpoint_bytes = self.checkpoints.iter().map(|point| point.bytes).sum();
+                let nodes = self.story.as_mut().unwrap()["nodes"]
+                    .as_array_mut()
+                    .unwrap();
+                for index in changed {
+                    nodes[index] = story["nodes"][index].clone();
+                }
+                self.revision = revision;
+                return true;
+            }
+        }
         *self = Self {
             story: Some(story.clone()),
             revision,
             routes: Routes::new(story),
-            has_effects: lom_core::parallel::story_actions(story)
-                .any(|(_, node)| node["type"] == "effect"),
-            managed_effects: effects::managed(story),
+            has_effects,
+            managed_effects,
             ..Self::default()
         };
         true
+    }
+
+    fn unchanged_prefix_depth(&self, story: &Value) -> Option<(usize, Vec<usize>)> {
+        let cached = self.story.as_ref()?;
+        // Imported resume links may depend on other, unchanged nodes too.
+        if story.get("vanilla_import").is_some() {
+            return None;
+        }
+        let (old_fields, fields) = (cached.as_object()?, story.as_object()?);
+        if old_fields.len() != fields.len()
+            || old_fields.iter().any(|(key, value)| {
+                key != "nodes"
+                    && fields
+                        .get(key)
+                        .is_none_or(|current| !crate::json::same(value, current))
+            })
+        {
+            return None;
+        }
+        let (old_nodes, nodes) = (cached["nodes"].as_array()?, story["nodes"].as_array()?);
+        if old_nodes.len() != nodes.len() {
+            return None;
+        }
+        let mut depth = usize::MAX;
+        let mut changed = Vec::new();
+        for (index, (old, node)) in old_nodes.iter().zip(nodes).enumerate() {
+            if crate::json::same(old, node) {
+                continue;
+            }
+            if old["id"] != node["id"]
+                || lom_core::analysis::successors(cached, index)
+                    != lom_core::analysis::successors(story, index)
+            {
+                return None;
+            }
+            if let Some(previous) = self.routes.previous.get(text(node, "id")) {
+                depth = depth.min(previous.depth);
+            }
+            changed.push(index);
+        }
+        Some((depth, changed))
     }
 
     fn remember(&mut self, node: &str, depth: usize, stage: &Stage) {
@@ -457,6 +517,82 @@ mod tests {
         edited["nodes"][0]["goto"] = json!("missing");
         assert!(cache.synchronize(&edited, None));
         assert_states(&mut cache, &edited, "b");
+    }
+
+    #[test]
+    fn typing_and_parallel_edits_keep_the_unchanged_large_chapter_prefix() {
+        let mut nodes = vec![json!({"id":"n0","type":"show","character":"player"})];
+        nodes.extend(
+            (1..999).map(|index| json!({"id":format!("n{index}"),"type":"say","text":"原对白"})),
+        );
+        nodes.push(json!({"id":"target","type":"say","text":"末句"}));
+        let original = json!({"start":"n0","nodes":nodes});
+        let mut story = original.clone();
+        let mut cache = Cache::default();
+        cache.synchronize(&story, Some(1));
+        assert_states(&mut cache, &story, "target");
+        assert_eq!(cache.last_applied_nodes, 1000);
+
+        for revision in 2..6 {
+            story["nodes"][999]["text"] = json!(format!("连续输入 {revision}"));
+            assert!(cache.synchronize(&story, Some(revision)));
+            assert_states(&mut cache, &story, "target");
+            assert!(cache.last_applied_nodes <= CHECKPOINT_STRIDE);
+        }
+        story["nodes"][999] = json!({"id":"target","type":"parallel","actions":[
+            {"type":"offset","character":"player","x":40,"duration":0.5},
+            {"type":"wait","seconds":1}
+        ]});
+        cache.synchronize(&story, Some(6));
+        assert_states(&mut cache, &story, "target");
+        assert!(cache.last_applied_nodes <= CHECKPOINT_STRIDE);
+        story["nodes"][999]["actions"][0]["x"] = json!(60);
+        cache.synchronize(&story, Some(7));
+        assert_states(&mut cache, &story, "target");
+        assert!(cache.last_applied_nodes <= CHECKPOINT_STRIDE);
+
+        // Undo an earlier stage change as well as the text/action edits.
+        story["nodes"][0]["position"] = json!("R1");
+        cache.synchronize(&story, Some(8));
+        assert!(cache.checkpoints.is_empty());
+        assert_states(&mut cache, &story, "target");
+        cache.synchronize(&original, Some(9));
+        assert_states(&mut cache, &original, "target");
+        assert!(cache.checkpoints.len() <= MAX_CHECKPOINTS);
+        assert!(cache.checkpoint_bytes <= MAX_CHECKPOINT_BYTES);
+    }
+
+    #[test]
+    fn editing_routes_initial_state_or_global_effect_mode_discards_prefixes() {
+        let original = json!({"start":"show","nodes":[
+            {"id":"show","type":"show","character":"player"},
+            {"id":"line","type":"say","text":"正文"},
+            {"id":"end","type":"end"}
+        ]});
+        for edited in [
+            {
+                let mut s = original.clone();
+                s["nodes"][0]["goto"] = json!("end");
+                s
+            },
+            {
+                let mut s = original.clone();
+                s["mood"] = json!(true);
+                s
+            },
+            {
+                let mut s = original.clone();
+                s["nodes"][1] = json!({"id":"line","type":"effect","name":"Rain_001","tag":"rain","start_delay":0.5});
+                s
+            },
+        ] {
+            let mut cache = Cache::default();
+            cache.synchronize(&original, Some(1));
+            assert_states(&mut cache, &original, "end");
+            cache.synchronize(&edited, Some(2));
+            assert!(cache.checkpoints.is_empty());
+            assert_states(&mut cache, &edited, "end");
+        }
     }
 
     #[test]

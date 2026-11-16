@@ -1,5 +1,7 @@
 //! Project assets, pending drafts and asset imports.
 use super::*;
+#[path = "image_transfer.rs"]
+mod image_transfer;
 
 impl App {
     pub(super) fn assets(&mut self, ui: &mut egui::Ui) {
@@ -15,6 +17,31 @@ impl App {
                 error: None,
             });
         }
+        ui.menu_button(crate::i18n::key("workspace.assets.copy_images"), |ui| {
+            ui.label(crate::i18n::key("workspace.assets.copy_images_hint"));
+            if ui
+                .button(crate::i18n::key("workspace.assets.copy_images_folder"))
+                .clicked()
+            {
+                ui.close();
+                if let Some(path) = self.project_dialog().pick_folder() {
+                    self.copy_project_images_at(&path);
+                }
+            }
+            if ui
+                .button(crate::i18n::key("workspace.assets.copy_images_package"))
+                .clicked()
+            {
+                ui.close();
+                if let Some(path) = self
+                    .project_dialog()
+                    .add_filter("LoM Modkit", &["json", "lommod"])
+                    .pick_file()
+                {
+                    self.copy_project_images_at(&path);
+                }
+            }
+        });
         if ui
             .button(crate::i18n::key("usability.authoring.talent"))
             .clicked()
@@ -156,6 +183,30 @@ impl App {
                 }
             },
         );
+    }
+    pub(super) fn copy_project_images_at(&mut self, path: &Path) {
+        if !self.apply_pending_drafts() {
+            return;
+        }
+        self.flush();
+        match open_project(path)
+            .and_then(|incoming| image_transfer::copy_images(&mut self.project, &incoming))
+        {
+            Ok(report) => {
+                self.asset_selection = report.first_asset;
+                self.asset_dirty = true;
+                self.track();
+                self.flush();
+                self.status = crate::i18n::message(
+                    "workspace.assets.copy_images_done",
+                    &[
+                        ("images", report.images.to_string()),
+                        ("chapters", report.chapters.to_string()),
+                    ],
+                );
+            }
+            Err(error) => self.error = Some(crate::error_ui::capture(error)),
+        }
     }
     pub(super) fn apply_pending_drafts(&mut self) -> bool {
         match self.content_panel.apply_pending(&mut self.project) {

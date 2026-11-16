@@ -45,6 +45,8 @@ pub struct Catalog {
 pub struct NodeFormResponse {
     pub changed: bool,
     pub help: Option<String>,
+    pub font_conversion: bool,
+    pub font_uniform: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -734,6 +736,8 @@ impl Catalog {
             .unwrap_or_default();
         let mut changed = false;
         let mut help_request = None;
+        let mut font_conversion = false;
+        let mut font_uniform = false;
         ui.horizontal_wrapped(|ui| {
             ui.heading(self.label(&kind));
             let help_key = format!("help.{kind}");
@@ -797,6 +801,8 @@ impl Catalog {
             return NodeFormResponse {
                 changed,
                 help: help_request,
+                font_conversion,
+                font_uniform,
             };
         }
         if kind == "battle" {
@@ -904,6 +910,18 @@ impl Catalog {
                     node_ids,
                     story_ids,
                 );
+                if kind == "say" && key == "font_size" {
+                    ui.horizontal_wrapped(|ui| {
+                        font_uniform = ui
+                            .small_button(crate::i18n::key("font_uniform.open"))
+                            .on_hover_text(crate::i18n::key("font_uniform.hint"))
+                            .clicked();
+                        font_conversion = ui
+                            .small_button(crate::i18n::key("font_conversion.open"))
+                            .on_hover_text(crate::i18n::key("font_conversion.hint"))
+                            .clicked();
+                    });
+                }
             }
         }
         if matches!(kind.as_str(), "move" | "offset") {
@@ -1025,6 +1043,8 @@ impl Catalog {
         NodeFormResponse {
             changed,
             help: help_request,
+            font_conversion,
+            font_uniform,
         }
     }
     fn parallel_actions(&self, ui: &mut Ui, node: &mut Value) -> bool {

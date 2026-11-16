@@ -43,6 +43,7 @@ impl App {
             || self.rename_dialog.is_some()
             || self.asset_import_dialog.is_some()
             || self.video_dialog.is_some()
+            || self.font_conversion_dialog.is_some()
             || self.settings_open
             || self.updater.open
             || self.tools_panel.dialog_open()

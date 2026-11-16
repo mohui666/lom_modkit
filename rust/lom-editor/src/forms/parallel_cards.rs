@@ -99,7 +99,13 @@ fn timing_label(duration: f64) -> String {
     }
 }
 
-fn title(catalog: &Catalog, action: &Value, index: usize, duration: f64) -> String {
+fn title(
+    catalog: &Catalog,
+    characters: &[(String, String)],
+    action: &Value,
+    index: usize,
+    duration: f64,
+) -> String {
     let kind = action["type"].as_str().unwrap_or("");
     let character = action["character"].as_str().unwrap_or("");
     let target = if character.is_empty() {
@@ -109,10 +115,9 @@ fn title(catalog: &Catalog, action: &Value, index: usize, duration: f64) -> Stri
             .unwrap_or("")
             .to_owned()
     } else {
-        catalog
-            .options("character", action, &[], &[])
-            .into_iter()
-            .find_map(|(id, name)| (id == character).then_some(name))
+        characters
+            .iter()
+            .find_map(|(id, name)| (id == character).then(|| name.clone()))
             .unwrap_or_else(|| character.to_owned())
     };
     let target = if target.is_empty() {
@@ -257,10 +262,15 @@ pub(super) fn show(catalog: &Catalog, ui: &mut Ui, node: &mut Value) -> bool {
         .iter()
         .map(crate::preview::parallel_action_duration)
         .fold(0.0, f64::max);
+    let characters = if actions.iter().any(|action| action["character"].is_string()) {
+        catalog.options("character", &Value::Null, &[], &[])
+    } else {
+        Vec::new()
+    };
     let labels: Vec<_> = actions
         .iter()
         .enumerate()
-        .map(|(index, action)| title(catalog, action, index, durations[index]))
+        .map(|(index, action)| title(catalog, &characters, action, index, durations[index]))
         .collect();
     egui::CollapsingHeader::new(message(
         "editor.parallel.timeline",
@@ -519,7 +529,7 @@ mod tests {
                 if rect.stroke.width == 2.0 && rect.stroke.color == visuals.text_color().gamma_multiply(0.85))));
             assert!(output.shapes.iter().any(|shape| matches!(&shape.shape, egui::Shape::Rect(rect)
                 if rect.stroke.width == 3.0 && rect.stroke.color == visuals.widgets.active.bg_stroke.color)));
-            assert!(title(&catalog, &node["actions"][1], 1, 2.0).contains("0.5"));
+            assert!(title(&catalog, &[], &node["actions"][1], 1, 2.0).contains("0.5"));
         }
     }
 
@@ -763,6 +773,7 @@ mod tests {
             key("editor.parallel.collapse_details"),
             title(
                 &catalog,
+                &catalog.options("character", &Value::Null, &[], &[]),
                 &node["actions"][2],
                 2,
                 crate::preview::action_duration(&node["actions"][2]),

@@ -602,6 +602,7 @@ fn add_user_content(
     manifest: &Value,
 ) -> Result<()> {
     let mut referenced: BTreeMap<String, String> = BTreeMap::new();
+    let mut resolved = BTreeMap::new();
     let extensions = content::character_extensions_at(root)?;
     let mut scenario_nodes = scenario
         .map(content::scenario_gameplay_nodes)
@@ -754,11 +755,16 @@ fn add_user_content(
                     "用户内容 {id} 同时被当作 {previous}/{ctype}"
                 );
             }
-            let (meta, _main) = content::resolve_content(root, ctype, id)?;
+            let meta = match resolved.entry((ctype.to_owned(), id.to_owned())) {
+                std::collections::btree_map::Entry::Occupied(entry) => entry.into_mut(),
+                std::collections::btree_map::Entry::Vacant(entry) => {
+                    entry.insert(content::resolve_content(root, ctype, id)?.0)
+                }
+            };
             if ctype == "character" {
-                crate::character_profile::validate_for_export(&meta)?;
+                crate::character_profile::validate_for_export(meta)?;
                 if kind == "character_profile" {
-                    crate::character_profile::validate_reference(node, &meta).with_context(
+                    crate::character_profile::validate_reference(node, meta).with_context(
                         || format!("章节 {story_id}，步骤 {} 的人物资料操作", parent["id"]),
                     )?;
                 }
@@ -795,9 +801,9 @@ fn add_user_content(
                 let dir = format!("assets/user/{ctype}/{id}");
                 entries.insert(
                     format!("{dir}/content.json"),
-                    stable_json(&content::content_metadata_payload(&meta))?,
+                    stable_json(&content::content_metadata_payload(meta))?,
                 );
-                for file in content::listed_content_files(&meta) {
+                for file in content::listed_content_files(meta) {
                     canonical_archive_name(&file)?;
                     let path = resolve_confined_file(root, &root.join(&dir).join(&file))?;
                     entries.insert(format!("{dir}/{file}"), fs::read(path)?);
