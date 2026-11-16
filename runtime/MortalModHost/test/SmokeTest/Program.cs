@@ -15,12 +15,40 @@ namespace MortalModHost
     /// </summary>
     internal static class Program
     {
-        private static int Main()
+        private static int Main(string[] args)
         {
-            CharacterDimmingStateTests.Run();
             try
             {
-                return Run();
+                bool requireNative = args.Contains("--require-native-integrity")
+                    || Environment.GetEnvironmentVariable("LOM_REQUIRE_NATIVE_INTEGRITY") == "1";
+                if (args.Contains("--native-integrity-only"))
+                {
+                    NativeIntegrityTests.Run(requireNative);
+                    return 0;
+                }
+                if (args.Contains("--native-modules-only"))
+                {
+                    NativeIntegrityTests.Run(requireNative);
+                    NativeSha256Tests.Run(requireNative);
+                    NativePackageIntegrityTests.Run(requireNative);
+                    NativeArchivePathTests.Run(requireNative);
+                    NativeJsonWriteTests.Run(requireNative);
+                    NativeJsonTests.Run(requireNative);
+                    NativeTextScanTests.Run(requireNative);
+                    NativeStoryPatchTests.Run(requireNative);
+                    NativeSourceCompareTests.Run(requireNative);
+                    NativeScenarioPlanTests.Run(requireNative);
+                    ScenarioPresentationTests.Run();
+                    NativeStateCodecTests.Run(requireNative);
+                    Console.WriteLine("PASS slot ownership differential: " + SlotOwnershipTests.Run() + " checks");
+                    ReadTextRegistryTests.Run();
+                    NativePcmConvertTests.Run(requireNative);
+                    NativeAudioMixTests.Run(requireNative);
+                    NativeOggSourceTests.Run(requireNative);
+                    return 0;
+                }
+                CharacterDimmingStateTests.Run();
+                return Run(requireNative);
             }
             catch (Exception ex)
             {
@@ -31,8 +59,25 @@ namespace MortalModHost
             }
         }
 
-        private static int Run()
+        private static int Run(bool requireNative)
         {
+            NativeIntegrityTests.Run(requireNative);
+            NativeSha256Tests.Run(requireNative);
+            NativePackageIntegrityTests.Run(requireNative);
+            NativeArchivePathTests.Run(requireNative);
+            NativeJsonWriteTests.Run(requireNative);
+            NativeJsonTests.Run(requireNative);
+            NativeTextScanTests.Run(requireNative);
+            NativeStoryPatchTests.Run(requireNative);
+            NativeSourceCompareTests.Run(requireNative);
+            NativeScenarioPlanTests.Run(requireNative);
+            ScenarioPresentationTests.Run();
+            NativeStateCodecTests.Run(requireNative);
+            Console.WriteLine("PASS slot ownership differential: " + SlotOwnershipTests.Run() + " checks");
+            ReadTextRegistryTests.Run();
+            NativePcmConvertTests.Run(requireNative);
+            NativeAudioMixTests.Run(requireNative);
+            NativeOggSourceTests.Run(requireNative);
             CharacterRotationRuntimeTests.Run();
             CharacterMovementRuntimeTests.Run();
             AutoDialogueTimingTests.Run();
@@ -40,6 +85,10 @@ namespace MortalModHost
             VideoFrameWriterTests.Run();
             VideoWorkerRuntimeTests.Run();
             PlaytestStatusTests.Run();
+            DevelopmentNavigationTests.Run();
+            DevelopmentEventCatalogTests.Run();
+            DevelopmentEventTextTests.Run();
+            CombatIdentityPolicyTests.Run();
             ModSaveBrowserTests.Run();
             AddonSaveDependencyTests.Run();
             EffectPlaybackTests.Run();
@@ -1011,6 +1060,15 @@ namespace MortalModHost
 
         private static void TestCombatBackgroundAddressPolicy()
         {
+            string spriteName;
+            Assert(CombatBackgroundAddressPolicy.TryGetCombatSpriteName(
+                "combat:back_combat_backmountain_1", out spriteName)
+                && spriteName == "back_combat_backmountain_1",
+                "决斗专用背景必须保留精确 Sprite 名称供原版引用查找");
+            foreach (string key in new[] { null, "", "center", "combat:", "Combat:back_combat_backmountain_1" })
+                Assert(!CombatBackgroundAddressPolicy.TryGetCombatSpriteName(key, out spriteName)
+                    && spriteName == null,
+                    "旧背景与不完整的新背景标识不能误入专用 Sprite 查找");
             Assert(CombatBackgroundAddressPolicy.IsOfficialImageAddress(
                 "Assets/__Project/Images/Background/screen_section_001_center2.jpg"),
                 "官方背景映射中的 JPG 必须允许");

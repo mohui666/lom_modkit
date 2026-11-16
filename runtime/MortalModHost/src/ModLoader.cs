@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
-using System.Security.Cryptography;
 using System.Text;
 
 namespace MortalModHost
@@ -142,8 +141,7 @@ namespace MortalModHost
                 if (stream.Length > MaxPackageFileBytes)
                     throw new FormatException("mod 包文件超过 160MB 上限");
                 string fingerprint;
-                using (var sha256 = SHA256.Create())
-                    fingerprint = ToUpperHex(sha256.ComputeHash(stream));
+                fingerprint = ToUpperHex(NativeSha256.Hash(stream));
                 stream.Position = 0;
 
                 using (var zip = new ZipArchive(stream, ZipArchiveMode.Read))
@@ -157,8 +155,8 @@ namespace MortalModHost
                     package.PackagePath = path;
                     package.PackageFingerprint = fingerprint;
 
-                    ValidatePackageContentHash(zip, true);
-                    ValidateStoryLuaIntegrity(zip, true);
+                    Dictionary<string, string> entryHashes = ValidatePackageContentHash(zip, true);
+                    ValidateStoryLuaIntegrity(zip, true, entryHashes);
 
                 // 收集 lua/<id>.lua（仅 lua/ 直接子项，契约 §1）
                 foreach (var entry in zip.Entries)
@@ -294,10 +292,14 @@ namespace MortalModHost
 
         private static string ToUpperHex(byte[] bytes)
         {
-            var text = new StringBuilder(bytes.Length * 2);
+            const string hex = "0123456789ABCDEF";
+            var text = new char[bytes.Length * 2];
             for (int i = 0; i < bytes.Length; i++)
-                text.Append(bytes[i].ToString("X2"));
-            return text.ToString();
+            {
+                text[i * 2] = hex[bytes[i] >> 4];
+                text[i * 2 + 1] = hex[bytes[i] & 15];
+            }
+            return new string(text);
         }
 
         /// <summary>解析 manifest.json，校验契约 §2 的必填字段。</summary>
@@ -1098,7 +1100,7 @@ namespace MortalModHost
                 throw new FormatException("文本条目超过 " + (maximum / (1024 * 1024)) + "MB 上限：" + entry.FullName);
             using (var input = entry.Open())
             {
-                byte[] bytes = ReadBoundedBytes(input, maximum, entry.FullName);
+                byte[] bytes = ReadZipTextBytes(input, entry.Length, maximum, entry.FullName);
                 try
                 {
                     string text = new UTF8Encoding(false, true).GetString(bytes);
@@ -1108,6 +1110,44 @@ namespace MortalModHost
                 {
                     throw new FormatException("文本条目不是合法 UTF-8：" + entry.FullName);
                 }
+            }
+        }
+
+        // The normal ZIP text path needs one exact-sized allocation, rather
+        // than an 80KB scratch buffer plus MemoryStream/ToArray per tiny file.
+        // Metadata is only a sizing hint: retain the old actual EOF/size rules
+        // if it under- or overstates the uncompressed bytes.
+        private static byte[] ReadZipTextBytes(Stream input, long declaredLength, long maximum, string path)
+        {
+            var bytes = new byte[(int)declaredLength];
+            int total = 0;
+            while (total < bytes.Length)
+            {
+                int read = input.Read(bytes, total, bytes.Length - total);
+                if (read == 0)
+                {
+                    Array.Resize(ref bytes, total);
+                    return bytes;
+                }
+                total += read;
+            }
+            int extra = input.ReadByte();
+            if (extra < 0) return bytes;
+            if (total >= maximum) throw new FormatException("条目读取超过大小上限：" + path);
+            using (var output = new MemoryStream())
+            {
+                output.Write(bytes, 0, bytes.Length);
+                output.WriteByte((byte)extra);
+                long actual = total + 1L;
+                var buffer = new byte[81920];
+                int read;
+                while ((read = input.Read(buffer, 0, buffer.Length)) != 0)
+                {
+                    if (actual > maximum - read) throw new FormatException("条目读取超过大小上限：" + path);
+                    output.Write(buffer, 0, read);
+                    actual += read;
+                }
+                return output.ToArray();
             }
         }
 
@@ -1147,12 +1187,10 @@ namespace MortalModHost
 
             foreach (string path in exactPaths)
             {
-                string body = path.EndsWith("/", StringComparison.Ordinal)
-                    ? path.Substring(0, path.Length - 1) : path;
-                string[] parts = body.Split('/');
-                for (int i = 1; i < parts.Length; i++)
+                int limit = path.EndsWith("/", StringComparison.Ordinal) ? path.Length - 1 : path.Length;
+                for (int slash = path.IndexOf('/'); slash >= 0 && slash < limit; slash = path.IndexOf('/', slash + 1))
                 {
-                    string prefix = string.Join("/", parts, 0, i);
+                    string prefix = path.Substring(0, slash);
                     if (filePaths.Contains(prefix))
                         throw new FormatException("包内路径同时被用作文件和目录：" + prefix);
                 }
@@ -1174,66 +1212,20 @@ namespace MortalModHost
         /// ZIP 条目必须使用唯一、规范的相对 POSIX 路径。Runtime 从不解压条目，但仍与
         /// Editor 使用同一规则拒绝路径穿越、Windows drive/UNC、反斜杠和歧义路径。
         /// </summary>
-        private static string ValidateArchivePath(string path)
-        {
-            if (string.IsNullOrEmpty(path) || path.IndexOf('\0') >= 0)
-                throw new FormatException("包内包含空路径或 NUL 字符");
-            if (path.IndexOf('\\') >= 0)
-                throw new FormatException("包内路径必须使用正斜杠：" + path);
-            if (path[0] == '/' || (path.Length >= 2 && IsAsciiLetter(path[0]) && path[1] == ':'))
-                throw new FormatException("包内包含绝对路径：" + path);
-
-            bool directory = path.EndsWith("/", StringComparison.Ordinal);
-            string body = directory ? path.Substring(0, path.Length - 1) : path;
-            if (body.Length == 0)
-                throw new FormatException("包内包含根目录条目");
-            string[] parts = body.Split('/');
-            foreach (string part in parts)
-            {
-                if (part.Length == 0 || part == "." || part == "..")
-                    throw new FormatException("包内包含不安全或非规范路径：" + path);
-                if (part.IndexOf(':') >= 0)
-                    throw new FormatException("包内路径段禁止冒号（Windows ADS 风险）：" + path);
-                if (part.EndsWith(".", StringComparison.Ordinal)
-                    || part.EndsWith(" ", StringComparison.Ordinal))
-                    throw new FormatException("包内路径段禁止尾随点或空格：" + path);
-                if (IsWindowsDeviceName(part))
-                    throw new FormatException("包内路径使用 Windows 保留设备名：" + path);
-            }
-            return directory ? body + "/" : body;
-        }
-
-        private static bool IsWindowsDeviceName(string segment)
-        {
-            string stem = segment;
-            int dot = stem.IndexOf('.');
-            if (dot >= 0) stem = stem.Substring(0, dot);
-            stem = stem.ToUpperInvariant();
-            if (stem == "CON" || stem == "PRN" || stem == "AUX" || stem == "NUL")
-                return true;
-            if (stem.Length == 4 && (stem.StartsWith("COM", StringComparison.Ordinal)
-                || stem.StartsWith("LPT", StringComparison.Ordinal)))
-                return stem[3] >= '1' && stem[3] <= '9';
-            return false;
-        }
-
-        private static bool IsAsciiLetter(char value)
-        {
-            return (value >= 'A' && value <= 'Z') || (value >= 'a' && value <= 'z');
-        }
+        private static string ValidateArchivePath(string path) { return NativeArchivePath.Check(path); }
 
         /// <summary>
         /// 验证 v3 打包器生成的压缩无关逻辑内容哈希。记录必填；格式错误、缺失或
         /// 任一条目被替换都拒绝整包。v1/v2 在 manifest 版本门禁处已直接拒绝。
         /// </summary>
-        private static void ValidatePackageContentHash(ZipArchive zip, bool required)
+        private static Dictionary<string, string> ValidatePackageContentHash(ZipArchive zip, bool required)
         {
             ZipArchiveEntry recordEntry = zip.GetEntry(PackageContentHashEntry);
             if (recordEntry == null)
             {
                 if (required)
                     throw new FormatException("package_format=3 缺少 " + PackageContentHashEntry);
-                return;
+                return null;
             }
 
             Dictionary<string, string> record = ParseHashRecord(ReadEntryText(recordEntry));
@@ -1245,8 +1237,12 @@ namespace MortalModHost
                 || !IsUpperHexSha256(declared))
                 throw new FormatException(PackageContentHashEntry + " 记录格式无效");
 
+            // These bytes are read from this same read-only archive. Return
+            // digests only after its logical content hash has matched. They are
+            // not cached decisions; every Story/Lua row is still checked below.
+            var entryHashes = new Dictionary<string, string>(StringComparer.Ordinal);
             string actual;
-            using (var digest = SHA256.Create())
+            using (var digest = new NativeSha256())
             {
                 var entries = new List<ZipArchiveEntry>();
                 foreach (ZipArchiveEntry entry in zip.Entries)
@@ -1256,33 +1252,38 @@ namespace MortalModHost
                 {
                     return string.CompareOrdinal(left.FullName, right.FullName);
                 });
+                var buffer = new byte[81920];
                 foreach (ZipArchiveEntry entry in entries)
                 {
                     byte[] name = Encoding.UTF8.GetBytes(entry.FullName);
                     AddBigEndian(digest, (uint)name.Length, 4);
-                    digest.TransformBlock(name, 0, name.Length, name, 0);
+                    digest.Append(name, 0, name.Length);
                     AddBigEndian(digest, (ulong)entry.Length, 8);
-                    using (Stream input = entry.Open())
+                    using (var entryDigest = IsStoryPath(entry.FullName) || IsRuntimeLuaPath(entry.FullName)
+                        ? new NativeSha256() : null)
                     {
-                        byte[] buffer = new byte[81920];
-                        int read;
-                        long actualLength = 0;
-                        while ((read = input.Read(buffer, 0, buffer.Length)) > 0)
+                        using (Stream input = entry.Open())
                         {
-                            if (actualLength > entry.Length - read)
+                            int read;
+                            long actualLength = 0;
+                            while ((read = input.Read(buffer, 0, buffer.Length)) > 0)
+                            {
+                                if (actualLength > entry.Length - read)
+                                    throw new FormatException("条目读取长度与 ZIP 元数据不一致：" + entry.FullName);
+                                actualLength += read;
+                                digest.AppendWith(entryDigest, buffer, 0, read);
+                            }
+                            if (actualLength != entry.Length)
                                 throw new FormatException("条目读取长度与 ZIP 元数据不一致：" + entry.FullName);
-                            actualLength += read;
-                            digest.TransformBlock(buffer, 0, read, buffer, 0);
                         }
-                        if (actualLength != entry.Length)
-                            throw new FormatException("条目读取长度与 ZIP 元数据不一致：" + entry.FullName);
+                        if (entryDigest != null) entryHashes.Add(entry.FullName, ToUpperHex(entryDigest.Finish()));
                     }
                 }
-                digest.TransformFinalBlock(new byte[0], 0, 0);
-                actual = ToUpperHex(digest.Hash);
+                actual = ToUpperHex(digest.Finish());
             }
             if (!string.Equals(actual, declared, StringComparison.Ordinal))
                 throw new FormatException(PackageContentHashEntry + " 与包内逻辑内容不一致");
+            return entryHashes;
         }
 
         /// <summary>
@@ -1290,6 +1291,12 @@ namespace MortalModHost
         /// 旧包可缺少该记录；新打包器产物一旦含记录，缺行、重复行或内容替换均拒绝。
         /// </summary>
         private static void ValidateStoryLuaIntegrity(ZipArchive zip, bool required)
+        {
+            ValidateStoryLuaIntegrity(zip, required, null);
+        }
+
+        private static void ValidateStoryLuaIntegrity(ZipArchive zip, bool required,
+            Dictionary<string, string> entryHashes)
         {
             ZipArchiveEntry recordEntry = zip.GetEntry(StoryLuaHashEntry);
             if (recordEntry == null)
@@ -1328,8 +1335,8 @@ namespace MortalModHost
                 string luaId = Path.GetFileNameWithoutExtension(fields[2]);
                 if (!string.Equals(storyId, luaId, StringComparison.Ordinal))
                     throw new FormatException(StoryLuaHashEntry + " 的 Story/Lua id 不一致：" + fields[0] + " / " + fields[2]);
-                if (!string.Equals(HashEntry(story), fields[1], StringComparison.Ordinal)
-                    || !string.Equals(HashEntry(lua), fields[3], StringComparison.Ordinal))
+                if (!string.Equals(entryHashes == null ? HashEntry(story) : entryHashes[story.FullName], fields[1], StringComparison.Ordinal)
+                    || !string.Equals(entryHashes == null ? HashEntry(lua) : entryHashes[lua.FullName], fields[3], StringComparison.Ordinal))
                     throw new FormatException("Story/Lua 一致性校验失败：" + fields[2]);
             }
             if (!expectedLua.SetEquals(seenLua))
@@ -1356,14 +1363,8 @@ namespace MortalModHost
 
         private static string HashEntry(ZipArchiveEntry entry)
         {
-            using (SHA256 sha = SHA256.Create())
             using (Stream input = entry.Open())
-            {
-                byte[] bytes = ReadBoundedBytes(input, MaxEntryBytes, entry.FullName);
-                if (bytes.LongLength != entry.Length)
-                    throw new FormatException("条目读取长度与 ZIP 元数据不一致：" + entry.FullName);
-                return ToUpperHex(sha.ComputeHash(bytes));
-            }
+                return ToUpperHex(NativeSha256.Hash(input, MaxEntryBytes, entry.Length, entry.FullName));
         }
 
         private static Dictionary<string, string> ParseHashRecord(string text)
@@ -1393,7 +1394,7 @@ namespace MortalModHost
             return true;
         }
 
-        private static void AddBigEndian(HashAlgorithm digest, ulong value, int bytes)
+        private static void AddBigEndian(NativeSha256 digest, ulong value, int bytes)
         {
             byte[] buffer = new byte[bytes];
             for (int i = bytes - 1; i >= 0; i--)
@@ -1401,7 +1402,7 @@ namespace MortalModHost
                 buffer[i] = (byte)(value & 0xFF);
                 value >>= 8;
             }
-            digest.TransformBlock(buffer, 0, buffer.Length, buffer, 0);
+            digest.Append(buffer, 0, buffer.Length);
         }
 
         private static byte[] ReadBoundedBytes(Stream input, long maxBytes, string path)

@@ -477,9 +477,12 @@ namespace MortalModHost
 
         private static void EnsureSessionIntegrity()
         {
-            if (!DisclosureIntegrity.VerifySessionSeal(ModId, PackageFingerprint, _sessionSeal))
+            uint status = DisclosureIntegrity.VerifySessionIntegrity(ModId, PackageFingerprint, _sessionSeal);
+            if (NativeIntegrity.FallbackNoticePending && Log != null)
+                NativeIntegrity.ReportFallbackOnce(message => Log.LogWarning(message));
+            if (status == 0)
                 throw new InvalidOperationException("披露会话身份完整性校验失败");
-            if (!DisclosureIntegrity.IsFixedStampIntact())
+            if (status == 1)
                 throw new InvalidOperationException("固定非官方标记完整性校验失败");
         }
 

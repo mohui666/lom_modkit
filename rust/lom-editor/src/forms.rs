@@ -418,7 +418,12 @@ impl Catalog {
         }
         let mut options = self.raw_options(kind, node, nodes, stories);
         for (id, name) in &mut options {
-            if kind == "view" {
+            if kind == "combat_background" && id.starts_with("combat:") {
+                *name = format!(
+                    "{} · {name}",
+                    crate::i18n::key("editor.resource.combat_background")
+                );
+            } else if kind == "view" || kind == "combat_background" {
                 *name = resource_label(id, "场景背景", name);
             }
             if kind.starts_with("enum:") || ["mode", "facing", "branch_source"].contains(&kind) {
@@ -672,6 +677,14 @@ impl Catalog {
                         .collect()
                 })
                 .unwrap_or_default();
+        }
+        if kind == "combat_background" {
+            let mut options = localized_rows(&self.data["views"], "views");
+            options.extend(localized_rows(
+                &self.data["combat_backgrounds"],
+                "combat_backgrounds",
+            ));
+            return options;
         }
         let key = match kind {
             "character" => "characters",
@@ -2501,6 +2514,7 @@ fn is_selector(kind: &str) -> bool {
                 | "affinity_optional"
                 | "position"
                 | "view"
+                | "combat_background"
                 | "music"
                 | "sound_name"
                 | "stat"
@@ -6420,6 +6434,47 @@ mod game_flag_catalog_tests {
 #[cfg(test)]
 mod background_catalog_tests {
     use super::*;
+
+    #[test]
+    fn combat_background_picker_merges_official_views_without_exposing_duel_sprites_in_scene_choices(
+    ) {
+        let catalog = Catalog::new();
+        let node = json!({"type":"combat","background":"backmountain"});
+        let original = node.clone();
+        let combat = catalog.options("combat_background", &node, &[], &[]);
+        let scenes = catalog.options("view", &json!({"type":"scene"}), &[], &[]);
+        assert!(scenes
+            .iter()
+            .all(|(id, _)| combat.iter().any(|(candidate, _)| candidate == id)));
+        assert!(combat
+            .iter()
+            .any(|(id, name)| id == "combat:back_combat_backmountain_1" && name != id));
+        assert!(!scenes.iter().any(|(id, _)| id.starts_with("combat:")));
+        assert!(is_selector("combat_background"));
+        assert_eq!(
+            resource_picker::resource_category("combat_background", &node),
+            resource_picker::resource_category("view", &node)
+        );
+        assert_eq!(node, original);
+        let fields = &catalog.schema["NODE_SCHEMAS"]["combat"]["fields"];
+        assert!(fields
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|field| field[0] == "background" && field[2] == "combat_background"));
+        for id in ["backmountain", "combat:back_combat_backmountain_1"] {
+            let mut node = catalog.new_node("combat", "duel".into());
+            node["background"] = json!(id);
+            let before = node.clone();
+            let ctx = egui::Context::default();
+            let _ = ctx.run(Default::default(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    assert!(!catalog.node_form(ui, &mut node, &[], &[]).changed);
+                });
+            });
+            assert_eq!(node, before);
+        }
+    }
 
     #[test]
     fn every_official_preview_background_is_selectable_in_scene_forms() {

@@ -1152,7 +1152,7 @@
           "value": 1,
           "op": "set",
           "_editor": {
-            "note": "原版数值旗标示例：搜索‘留学去向’，选择‘青城（1）’；工程仍保存 M20008 与数值 1。"
+            "note": "原版数值旗标示例：搜索‘留学去向’，选择‘青城（1）’；工程仍保存 M20008 与数值 1。可查看相关原版事件、入口时间范围及直接前后章节；入口时间不是旗标全部使用位置的唯一日期。"
           }
         },
         {
@@ -1595,7 +1595,7 @@
           "id": "combat1",
           "type": "combat",
           "character": "user:showcase.lin_deng",
-          "background": "center",
+          "background": "combat:back_combat_backmountain_1",
           "talents": [
             {
               "key": "0001",

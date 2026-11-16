@@ -8,9 +8,12 @@ namespace MortalModHost
 
     internal sealed class AutoDialogueTiming
     {
-        private static readonly Regex RichTags = new Regex(
-            @"</?(?:b|i|size|color|material|quad|sprite|font|alpha|u|s|mark|link|align|voffset|space|cspace|mspace|nobr)(?:[=\s][^<>]*)?>",
-            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        private static class ManagedText
+        {
+            internal static readonly Regex RichTags = new Regex(
+                @"</?(?:b|i|size|color|material|quad|sprite|font|alpha|u|s|mark|link|align|voffset|space|cspace|mspace|nobr)(?:[=\s][^<>]*)?>",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        }
         internal readonly int Characters;
         internal float Elapsed { get; private set; }
         private float _voiceTail;
@@ -19,10 +22,17 @@ namespace MortalModHost
 
         internal AutoDialogueTiming(string displayedText, bool hadVoice)
         {
-            var characters = StringInfo.GetTextElementEnumerator(RichTags.Replace(displayedText ?? "", ""));
-            while (characters.MoveNext())
-                if (!string.IsNullOrWhiteSpace(characters.GetTextElement())) Characters++;
+            Characters = NativeTextScan.Count(displayedText);
             _hadVoice = hadVoice;
+        }
+
+        internal static int CountCharactersManaged(string displayedText)
+        {
+            int count = 0;
+            var characters = StringInfo.GetTextElementEnumerator(ManagedText.RichTags.Replace(displayedText ?? "", ""));
+            while (characters.MoveNext())
+                if (!string.IsNullOrWhiteSpace(characters.GetTextElement())) count++;
+            return count;
         }
 
         internal float Duration(AutoDialogueSpeed speed)

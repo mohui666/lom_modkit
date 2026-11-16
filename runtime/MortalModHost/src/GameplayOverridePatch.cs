@@ -70,8 +70,8 @@ namespace MortalModHost
                 string character = GameplaySession.ConfigString("character");
                 if (!CombatCharacterPolicy.IsUserCharacter(character))
                 {
-                    // CombatLevel.EnemyStat.Name 是原版人物与 Combat 资源之间的真实
-                    // 主键。资源目录包含中文描述和补零，不能再从路径猜人物 ID。
+                    // Name 与冻结的 Story normal / AvatarAddressKey 共同确定
+                    // 同名不同形态；不能由目录描述或 CL 数值档猜人物身份。
                     CombatStat identity = BattleOverrideResolver.TryResolveOfficialCombatStat(character);
                     if (identity != null)
                     {
@@ -463,23 +463,35 @@ namespace MortalModHost
                 throw new InvalidOperationException("必须提供官方 Combat 人物 id");
             CombatLevelConfig config = Traverse.Create(CombatManager.Instance)
                 .Field("_levelConfig").GetValue<CombatLevelConfig>();
+            return TryResolveOfficialCombatStat(config, character, GameplaySession.CombatIdleAddress);
+        }
+
+        internal static CombatStat TryResolveOfficialCombatStat(
+            CombatLevelConfig config, string character, string portrait)
+        {
+            if (string.IsNullOrEmpty(character) || CombatCharacterPolicy.IsUserCharacter(character))
+                throw new InvalidOperationException("必须提供官方 Combat 人物 id");
             if (config == null || config.List == null)
                 throw new InvalidOperationException("CombatLevelConfig 不可用");
-            CombatStat selected = null;
+            var stats = new List<CombatStat>();
+            var candidates = new List<CombatIdentityCandidate>();
             for (int i = 0; i < config.List.Count; i++)
             {
                 CombatLevel level = config.List[i];
                 CombatStat candidate = level != null ? level.EnemyStat : null;
-                if (candidate == null
-                    || !string.Equals(candidate.Name, character, StringComparison.Ordinal)
-                    || candidate.CombatAvatar == null)
-                    continue;
-                if (selected == null) selected = candidate;
-                else if (!SameAvatar(selected.CombatAvatar, candidate.CombatAvatar))
-                    throw new InvalidOperationException(
-                        "官方人物存在多套不同 Combat 动画，无法唯一绑定：" + character);
+                if (candidate == null) continue;
+                CombatEnemyAvatar avatar = candidate.CombatAvatar;
+                bool playable = avatar != null && candidate.CharacterPrefab != null;
+                stats.Add(candidate);
+                candidates.Add(new CombatIdentityCandidate(candidate.Name, candidate.AvatarAddressKey,
+                    playable ? avatar.NormalKey : null, playable ? avatar.AttackKey : null,
+                    playable ? avatar.HurtKey : null, playable ? avatar.DefenceKey : null));
             }
-            return selected;
+            int selected = CombatIdentityPolicy.Select(character, portrait, candidates);
+            if (selected < 0) return null;
+            LuaManagerPatch.Log?.LogInfo("Combat 官方人物已按 Story/Combat 肖像关联："
+                + character + " / " + stats[selected].name + " / " + portrait);
+            return stats[selected];
         }
 
         internal static BattleLevel ResolveLevel(string key)
@@ -506,15 +518,6 @@ namespace MortalModHost
                 + "；hurt=" + selected.HurtKey
                 + "；defence=" + selected.DefenceKey);
             return selected;
-        }
-
-        private static bool SameAvatar(CombatEnemyAvatar left, CombatEnemyAvatar right)
-        {
-            return ReferenceEquals(left, right) || (left != null && right != null
-                && string.Equals(left.NormalKey, right.NormalKey, StringComparison.Ordinal)
-                && string.Equals(left.AttackKey, right.AttackKey, StringComparison.Ordinal)
-                && string.Equals(left.HurtKey, right.HurtKey, StringComparison.Ordinal)
-                && string.Equals(left.DefenceKey, right.DefenceKey, StringComparison.Ordinal));
         }
 
         internal static bool TryCount(string key, out int value)

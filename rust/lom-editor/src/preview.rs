@@ -175,6 +175,91 @@ fn portrait_action(node: &Value, selected: Option<usize>) -> Option<usize> {
 }
 
 #[cfg(test)]
+mod combat_background_preview_tests {
+    use super::*;
+    #[test]
+    fn dedicated_combat_background_prelude_restores_story_view_after_consecutive_duels() {
+        let story = json!({"id":"main","start":"scene","nodes":[
+            {"id":"scene","type":"scene","view":"backmountain"},
+            {"id":"first","type":"combat","background":"combat:back_combat_backmountain_1","win":"second","lose":"second"},
+            {"id":"second","type":"combat","background":"combat:back_combat_forest_day","win":"after","lose":"after"},
+            {"id":"after","type":"say","text":"after"}
+        ]});
+        let before = story.clone();
+        for target in ["first", "second", "after"] {
+            let prelude = build_playtest_prelude(&story, target);
+            assert!(prelude
+                .iter()
+                .any(|node| node["type"] == "scene" && node["view"] == "backmountain"));
+            assert!(!prelude.iter().any(|node| node["type"] == "scene"
+                && node["view"].as_str().unwrap_or("").starts_with("combat:")));
+        }
+        assert_eq!(story, before);
+    }
+    #[test]
+    fn combat_preview_uses_its_own_image_map_and_old_libraries_still_open() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::create_dir(root.path().join("assets")).unwrap();
+        image::RgbaImage::from_pixel(4, 2, image::Rgba([12, 34, 56, 255]))
+            .save(root.path().join("assets/scene.png"))
+            .unwrap();
+        image::RgbaImage::from_pixel(8, 3, image::Rgba([65, 43, 21, 255]))
+            .save(root.path().join("assets/duel.png"))
+            .unwrap();
+        let mut mapping = json!({"characters":{},"views":{"backmountain":"assets/scene.png"}});
+        let write = |mapping: &Value| {
+            std::fs::write(
+                root.path().join("preview_map.json"),
+                serde_json::to_vec(mapping).unwrap(),
+            )
+            .unwrap()
+        };
+        write(&mapping);
+        let project = Project::new();
+        let original = project.clone();
+        let mut preview = Preview::new(root.path());
+        preview.set_library(root.path()).unwrap();
+        assert!(preview.asset(&project, "backmountain", false, "").is_some());
+        assert!(preview
+            .asset(&project, "combat:back_combat_backmountain_1", false, "")
+            .is_none());
+        mapping["combat_backgrounds"] =
+            json!({"combat:back_combat_backmountain_1":"assets/duel.png"});
+        write(&mapping);
+        preview.set_library(root.path()).unwrap();
+        let ctx = egui::Context::default();
+        assert_eq!(
+            preview
+                .texture(&ctx, &project, "backmountain", false, "")
+                .unwrap()
+                .0
+                .size(),
+            [4, 2]
+        );
+        assert_eq!(
+            preview
+                .texture(
+                    &ctx,
+                    &project,
+                    "combat:back_combat_backmountain_1",
+                    false,
+                    ""
+                )
+                .unwrap()
+                .0
+                .size(),
+            [8, 3]
+        );
+        let story = json!({"id":"main","start":"duel","nodes":[{"id":"duel","type":"combat","background":"combat:back_combat_backmountain_1"}]});
+        assert_eq!(
+            simulate(&story, "duel")["view"],
+            "combat:back_combat_backmountain_1"
+        );
+        assert_eq!(project, original);
+    }
+}
+
+#[cfg(test)]
 fn portrait_preview_node(story: &Value, selected: usize, action: Option<usize>) -> Value {
     let parent = &story["nodes"][selected];
     let state = simulate(story, text(parent, "id"));
@@ -307,10 +392,15 @@ pub fn build_playtest_prelude(story: &Value, target: &str) -> Vec<Value> {
     if number(&state["blackout"], "amount", 0.0) >= 1.0 {
         nodes.push(json!({"type":"transition","phase":"in","dir":state["blackout"]["dir"]}));
     }
-    if let Some(view) = state["view"]
+    let story_view = if state["view"]
         .as_str()
-        .filter(|v| !v.is_empty() && *v != "out")
+        .is_some_and(|view| view.starts_with("combat:"))
     {
+        &state["_combat_previous_view"]
+    } else {
+        &state["view"]
+    };
+    if let Some(view) = story_view.as_str().filter(|v| !v.is_empty() && *v != "out") {
         nodes.push(json!({"type":"scene","view":view}));
     }
     if let Some(background) = state["background"].as_str().filter(|v| !v.is_empty()) {
@@ -589,7 +679,21 @@ fn apply(s: &mut Value, n: &Value) {
             s["background"] = Value::Null;
         }
         "combat" => {
-            s["view"] = n.get("background").cloned().unwrap_or(json!("center"));
+            let background = n.get("background").cloned().unwrap_or(json!("center"));
+            if background
+                .as_str()
+                .is_some_and(|id| id.starts_with("combat:"))
+            {
+                // This Sprite belongs to Combat's stage. An F5 prelude after
+                // the duel restores Story's view, never Scene.SetView(combat:...).
+                if !s["view"]
+                    .as_str()
+                    .is_some_and(|id| id.starts_with("combat:"))
+                {
+                    s["_combat_previous_view"] = s["view"].clone();
+                }
+            }
+            s["view"] = background;
             s["background"] = Value::Null;
         }
         "background" => {
@@ -1797,6 +1901,8 @@ impl Preview {
             key
         } else if let Some(key) = name.strip_prefix("@picture:") {
             self.mapping["pictures"][key].as_str()?
+        } else if name.starts_with("combat:") {
+            self.mapping["combat_backgrounds"][name].as_str()?
         } else if character {
             self.mapping["characters"][name]["portraits"][portrait]
                 .as_str()

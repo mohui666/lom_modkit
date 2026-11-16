@@ -319,6 +319,15 @@ namespace MortalModHost
 
         internal static ISampleSource OpenSource(byte[] encoded, string ext)
         {
+            if (ext == ".ogg" && NativeOggSource.IsAvailable)
+                return new NativeOggSource(encoded);
+            return OpenSourceManaged(encoded, ext);
+        }
+
+        // Original decoder entry for optional-component compatibility and
+        // side-by-side decode tests. Native failures never reach this method.
+        internal static ISampleSource OpenSourceManaged(byte[] encoded, string ext)
+        {
             if (ext == ".ogg")
                 return new OggSource(encoded);
             return new WavSource(encoded);
@@ -369,17 +378,7 @@ namespace MortalModHost
                 int got = _reader.ReadSamples(_scratch, 0, floatsWanted);
                 if (got <= 0)
                     return 0;
-                int bytes = got * 2;
-                for (int i = 0; i < got; i++)
-                {
-                    float f = _scratch[i];
-                    if (f > 1f) f = 1f;
-                    if (f < -1f) f = -1f;
-                    short s = (short)(f * 32767f);
-                    dest[offset + i * 2] = (byte)(s & 0xFF);
-                    dest[offset + i * 2 + 1] = (byte)((s >> 8) & 0xFF);
-                }
-                return bytes;
+                return NativePcmConvert.Float32ToPcm16(_scratch, got, dest, offset);
             }
 
             public void Dispose()
@@ -466,27 +465,10 @@ namespace MortalModHost
                     _cursor += bytes;
                     return bytes;
                 }
-                int written = 0;
-                for (int f = 0; f < frames * Channels; f++)
-                {
-                    float sample;
-                    if (_bytesPerSample == 1)
-                    {
-                        sample = (_data[src++] - 128) / 128f;
-                    }
-                    else
-                    {
-                        sample = BitConverter.ToSingle(_data, src);
-                        src += 4;
-                    }
-                    if (sample > 1f) sample = 1f;
-                    if (sample < -1f) sample = -1f;
-                    short s = (short)(sample * 32767f);
-                    dest[offset + written] = (byte)(s & 0xFF);
-                    dest[offset + written + 1] = (byte)((s >> 8) & 0xFF);
-                    written += 2;
-                }
-                _cursor = src - _dataPos;
+                int samples = frames * Channels;
+                int written = NativePcmConvert.WavToPcm16(_data, src, samples,
+                    _bytesPerSample, dest, offset);
+                _cursor += samples * _bytesPerSample;
                 return written;
             }
 

@@ -117,6 +117,7 @@ pub(super) fn show(
     }) {
         changed |= draw(ui, node, field);
     }
+    ui.small(crate::i18n::key("editor.combat.background_hint"));
     let problem = ui
         .ctx()
         .data(|data| data.get_temp::<String>(egui::Id::new("problem-field")));

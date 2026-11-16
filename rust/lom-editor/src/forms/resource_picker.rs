@@ -253,6 +253,7 @@ pub(super) fn resource_category(kind: &str, node: &Value) -> Option<String> {
         }
         "official_picture" | "story_picture" | "event_picture" | "big_picture" => "picture",
         "user_image" | "ending_image" | "intro_image" => "user_image",
+        "combat_background" => "view",
         "view" | "music" | "sound_name" | "voice" | "effect" | "camera" | "item"
         | "combat_skill" | "battle_skill" | "talent" => kind,
         _ => return None,

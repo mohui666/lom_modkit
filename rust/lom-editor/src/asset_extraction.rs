@@ -207,6 +207,14 @@ fn mapping_files(mapping: &Value) -> Result<Vec<&Value>> {
         files.extend(portraits.values());
     }
     files.extend(mapping["views"].as_object().unwrap().values());
+    if let Some(backgrounds) = mapping.get("combat_backgrounds") {
+        files.extend(
+            backgrounds
+                .as_object()
+                .context("决斗背景映射必须是对象")?
+                .values(),
+        );
+    }
     if let Some(pictures) = mapping.get("pictures") {
         files.extend(pictures.as_object().context("插图映射必须是对象")?.values());
     }
@@ -300,7 +308,7 @@ fn publish_incremental(
             remap(file, &previous["characters"][id]["portraits"][key]);
         }
     }
-    for group in ["views", "pictures"] {
+    for group in ["views", "combat_backgrounds", "pictures"] {
         if let Some(entries) = mapping.get_mut(group).and_then(Value::as_object_mut) {
             for (key, file) in entries {
                 remap(file, &previous[group][key]);
@@ -505,6 +513,11 @@ mod tests {
         map["pictures"] = json!({"valid":"assets/normal.png"});
         validate_mapping(dir.path(), &map).unwrap();
         map["pictures"]["escape"] = json!("../outside.png");
+        assert!(validate_mapping(dir.path(), &map).is_err());
+        map["pictures"] = json!({});
+        map["combat_backgrounds"] = json!({"combat:fixture":"assets/normal.png"});
+        validate_mapping(dir.path(), &map).unwrap();
+        map["combat_backgrounds"]["combat:fixture"] = json!("../outside.png");
         assert!(validate_mapping(dir.path(), &map).is_err());
     }
     #[cfg(unix)]

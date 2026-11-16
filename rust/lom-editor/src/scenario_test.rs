@@ -91,14 +91,22 @@ pub fn show(
     panel.show(ui, |ui| {
         ui.small(i18n::key("editor.event_test.hint"));
         let mut original = draft["include_official_events"].as_bool().unwrap_or(false);
-        if ui
-            .checkbox(
-                &mut original,
-                i18n::key("editor.event_test.original_events"),
-            )
-            .changed()
-        {
-            draft["include_official_events"] = json!(original);
+        ui.checkbox(
+            &mut original,
+            i18n::key("editor.event_test.original_events"),
+        );
+        // UI choices are explicit, including an untouched unchecked box. The
+        // CLI's predecessor default must not override what this panel displays.
+        draft["include_official_events"] = json!(original);
+        let mut developer = original && draft["developer_mode"].as_bool().unwrap_or(false);
+        ui.add_enabled(
+            original,
+            egui::Checkbox::new(&mut developer, i18n::key("event_test.developer_mode")),
+        )
+        .on_hover_text(i18n::key("event_test.developer_requires_original"));
+        draft["developer_mode"] = json!(developer);
+        if developer {
+            ui.small(i18n::key("event_test.developer_hint"));
         }
         for (key, label, high) in [("year", "年", 9), ("month", "月", 12), ("stage", "旬", 3)] {
             ui.horizontal(|ui| {
@@ -211,6 +219,15 @@ pub fn reveal(ctx: &egui::Context, project: &Project, event: &str) {
 }
 
 pub fn prepare(project: &Project, spec: &Value) -> Result<Project> {
+    let developer = spec
+        .get("developer_mode")
+        .map(|value| value.as_bool().context("developer_mode 必须是布尔值"))
+        .transpose()?
+        .unwrap_or(false);
+    ensure!(
+        !developer || spec["include_official_events"] == true,
+        "开发者跳转需要同时运行原版事件"
+    );
     let mut preview = project.clone();
     let config = preview.scenario.as_mut().context("项目没有事件配置")?;
     let event_id = spec["event_id"].as_str().context("缺少测试事件")?;
@@ -262,10 +279,19 @@ pub fn prepare(project: &Project, spec: &Value) -> Result<Project> {
         .retain(|e| e["trigger"] != "start");
     config["events"].as_array_mut().unwrap().push(json!({"id":entry,"name":"事件测试准备","trigger":"start","script":setup,"when":{"all":[]},"outcomes":{"completed":{"actions":actions,"variables":variables,"tasks":tasks}}}));
     config["entry_event"] = json!(entry);
+    let notice = if developer {
+        format!(
+            "{}\n{}",
+            i18n::key("editor.event_test.game_notice"),
+            i18n::key("event_test.developer_hint")
+        )
+    } else {
+        i18n::key("editor.event_test.game_notice")
+    };
     preview.stories.insert(
         setup.clone(),
         json!({"id":setup,"story_schema":2,"start":"notice","nodes":[
-        {"id":"notice","type":"message","text":i18n::key("editor.event_test.game_notice")},
+        {"id":"notice","type":"message","text":notice},
         {"id":"ready","type":"end"}]}),
     );
     preview.manifest = json!({"format":3,"package_format":3,"story_schema":2,"content_schema":1,"id":lom_core::game_tools::PREVIEW_ID,"campaign_id":lom_core::game_tools::PREVIEW_ID,"name":"编辑器事件测试","version":"0.0.0-preview","author":"lom_modkit","description":"临时测试状态","entry":setup,"play_mode":"sandbox","min_host_version":"1.5.11","campaign":{"new_game":true,"disable_official_events":!spec["include_official_events"].as_bool().unwrap_or(false)}});
@@ -279,6 +305,7 @@ pub(crate) struct EventPreview {
     pub event: Value,
     pub event_node: String,
     pub source_script: Option<String>,
+    pub developer_mode: bool,
 }
 
 impl EventPreview {
@@ -286,7 +313,8 @@ impl EventPreview {
         json!({"event_id":self.event["id"],"event_script":self.event["script"],"event_node":self.event_node,
             "entry_mode":if self.source_script.is_some(){"predecessor"}else{"boundary"},
             "source_script":self.source_script,"target":self.event["target"],"from":self.event["from"],
-            "include_official_events":self.project.manifest["campaign"]["disable_official_events"]==false})
+            "include_official_events":self.project.manifest["campaign"]["disable_official_events"]==false,
+            "developer_mode":self.developer_mode})
     }
 }
 
@@ -344,9 +372,15 @@ pub(crate) fn prepare_request(project: &Project, request: &Value) -> Result<Even
         })
         .transpose()?
         .unwrap_or(mode == "predecessor");
+    let developer_mode = request
+        .get("developer_mode")
+        .map(|value| value.as_bool().context("developer_mode 必须是布尔值"))
+        .transpose()?
+        .unwrap_or(false);
     let spec = json!({"event_id":event_id,"year":request.get("year").unwrap_or(&json!(1)),
         "month":request.get("month").unwrap_or(&json!(5)),"stage":request.get("stage").unwrap_or(&json!(1)),
-        "values":request.get("values").unwrap_or(&json!([])),"include_official_events":include_official});
+        "values":request.get("values").unwrap_or(&json!([])),"include_official_events":include_official,
+        "developer_mode":developer_mode});
     let preview = prepare(project, &spec)?;
     let script = event["script"].as_str().context("事件缺少 script")?;
     let event_node = preview.stories.get(script).context("事件剧情章节不存在")?["start"]
@@ -358,12 +392,14 @@ pub(crate) fn prepare_request(project: &Project, request: &Value) -> Result<Even
         event,
         event_node,
         source_script,
+        developer_mode,
     })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::Path;
 
     fn entry_project() -> Project {
         let mut project = Project::new_scenario("addon");
@@ -489,5 +525,158 @@ mod tests {
             preview.scenario
         );
         assert_eq!(project, original);
+    }
+
+    #[test]
+    fn developer_navigation_requires_explicit_original_events_and_preserves_conditions() {
+        let project = entry_project();
+        let original = project.clone();
+        let mut spec = json!({"event_id":"opening","entry_mode":"boundary",
+            "include_official_events":true,"developer_mode":true,
+            "year":2,"month":10,"stage":1});
+        let prepared = prepare_request(&project, &spec).unwrap();
+        assert!(prepared.developer_mode);
+        assert_eq!(prepared.context()["developer_mode"], true);
+        assert_eq!(prepared.context()["include_official_events"], true);
+        assert_eq!(
+            prepared.project.scenario.as_ref().unwrap()["events"][0],
+            original.scenario.as_ref().unwrap()["events"][0]
+        );
+        assert_eq!(project, original);
+
+        spec["include_official_events"] = json!(false);
+        assert!(prepare_request(&project, &spec)
+            .unwrap_err()
+            .to_string()
+            .contains("原版事件"));
+        spec["include_official_events"] = json!(true);
+        spec["developer_mode"] = json!("true");
+        assert!(prepare_request(&project, &spec)
+            .unwrap_err()
+            .to_string()
+            .contains("布尔值"));
+        spec.as_object_mut().unwrap().remove("developer_mode");
+        assert!(!prepare_request(&project, &spec).unwrap().developer_mode);
+    }
+
+    #[test]
+    fn event_panel_sends_its_visible_original_and_developer_choices_without_changing_the_project() {
+        i18n::set_locale("chs");
+        let project = entry_project();
+        let before = project.clone();
+        let catalog = Catalog::new();
+        let ctx = egui::Context::default();
+        ctx.enable_accesskit();
+        reveal(&ctx, &project, "opening");
+        let mut frame = 0;
+        let mut render = |events| {
+            frame += 1;
+            let mut sent = None;
+            let output = ctx.run(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(600.0, 1100.0),
+                    )),
+                    time: Some(frame as f64 * 0.25),
+                    events,
+                    ..Default::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        sent = show(ui, &project, Some("opening"), &catalog);
+                    });
+                },
+            );
+            (output, sent)
+        };
+        let click = |output: &egui::FullOutput, label: &str| {
+            let target = output
+                .platform_output
+                .accesskit_update
+                .as_ref()
+                .unwrap()
+                .nodes
+                .iter()
+                .find_map(|(id, node)| (node.label() == Some(label)).then_some(*id))
+                .unwrap_or_else(|| panic!("missing control {label}"));
+            vec![egui::Event::AccessKitActionRequest(
+                egui::accesskit::ActionRequest {
+                    action: egui::accesskit::Action::Click,
+                    target,
+                    data: None,
+                },
+            )]
+        };
+        let (output, _) = render(vec![]);
+        let run = i18n::key("editor.event_test.run");
+        let original = i18n::key("editor.event_test.original_events");
+        let developer = i18n::key("event_test.developer_mode");
+        let (output, sent) = render(click(&output, &run));
+        let sent = sent.unwrap();
+        assert_eq!(sent["include_official_events"], false);
+        assert!(!prepare_request(&project, &sent).unwrap().developer_mode);
+        assert_eq!(
+            prepare_request(&project, &sent).unwrap().context()["include_official_events"],
+            false
+        );
+        let (output, _) = render(click(&output, &original));
+        let (output, _) = render(click(&output, &developer));
+        let (output, sent) = render(click(&output, &run));
+        let sent = sent.unwrap();
+        let prepared = prepare_request(&project, &sent).unwrap();
+        assert!(prepared.developer_mode);
+        assert_eq!(prepared.context()["include_official_events"], true);
+        let (output, _) = render(click(&output, &original));
+        let (_, sent) = render(click(&output, &run));
+        let sent = sent.unwrap();
+        assert_eq!(sent["developer_mode"], false);
+        assert_eq!(sent["include_official_events"], false);
+        assert_eq!(project, before);
+    }
+
+    #[test]
+    fn released_project_can_prepare_developer_test_save_export_and_reopen_without_editing_source() {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../lom-core/tests/fixtures/released-1.5.9-scenario-modes.lommod");
+        let original_bytes = std::fs::read(&path).unwrap();
+        let mut project = Project::open(&path).unwrap();
+        project.stories.get_mut("side").unwrap()["title"] = json!("测试前的正常编辑");
+        let authored = project.clone();
+        let prepared = prepare_request(
+            &project,
+            &json!({"event_id":"visit",
+            "include_official_events":true,"developer_mode":true,
+            "year":2,"month":10,"stage":1}),
+        )
+        .unwrap();
+        assert!(prepared.developer_mode);
+        let temp = tempfile::tempdir().unwrap();
+        let source = temp.path().join("edited");
+        let mut saved = project.clone();
+        saved.save_to(&source).unwrap();
+        let exported = temp.path().join("edited.lommod");
+        Project::open(&source).unwrap().export(&exported).unwrap();
+        let reopened = Project::open(&exported).unwrap();
+        assert_eq!(reopened.stories, authored.stories);
+        assert_eq!(reopened.scenario, authored.scenario);
+        assert_eq!(std::fs::read(path).unwrap(), original_bytes);
+        assert_eq!(project, authored);
+        let package = temp.path().join("developer.lommod");
+        prepared.project.export(&package).unwrap();
+        let test_project = Project::open(&package).unwrap();
+        assert_eq!(
+            test_project.scenario.as_ref().unwrap()["events"][0],
+            authored.scenario.as_ref().unwrap()["events"][1]
+        );
+        let mut entries = lom_core::package::read_package(&package).unwrap();
+        entries.remove("package-content.sha256");
+        entries
+            .get_mut("lua/side.lua")
+            .unwrap()
+            .extend_from_slice(b"\nerror('unrelated Lua')\n");
+        let tampered = temp.path().join("tampered.lommod");
+        lom_core::package::write_package(entries, &tampered).unwrap();
+        assert!(Project::open(&tampered).is_err());
     }
 }

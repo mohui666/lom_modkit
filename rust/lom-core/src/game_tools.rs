@@ -778,6 +778,28 @@ pub fn request_tracked_event_preview(
     source_script: Option<&str>,
     request_id: &str,
 ) -> Result<PathBuf> {
+    request_tracked_event_preview_with_developer(
+        root,
+        setup,
+        event,
+        event_node,
+        source_script,
+        false,
+        request_id,
+    )
+}
+
+/// Development navigation is an explicit IPC capability. Historical event
+/// requests keep format 2 so an older Host never silently ignores this mode.
+pub fn request_tracked_event_preview_with_developer(
+    root: &Path,
+    setup: &str,
+    event: &Value,
+    event_node: &str,
+    source_script: Option<&str>,
+    developer_mode: bool,
+    request_id: &str,
+) -> Result<PathBuf> {
     let mut request = event_preview_fields(event)?;
     let event_script = event["script"].as_str().context("事件缺少剧情章节")?;
     validate_preview_entry(setup, "notice")?;
@@ -796,7 +818,10 @@ pub fn request_tracked_event_preview(
     request["event_node"] = json!(event_node);
     // An older Host must reject this request rather than ignore source_script
     // and silently run its legacy boundary-only event test.
-    request["format"] = json!(2);
+    request["format"] = json!(if developer_mode { 3 } else { 2 });
+    if developer_mode {
+        request["developer_mode"] = json!(true);
+    }
     write_preview_launch_status(
         root,
         event_script,

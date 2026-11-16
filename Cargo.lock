@@ -944,6 +944,7 @@ checksum = "9ed9a281f7bc9b7576e61468ba615a66a5c8cfdff42420a70aa82701a3b1e292"
 dependencies = [
  "block-buffer",
  "crypto-common",
+ "subtle",
 ]
 
 [[package]]
@@ -1668,6 +1669,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dfa686283ad6dd069f105e5ab091b04c62850d3e4cf5d67debad1933f55023df"
 
 [[package]]
+name = "hmac"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c49c37c09c17a53d937dfbb742eb3a961d65a994e6bcdcf37e7399d0cc8ab5e"
+dependencies = [
+ "digest",
+]
+
+[[package]]
 name = "http"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2119,7 +2129,7 @@ checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
 
 [[package]]
 name = "lom-assets"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -2137,7 +2147,7 @@ dependencies = [
 
 [[package]]
 name = "lom-core"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "anyhow",
  "crc32fast",
@@ -2156,7 +2166,7 @@ dependencies = [
 
 [[package]]
 name = "lom-editor"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "anyhow",
  "eframe",
@@ -2180,8 +2190,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "lom-host-native"
+version = "1.6.2"
+dependencies = [
+ "hmac",
+ "lewton",
+ "sha2",
+ "symphonia 0.5.5",
+]
+
+[[package]]
 name = "lomc"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "anyhow",
  "lom-core",

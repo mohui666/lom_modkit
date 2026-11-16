@@ -1,0 +1,16 @@
+[package]
+name = "lom-host-native"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "lom_host_native"
+crate-type = ["cdylib"]
+
+[dependencies]
+sha2.workspace = true
+hmac = "0.12.1"
+
+lewton = { version = "0.10.2", default-features = false }
+symphonia = { version = "0.5.5", default-features = false, features = ["ogg"] }

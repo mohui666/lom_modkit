@@ -9,6 +9,16 @@ namespace MortalModHost
     internal static class CombatBackgroundAddressPolicy
     {
         private const string OfficialImagePrefix = "Assets/__Project/Images/";
+        private const string CombatPrefix = "combat:";
+
+        internal static bool TryGetCombatSpriteName(string key, out string name)
+        {
+            name = null;
+            if (key == null || !key.StartsWith(CombatPrefix, StringComparison.Ordinal)
+                || key.Length == CombatPrefix.Length) return false;
+            name = key.Substring(CombatPrefix.Length);
+            return true;
+        }
 
         internal static bool IsOfficialImageAddress(string address)
         {

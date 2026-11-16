@@ -14,6 +14,7 @@ namespace MortalModHost
         public string ScriptId;
         public string NodeId;
         public bool FreshCampaign;
+        public bool DeveloperMode;
         public string EventId, Target, From;
         public string SourceScript, EventScript, EventNode;
         public string VideoRenderId;
@@ -30,8 +31,8 @@ namespace MortalModHost
                     throw new FormatException("顶层不是 JSON 对象");
                 object format;
                 if (!root.TryGetValue("format", out format) || !(format is double)
-                    || (double)format != 1.0 && (double)format != 2.0)
-                    throw new FormatException("format 不是 1 或 2");
+                    || (double)format != 1.0 && (double)format != 2.0 && (double)format != 3.0)
+                    throw new FormatException("format 不是 1、2 或 3");
                 if ((double)format == 1.0 && (root.ContainsKey("source_script")
                     || root.ContainsKey("event_script") || root.ContainsKey("event_node")))
                     throw new FormatException("source_script/event_script/event_node 需要 format 2，不能按旧试玩请求解释");
@@ -64,6 +65,17 @@ namespace MortalModHost
                     if (!(fresh is bool)) throw new FormatException("fresh_campaign 必须是布尔值");
                     parsed.FreshCampaign = (bool)fresh;
                 }
+                object developer;
+                if (root.TryGetValue("developer_mode", out developer))
+                {
+                    if (!(developer is bool)) throw new FormatException("developer_mode 必须是布尔值");
+                    parsed.DeveloperMode = (bool)developer;
+                }
+                if (parsed.DeveloperMode && ((double)format != 3.0
+                    || parsed.ModId != "lom_modkit_preview" || !parsed.FreshCampaign))
+                    throw new FormatException("developer_mode 需要 format 3 的固定编辑器隔离事件测试");
+                if ((double)format == 3.0 && !parsed.DeveloperMode)
+                    throw new FormatException("format 3 需要 developer_mode=true");
                 if (parsed.FreshCampaign)
                 {
                     if (parsed.ModId != "lom_modkit_preview") throw new FormatException("事件测试只允许固定的编辑器临时包");
@@ -90,9 +102,9 @@ namespace MortalModHost
                     parsed.EventScript = RequiredId(root, "event_script");
                     parsed.EventNode = RequiredId(root, "event_node");
                 }
-                if ((double)format == 2.0 && (!parsed.FreshCampaign || parsed.RequestId == null
+                if ((double)format >= 2.0 && (!parsed.FreshCampaign || parsed.RequestId == null
                     || parsed.EventScript == null || parsed.EventNode == null))
-                    throw new FormatException("format 2 需要 fresh_campaign、request_id 和 event_script/event_node");
+                    throw new FormatException("format 2/3 需要 fresh_campaign、request_id 和 event_script/event_node");
                 request = parsed;
                 return true;
             }

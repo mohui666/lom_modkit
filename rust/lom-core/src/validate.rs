@@ -624,16 +624,22 @@ fn combat(n: &Value, catalog: &Value) -> Result<()> {
         );
     }
     let background = text(n, "background", "center");
+    let dedicated = background.strip_prefix("combat:");
     ensure!(
-        matches(r"^[a-zA-Z0-9_\- ]{1,64}$", background),
+        matches(r"^[a-zA-Z0-9_\- ]{1,64}$", dedicated.unwrap_or(background)),
         "background 必须是安全的官方场景背景 id"
     );
-    if !catalog["views"].is_null() {
+    let group = if dedicated.is_some() {
+        "combat_backgrounds"
+    } else {
+        "views"
+    };
+    if dedicated.is_some() || !catalog[group].is_null() {
         ensure!(
-            array(&catalog["views"])
+            array(&catalog[group])
                 .iter()
                 .any(|v| s(v, "id") == background || v.as_str() == Some(background)),
-            "background {background:?} 不在 editor_data.views 官方背景清单中"
+            "background {background:?} 不在 editor_data.{group} 官方背景清单中"
         );
     }
     for (field, lo, hi) in [

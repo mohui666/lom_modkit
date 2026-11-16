@@ -1,5 +1,17 @@
 # Gameplay API 实证矩阵
 
+## 2026-11-16 开发工具界面与条件说明
+
+实时核对 `MissionCheckData`、`MissionData`、`ConditionResultItem`、`StatCompareItem`、`StatGroupVariable`、`StatValueReference`、`StatCompareType`、`LogicOperatorType` 与 `FlagData`。任务 `_desc` 为原始开发备注，没有本地化显示属性。条件显示按真实比较枚举转为数学符号，保留 AND/OR 分组；常数只从单元素组的 `_constant/_negative` 与 `_groupType` 读取，旗标采用其真实资源名称和 `FlagData.DevNote`，另保留变量组原名供对照。`StatValueReference.GetValue()` 可抽取随机值或执行条件，`StatGroupVariable.GetResult()` 会调用它们，因此界面不调用这些求值入口。多语言仅影响 Host 工具文案与显示投影，不改变 `I18n.StoryLocale`、任务键或脚本标识。
+
+独立存档路径的真实游戏检查包含六种比较符号、常数实际值与负号、布尔常数组、旗标备注与原始命名、随机状态不变、条件不求值、四语言切换与配置落盘、简繁搜索同源、保留日期草稿及正常任务检查。最终轮 55 项断言通过，未记录游戏异常，另记录一次隔离启动的 Steam 初始化错误；窗口鼠标控制工具仍处于此前 Esc 停止状态，未将自动断言视为完整物理鼠标验收。
+
+## 2026-11-16 养成界面开发跳转
+
+本次实时定向反编译安装游戏的 `PlayerStatManagerData.SetGameTime/ResetActionCount/SetNewRound`、`LuaManager.SetGameTime/ChangeScene/SetNextScript/Init`、`MissionManagerData.UpdateCheckMissions/HasAnyMissionTrigger`、`FreeManager.Awake/Start/UpdateGameTimeStatus`、`SceneController.LoadStory/LoadFree` 与 `SaveSystem.SetSlot/NewGameData/LoadGameData`。日期 setter 只替换当前日期；Lua 包装还重置行动并标记新旬，最后仅刷新 Story 日期文字。任务检查会处理新旬旗标并可能推进任务，不能作为只读历史查询；`FreeManager.UpdateGameTimeStatus` 本身只等待一帧。
+
+养成 F8 开发操作先显式绑定当前玩法与存档槽，仅原版＋MOD或允许原版事件的固定编辑器临时战役可用。改日期复用 setter、重置行动与新旬标志，再按原 `ChangeScene("Free")` 顺序只运行一次任务检查和触发判定，沿既有自动事件优先级载入 Story/Free，不强制指定事件。跳章节验证当前原版资源后使用 `SetStoryScript/SetStartScript/LoadStory` 从正文开头载入，不伪造来源、不补齐任务历史。未主动保存；原自动保存和槽归属规则照常。开发请求使用 format 3、developer_mode=true，并保留隔离事件测试的完整目标与跟踪字段；旧 format 1/2 不获得该权限。
+
 ## 2026-11-16 严格固定字号
 
 本次实时定向读取 `Fungus.SayDialog.DoSay/StoryTextObject/Clear/OnDestroy`、`Fungus.Writer.UpdateOpenMarkup/ConcatenateString`、`TextTagParser.Tokenize`、`Mortal.Core.CharacterSayDialog.DoSay`、`CustomSayDialog.DoSay` 与当前 `UnityEngine.UI.Text.GetGenerationSettings`。Writer 对已显示字符添加 `<size>`，尚未显示的部分使用隐藏颜色；正文逐字增长时，开启的 best-fit 会重复改变整体比例。直接关闭 best-fit 则让旧版长句原有的最终适配消失，表现为原有 40 号长文变大。
@@ -389,7 +401,7 @@ Windows 实机还确认 `Mortal.Core.CharacterIntroPanel` 同时提供 `IEnumera
 | 场景战斗 | `LuaManager.ChangeScene(name,key,nextScene)` 写入 `CurrentSceneKey` / `CurrentNextScene`；`CombatLevelConfig.Get()` 是 Combat 关卡的实际解析入口 | Battle 继续选择原版地图；Combat 使用运行时临时 ID，由 Host 即时组装隔离关卡，结束后回 Story，不借用固定原版决斗配置 |
 | 场景切换就绪 | `LuaManager.Init()` 先 `StartCoroutine(UnloadLoading())`、不等待便立即 `ExecuteLuaScript()`；`SceneController` 在目标场景激活后仍以 `_currentLoadingScene` 记录 `Loading1` | Combat/Battle 由 Host 延迟切换：同时等待 `IsPrepare=false`、`IsLoading=false` 且 `_currentLoadingScene` 为空，再调用原版 `ChangeScene`，避免章节首节点与 Story 的异步卸载冲突后永久停在“读取中” |
 | Combat 结果 | `CombatManager.GameOver(bool win)` | `win` / `lose`；原版先应用关卡 WinResult/LoseResult，再 `LoadNextScene()` |
-| Combat 对手配置 | `CombatManager` 读取 `CL_<key>.EnemyStat` 并调用 `CombatActionController.SetStat(CombatStat)`；人物与动画的真实关系是 `CombatLevel.EnemyStat.Name` → `CombatStat.CombatAvatar`，资源目录不是主键；`CombatStatUI.Setup()` 直接从 `_statData.GetNameKey()` 写顶部姓名；Story 尚在时 `CharacterPlaceholder._config.Get(id)` 可取得本地化名与 normal 立绘 | Host 即时创建隔离 `CombatLevel` 并清空原版事件/结果/作者数值；官方人物按 `EnemyStat.Name` 精确取得 Name、四帧、详情头像和 HeadImage，不再猜资源路径。`max_health` 是 `CombatStatItem.BaseValue`，不覆盖原版 `ModifyList`；技能初始化后界面显示 `FinalValue`，未显式写 `health` 时以最终满血进入。 |
+| Combat 对手配置 | `CombatManager` 读取 `CL_<key>.EnemyStat` 并调用 `CombatActionController.SetStat(CombatStat)`；同一 `EnemyStat.Name` 可有不同形态，以 Story 中冻结的 normal 与 `CombatStat.AvatarAddressKey` 的精确关联消歧，再核对 `CombatAvatar` 四帧；`CombatActionController.Setup` 实例化 `CharacterPrefab`；`CombatStatUI.Setup()` 从 `_statData.GetNameKey()` 写顶部姓名 | Host 只克隆选中人物的身份、四帧与原版特效引用，重置并应用作者数值；隔离关卡清空 Events、WinResult、LoseResult、ConditionResult，独立背景不借用固定 CL。优先 Name＋normal 精确匹配；保留唯一 Name 动画与真实同肖像别名，同优先层四帧仍有歧义则拒绝，不猜目录或固定数值档。`max_health` 是 `CombatStatItem.BaseValue`，保留 `ModifyList`；技能初始化后显示 `FinalValue`，未显式写 `health` 时以最终满血进入。 |
 | Combat 赵活覆盖 | `SetPlayerStat`：`MaxHealth=GetStatCollectionSummary(_playerTotalHealth)`，六维=`GameStat.FinalValue`；`GameStatConvertData.GetValue()` 返回 `_statData.FinalValue`；`PlayerStatData.Set`/`Talents.Set`；`CombatStatController.SetStat` 用 `new CombatStatItem(MaxHealth)`；`CombatStatItem` 分离 `BaseValue`、`ModifyList`、`FinalValue`，而 `CombatStatUI.UpdateHealth` 读 `FinalValue`；`CombatManager.InitCombatRound()` 在 `SetPlayerStat` 后执行双方 `InitSkill` | 战前把 `player_*` 当基准写入 GameStat.Value，让官方换算和被动生效；`player_max_health` 是额外基础值，必须在 `InitSkill` 后累加到原版 `_playerTotalHealth` 换算结果并保留 `ModifyList`，不能覆盖它。战后只还原改过的 GameStat/Talent。敌我都以最终血量同步原版治疗/受伤上限。 |
 | Combat 独立背景与首回合 | `CombatManager.Start()` 在 `yield return LoadCombatLevelAsset()` 后执行 `_round.Reset()`；`LoadCombatLevelAsset()` 末尾才 `StartCoroutine(InitCombatRound())`，后者在 `UnloadLoading()` 后调用 `_round.NextRound()`；`CombatRoundUI.Update()` 直接显示 `CombatRound.Value` | 自定义背景 Addressables 必须在原版 `LoadCombatLevelAsset()` 开始前完成预载，并写入本场克隆 `CombatLevel._backImage`，由原版同时赋给 `_backSprite` / `_backImage`。不能在原协程尾部异步等待，否则首回合会被后续 `Reset()` 显示为 0。 |
 | Battle 结果 | `GameLevelManager.ShowGameOver(GameOverType,bool)` | `finish=true` 的 `FriendWin` / `EnemyWin` 可继续；`PlayerDie` 只给重试/标题，不伪造可继续分支 |
@@ -491,3 +503,12 @@ Windows 实机还确认 `Mortal.Core.CharacterIntroPanel` 同时提供 `IEnumera
 `Fungus.Writer.ProcessTokens(List<TextTagToken>,bool,Action)` 中，`{x}` 的 `Exit` 与 `waitForInput=false` 的自然结束会绕过普通等待输入；当前 Lua 的 `say` 不开启原生 `waitForVO`。Host 仅在自定义语音仍播放时，在这些终点插入 `WaitForVoiceOver`，通过 `Writer.DoWaitVO()` 延长到实际音频结束，保留 inputFlag／exitFlag／instantComplete 的主动跳过。未配音句不改 tokens。
 
 官方 `LuaManager.PlaySound(string)` 经 `SoundManager.PlaySound(string)` 每次调用 `AkSoundEngine.PostEvent(string,GameObject)`；原生 `GetPlayingIDsFromGameObject(GameObject,ref uint,uint[])` 可观察事件 ID，并不证明物理可听声部。隔离测试中同名 `Cymbal_001` 以 0／0.15／0.3 秒启动，观测到三个独立且同时活跃的事件；没有改动 Wwise 资产、声部上限或虚拟化设置。另有生成 Lua 的双人震动、旁白恢复、同一自定义声音叠加和真实 Writer 路径测试，总计 118 项断言通过，演出期间无已记录游戏错误。
+
+## 2026-11-16 本地化空刷新与 MOD 台词注册
+
+本次实时只读核对安装游戏 `LeanLocalization.dll` 的 `Lean.Localization.LeanLocalization.UpdateTranslations(bool forceUpdate = true)`、`Update()`、`RegisterTranslation(string)` 与私有静态字段 `pendingUpdates: bool`。`Update()` 每帧调用 `UpdateTranslations(false)`；后者在 `!pendingUpdates && !forceUpdate` 时直接返回，不清理翻译。真实刷新先将 `pendingUpdates` 置 false，再清除／重建 `CurrentTranslations`，最后触发 `OnLocalizationChanged`。`CurrentLanguage` setter 在语言改变后调用 `UpdateTranslations(true)`；本轮 focused 测试在无 Lean 实例时实际调用该 setter，不触发 `PlayerPrefs` 写入。Host Prefix 在入口捕获 `forceUpdate || pendingUpdates`，使用已安装 Harmony 的 `AccessTools.StaticFieldRefAccess<bool>(FieldInfo)` 缓存直接字段 getter，避免每帧反射装箱（本机 Unity Mono 的 `System.Reflection.Emit.DynamicMethod` 为不可用 stub，不直接使用它）；Postfix 仅对真实刷新恢复台词，显式 `ReadTextRegistry.Apply()` 仍完整写回。
+
+包内 `Texts/LocalizedTexts` 只在 ModLoader 读取时构造，运行时热重载以 `ReloadMods → ReadTextRegistry.Rebuild` 换入新包；合并次序和 `Story/` 前缀可在 Rebuild／StoryLocale 改变时重建。`LeanTranslation` 对象不缓存，`CustomGameplayRuntime` 的独立动态文本仍在每次显式 Apply 中重写；不改变包的先加载者优先规则。
+## 2026-11-16 游戏内 MOD 工坊样式
+
+实时只读核对当前安装 `UnityEngine.IMGUIModule.dll` 的 `GUI.Window`、`GUI.matrix`、`GUIUtility.ScaleAroundPivot(Vector2,Vector2)` 及 `GUIStyle` 的字体、边距、边框与状态背景；当前 `UnityEngine.TextRenderingModule.dll` 提供 `Font.CreateDynamicFontFromOSFont(string[],int)`。Host 克隆自己的 GUISkin，创建自己的动态字体与小纹理，退出时销毁；不修改游戏皮肤、字体资产和剧情文本的字号。窗口用统一逻辑坐标随分辨率缩放，退出绘制后恢复原 GUI.skin／matrix。菜单遮挡沿用已有的独立透明 UGUI 射线接收层，菜单打开时覆盖画面，关闭后撤去。任务列表只绘制可见行，原版事件数据、选中日期和跳转调用保持原契约。

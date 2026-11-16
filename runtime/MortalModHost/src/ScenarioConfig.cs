@@ -10,6 +10,14 @@ namespace MortalModHost
         internal string EntryEvent;
         internal readonly List<ScenarioEvent> Events = new List<ScenarioEvent>();
         internal readonly Dictionary<string, ScenarioTask> Tasks = new Dictionary<string, ScenarioTask>(StringComparer.Ordinal);
+        private static readonly string[] PresentationForbidden = {
+            "free_trigger", "mod_quest", "quest_check", "persistent_var", "persistent_check", "reward", "result_screen", "raw"
+        };
+        private sealed class PresentationEnd
+        {
+            internal string Next, Result;
+            internal bool NextValid, ResultValid;
+        }
         internal static ScenarioConfig Parse(string json, string mode, bool hasVanillaPatches = false)
         {
             var root = ScenarioJson.Object(MiniJson.Parse(json));
@@ -119,29 +127,47 @@ namespace MortalModHost
         }
         internal static void ValidateChapter(string json)
         {
-            var chapter=ScenarioJson.Object(MiniJson.Parse(json));
+            ValidateChapterData(ScenarioJson.Object(MiniJson.Parse(json)),null);
+        }
+        private static void ValidateChapterData(Dictionary<string,object> chapter,List<PresentationEnd> ends)
+        {
             foreach(object raw in ScenarioJson.Array(chapter,"nodes")) {
                 var node=ScenarioJson.Object(raw);string kind=ScenarioJson.Text(node,"type");
                 // 与 Rust scenario::performance_node 保持一致：章节可直接调整时间和属性，
                 // 跨事件任务/持久状态和统一结算仍由 scenario.json 管理，高级 Lua 不在此模式开放。
-                ScenarioJson.Require(chapter.ContainsKey("vanilla_import") || Array.IndexOf(new[]{"free_trigger","mod_quest","quest_check","persistent_var","persistent_check","reward","result_screen","raw"},kind)<0,"剧情章节含事件/任务或结果动作："+kind);
+                if(!chapter.ContainsKey("vanilla_import") && Array.IndexOf(PresentationForbidden,kind)>=0)
+                    ScenarioJson.Require(false,"剧情章节含事件/任务或结果动作："+kind);
                 ScenarioJson.Require(kind!="end" || !node.ContainsKey("event_result") || !node.ContainsKey("next_script"),"章节结果不能与 next_script 混用");
+                if(kind=="end" && ends!=null) {
+                    object next,result;
+                    bool hasNext=node.TryGetValue("next_script",out next),hasResult=node.TryGetValue("event_result",out result);
+                    // Field errors are observed only if an event reaches this
+                    // chapter, after every chapter's boundary check has passed.
+                    ends.Add(new PresentationEnd {Next=next as string,Result=result as string??"completed",
+                        NextValid=!hasNext || next is string,ResultValid=!hasResult || result is string});
+                }
             }
         }
         internal void ValidatePresentations(Dictionary<string,string> chapters)
         {
-            var data=new Dictionary<string,Dictionary<string,object>>(StringComparer.Ordinal);
-            foreach(var chapter in chapters) {ValidateChapter(chapter.Value);data[chapter.Key]=ScenarioJson.Object(MiniJson.Parse(chapter.Value));}
+            var data=new Dictionary<string,List<PresentationEnd>>(StringComparer.Ordinal);
+            foreach(var chapter in chapters) {
+                var ends=new List<PresentationEnd>();
+                ValidateChapterData(ScenarioJson.Object(MiniJson.Parse(chapter.Value)),ends);
+                data[chapter.Key]=ends;
+            }
             foreach(ScenarioEvent e in Events) {
                 var pending=new Stack<string>();var seen=new HashSet<string>(StringComparer.Ordinal);pending.Push(e.Script);
                 while(pending.Count>0) {
                     string id=pending.Pop();if(!seen.Add(id))continue;
-                    ScenarioJson.Require(data.ContainsKey(id),"缺少演出章节："+id);
-                    foreach(object raw in ScenarioJson.Array(data[id],"nodes")) {
-                        var node=ScenarioJson.Object(raw);if(ScenarioJson.Text(node,"type")!="end")continue;
-                        string next=ScenarioJson.Text(node,"next_script",false);
-                        if(next!=null)pending.Push(next);
-                        else ScenarioJson.Require(e.Outcomes.ContainsKey(ScenarioJson.Text(node,"event_result",false)??"completed"),"演出回报了未配置结果："+id);
+                    if(!data.ContainsKey(id))ScenarioJson.Require(false,"缺少演出章节："+id);
+                    foreach(var end in data[id]) {
+                        ScenarioJson.Require(end.NextValid,"next_script 必须是字符串");
+                        if(end.Next!=null)pending.Push(end.Next);
+                        else {
+                            ScenarioJson.Require(end.ResultValid,"event_result 必须是字符串");
+                            if(!e.Outcomes.ContainsKey(end.Result))ScenarioJson.Require(false,"演出回报了未配置结果："+id);
+                        }
                     }
                 }
             }
