@@ -130,6 +130,8 @@
         "public CombatStat EnemyStat",
         "public CombatResultFlag[] WinResult",
         "public CombatResultFlag[] LoseResult",
+        "public CombatConditionResultFlag[] ConditionResult",
+        "private CombatConditionResultFlag[] _conditionResult;",
         "public bool DeadEnd"
       ]
     },
@@ -138,6 +140,7 @@
       "type": "Mortal.Combat.CombatStat",
       "required_fragments": [
         "public string Name;",
+        "public GameObject CharacterPrefab;",
         "public string AvatarAddressKey;",
         "public CombatEnemyAvatar CombatAvatar;",
         "public Sprite HeadImage;",

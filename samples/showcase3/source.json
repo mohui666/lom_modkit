@@ -1595,7 +1595,7 @@
           "id": "combat1",
           "type": "combat",
           "character": "user:showcase.lin_deng",
-          "background": "center",
+          "background": "combat:back_combat_backmountain_1",
           "talents": [
             {
               "key": "0001",

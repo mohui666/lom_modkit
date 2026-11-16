@@ -221,6 +221,8 @@ fn target_geometry<'a>(map: &'a Value, group: &str, id: &str, key: &str) -> &'a 
         &map["characters"][id]["portrait_metadata"][key]
     } else if group == "views" {
         &map["view_metadata"][key]
+    } else if group == "combat_backgrounds" {
+        &map["combat_background_metadata"][key]
     } else {
         &map["picture_metadata"][key]
     }
@@ -238,6 +240,8 @@ fn set_geometry(map: &mut Value, group: &str, id: &str, key: &str, geometry: &Va
         map["characters"][id]["portrait_metadata"][key] = geometry;
     } else if group == "views" {
         map["view_metadata"][key] = geometry;
+    } else if group == "combat_backgrounds" {
+        map["combat_background_metadata"][key] = geometry;
     } else {
         map["picture_metadata"][key] = geometry;
     }
@@ -490,7 +494,13 @@ pub fn extract(
         // Keep the original snapshot's stamp so stale libraries stay detectable.
         map["supplemented_catalog"] = source_catalog;
     }
-    for group in ["characters", "views", "pictures", "moods"] {
+    for group in [
+        "characters",
+        "views",
+        "combat_backgrounds",
+        "pictures",
+        "moods",
+    ] {
         if map.get(group).is_none() {
             map[group] = json!({});
         }
@@ -615,6 +625,17 @@ pub fn extract(
         }
     }
     drop(cache);
+    let (combat_exported, combat_reused, combat_failures) = extract_combat_backgrounds(
+        &data,
+        &output,
+        max_size,
+        existing.as_deref(),
+        &previous,
+        &mut map,
+    )?;
+    succeeded += combat_exported;
+    reused += combat_reused;
+    failures.extend(combat_failures);
     let inventory = unity::open(&data.join("globalgamemanagers.assets"))?;
     let (icons, icons_reused) = inventory_pictures(
         &inventory,
@@ -684,7 +705,7 @@ pub fn extract(
         map["event_book"] = json!("assets/ui/event_book.png");
     }
     let report = json!({"exported":succeeded,"reused":reused,"incremental":existing.is_some(),"failed":failures.len(),"failures":failures,"resource_platform":bundles.file_name().unwrap().to_string_lossy(),"unavailable_characters":unavailable,
-        "characters":map["characters"].as_object().unwrap().len(),"views":map["views"].as_object().unwrap().len(),"pictures":map["pictures"].as_object().unwrap().len(),"moods":map["moods"].as_object().unwrap().len(),"game_tested":false,"engine":"rust"});
+        "characters":map["characters"].as_object().unwrap().len(),"views":map["views"].as_object().unwrap().len(),"combat_backgrounds":map["combat_backgrounds"].as_object().unwrap().len(),"pictures":map["pictures"].as_object().unwrap().len(),"moods":map["moods"].as_object().unwrap().len(),"game_tested":false,"engine":"rust"});
     fs::write(
         output.join("preview_map.json"),
         serde_json::to_vec_pretty(&map)?,
@@ -694,6 +715,98 @@ pub fn extract(
         serde_json::to_vec_pretty(&report)?,
     )?;
     Ok(report)
+}
+
+/// CombatLevel.BackImage references are ordinary serialized Sprite objects,
+/// not StoryView Addressables. Keep this map separate from scene backgrounds.
+fn extract_combat_backgrounds(
+    data: &Path,
+    output: &Path,
+    max_size: u32,
+    existing: Option<&Path>,
+    previous: &Value,
+    map: &mut Value,
+) -> Result<(usize, usize, Vec<Value>)> {
+    let metadata: Value =
+        serde_json::from_str(include_str!("../../../data/ref/combat_backgrounds.json"))?;
+    let rows = metadata["backgrounds"]
+        .as_array()
+        .context("决斗背景目录缺少 backgrounds")?;
+    if map.get("combat_backgrounds").is_none() {
+        map["combat_backgrounds"] = json!({});
+    }
+    let mut by_file = BTreeMap::<&str, Vec<&Value>>::new();
+    for row in rows {
+        by_file
+            .entry(row["asset_file"].as_str().context("决斗背景缺少资源文件")?)
+            .or_default()
+            .push(row);
+    }
+    let (mut exported, mut reused) = (0, 0);
+    let mut failures = Vec::new();
+    for (file, rows) in by_file {
+        // A retained library can be supplemented without opening this asset
+        // when every referenced image and its geometry are already present.
+        let mut needed = false;
+        for row in &rows {
+            let id = row["id"].as_str().context("决斗背景缺少 id")?;
+            needed |= cached_file(existing, &previous["combat_backgrounds"][id])?.is_none()
+                || !previous["combat_background_metadata"][id].is_object();
+        }
+        let studio = if needed {
+            Some(unity::open(&data.join(file)))
+        } else {
+            None
+        };
+        for row in rows {
+            let id = row["id"].as_str().context("决斗背景缺少 id")?;
+            let name = row["sprite"].as_str().context("决斗背景缺少 Sprite 名")?;
+            let result = (|| -> Result<bool> {
+                let targets = vec![("combat_backgrounds".into(), String::new(), id.to_owned())];
+                let retained = reuse_targets(map, previous, existing, &targets)?;
+                if retained && map["combat_background_metadata"][id].is_object() {
+                    return Ok(true);
+                }
+                let studio = studio
+                    .as_ref()
+                    .context("缺少待提取的决斗背景资源")?
+                    .as_ref()
+                    .map_err(|error| anyhow::anyhow!("{error:#}"))?;
+                let sprites: Vec<_> = studio
+                    .objects()
+                    .filter(|object| {
+                        object.class_id() == 213
+                            && object.name() == Some(name)
+                            && unity::basename(object.source_path()) == file
+                    })
+                    .collect();
+                ensure!(
+                    sprites.len() == 1,
+                    "决斗背景 Sprite 缺失或不唯一：{file} / {name}"
+                );
+                let geometry = source_geometry(studio, sprites[0], false)?;
+                set_geometry(map, "combat_backgrounds", "", id, &geometry);
+                if !retained {
+                    let relative = format!("assets/combat_backgrounds/{name}.png");
+                    save(
+                        &decode(studio, sprites[0], false)?,
+                        &output.join(&relative),
+                        Some(max_size),
+                    )?;
+                    set_target(map, "combat_backgrounds", "", id, &relative);
+                }
+                Ok(retained)
+            })();
+            match result {
+                Ok(true) => reused += 1,
+                Ok(false) => exported += 1,
+                Err(error) => {
+                    failures.push(json!({"id":id,"asset_file":file,"error":format!("{error:#}")}))
+                }
+            }
+        }
+    }
+    Ok((exported, reused, failures))
 }
 pub(crate) fn inventory_pictures(
     studio: &Studio,
@@ -810,6 +923,47 @@ fn add_task(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[ignore = "reads installed CombatLevel Sprite assets; LOM_GAME_DIR and LOM_ASSET_OUTPUT required"]
+    fn native_combat_backgrounds_from_installed_game() -> Result<()> {
+        let game = std::env::var("LOM_GAME_DIR")?;
+        let output = std::env::var("LOM_ASSET_OUTPUT")?;
+        let mut map = json!({});
+        let (exported, reused, failures) = extract_combat_backgrounds(
+            &Path::new(&game).join("Mortal_Data"),
+            Path::new(&output),
+            1024,
+            None,
+            &json!({}),
+            &mut map,
+        )?;
+        ensure!(
+            exported == 28 && reused == 0 && failures.is_empty(),
+            "{failures:?}"
+        );
+        ensure!(
+            map["combat_backgrounds"]["combat:back_combat_backmountain_1"].is_string(),
+            "missing requested duel background"
+        );
+        fs::write(
+            Path::new(&output).join("combat-backgrounds.json"),
+            serde_json::to_vec_pretty(&map)?,
+        )?;
+        let (exported, reused, failures) = extract_combat_backgrounds(
+            &Path::new(&game).join("Mortal_Data"),
+            Path::new(&output),
+            1024,
+            Some(Path::new(&output)),
+            &map.clone(),
+            &mut map,
+        )?;
+        ensure!(
+            exported == 0 && reused == 28 && failures.is_empty(),
+            "cached duel background reuse failed"
+        );
+        Ok(())
+    }
 
     #[test]
     fn cached_aliases_keep_their_paths_and_new_aliases_share_the_png() {

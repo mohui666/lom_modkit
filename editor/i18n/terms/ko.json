@@ -1534,5 +1534,36 @@
     "special19": "특수19",
     "special20": "특수20",
     "special21": "특수21"
+  },
+  "combat_backgrounds": {
+    "combat:back_combat_alchemy_day": "연단실 (낮)",
+    "combat:back_combat_backmountain_1": "뒷산 도전장",
+    "combat:back_combat_backmountain_road1_day": "뒷산 산길 (낮)",
+    "combat:back_combat_backmountain_road1_night": "뒷산 산길 (밤)",
+    "combat:back_combat_cellar": "지하실",
+    "combat:back_combat_center_1": "당문 광장 (낮)",
+    "combat:back_combat_center_night_1": "당문 광장 (밤)",
+    "combat:back_combat_darkspace": "어둠 속",
+    "combat:back_combat_forest_2_day": "숲속 공터 (낮)",
+    "combat:back_combat_forest_day": "숲 (낮)",
+    "combat:back_combat_forest_night": "숲 (밤)",
+    "combat:back_combat_house_day": "가옥 (낮)",
+    "combat:back_combat_inn_1": "객잔 1",
+    "combat:back_combat_inn_1_night": "객잔 1 (밤)",
+    "combat:back_combat_inn_2": "객잔 2",
+    "combat:back_combat_roof_day": "지붕 (낮)",
+    "combat:back_combat_section_01_center_day": "공동 시합장 (낮)",
+    "combat:back_combat_section_01_center_night_rainy": "공동 시합장 (비 오는 밤)",
+    "combat:back_combat_section_01_out_day": "공동 교외 (낮)",
+    "combat:back_combat_section_01_out_night": "공동 교외 (밤)",
+    "combat:back_combat_section_02_day": "청성 (낮)",
+    "combat:back_combat_section_03_day": "아미 (낮)",
+    "combat:back_combat_snow_day": "설원 (낮)",
+    "combat:back_combat_top_moutain_day": "산꼭대기 (낮)",
+    "combat:back_combat_tower_1": "수련탑",
+    "combat:back_combat_village_1": "마을 (낮)",
+    "combat:back_combat_village_night_1": "마을 (밤)",
+    "combat:back_combat_wild_dusk": "황야 (황혼)"
   }
+
 }

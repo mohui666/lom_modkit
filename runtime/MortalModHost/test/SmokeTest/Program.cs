@@ -88,6 +88,7 @@ namespace MortalModHost
             DevelopmentNavigationTests.Run();
             DevelopmentEventCatalogTests.Run();
             DevelopmentEventTextTests.Run();
+            CombatIdentityPolicyTests.Run();
             ModSaveBrowserTests.Run();
             AddonSaveDependencyTests.Run();
             EffectPlaybackTests.Run();
@@ -1059,6 +1060,15 @@ namespace MortalModHost
 
         private static void TestCombatBackgroundAddressPolicy()
         {
+            string spriteName;
+            Assert(CombatBackgroundAddressPolicy.TryGetCombatSpriteName(
+                "combat:back_combat_backmountain_1", out spriteName)
+                && spriteName == "back_combat_backmountain_1",
+                "决斗专用背景必须保留精确 Sprite 名称供原版引用查找");
+            foreach (string key in new[] { null, "", "center", "combat:", "Combat:back_combat_backmountain_1" })
+                Assert(!CombatBackgroundAddressPolicy.TryGetCombatSpriteName(key, out spriteName)
+                    && spriteName == null,
+                    "旧背景与不完整的新背景标识不能误入专用 Sprite 查找");
             Assert(CombatBackgroundAddressPolicy.IsOfficialImageAddress(
                 "Assets/__Project/Images/Background/screen_section_001_center2.jpg"),
                 "官方背景映射中的 JPG 必须允许");

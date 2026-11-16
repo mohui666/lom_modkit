@@ -1478,7 +1478,16 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
                     )
         })
     });
-    if picture_controls
+    let combat_backgrounds = stories.values().any(|story| {
+        crate::parallel::story_actions(story).any(|(_, node)| {
+            node["type"] == "combat"
+                && node["background"]
+                    .as_str()
+                    .is_some_and(|id| id.starts_with("combat:"))
+        })
+    });
+    if combat_backgrounds
+        || picture_controls
         || presentation_controls
         || custom_pictures
         || render_priority
@@ -1498,7 +1507,9 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
         || event_fade
         || dialogue_dimming
     {
-        let (minimum, required) = if picture_controls {
+        let (minimum, required) = if combat_backgrounds {
+            ([1, 6, 2], "1.6.2")
+        } else if picture_controls {
             ([1, 5, 19], "1.5.19")
         } else if presentation_controls {
             ([1, 5, 15], "1.5.15")

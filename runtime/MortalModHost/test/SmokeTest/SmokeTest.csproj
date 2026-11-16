@@ -34,6 +34,7 @@
     <Compile Include="..\..\src\ModPlayMode.cs" />
     <Compile Include="..\..\src\BattleCompositionPolicy.cs" />
     <Compile Include="..\..\src\CombatCharacterPolicy.cs" />
+    <Compile Include="..\..\src\CombatIdentityPolicy.cs" />
     <Compile Include="..\..\src\CombatBackgroundAddressPolicy.cs" />
     <Compile Include="..\..\src\CombatSpriteLayoutPolicy.cs" />
     <Compile Include="..\..\src\CombatStatDisplayPolicy.cs" />

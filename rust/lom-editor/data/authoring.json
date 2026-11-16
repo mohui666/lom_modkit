@@ -2299,7 +2299,7 @@
         [
           "background",
           "决斗背景",
-          "view",
+          "combat_background",
           false
         ],
         [

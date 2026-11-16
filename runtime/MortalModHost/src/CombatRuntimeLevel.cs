@@ -16,7 +16,7 @@ namespace MortalModHost
     /// <summary>
     /// 为每次 MOD 决斗即时创建隔离的 CombatLevel。原版 CL 不再作为本场人物、
     /// 背景、数值、事件或结果的配置来源；只从一个可运行条目保留引擎必须的音效/
-    /// 音乐对象引用。官方人物身份通过 EnemyStat.Name 的真实关系独立绑定。
+    /// 音乐对象引用。官方人物身份通过 Name 与冻结的 Story normal 肖像关系独立绑定。
     /// </summary>
     [HarmonyPatch(typeof(CombatLevelConfig), "Get")]
     internal static class CombatRuntimeLevelPatch
@@ -50,15 +50,15 @@ namespace MortalModHost
             if (config == null || config.List == null)
                 throw new InvalidOperationException("CombatLevelConfig 不可用");
             string character = GameplaySession.ConfigString("character");
+            CombatStat identity = CombatCharacterPolicy.IsUserCharacter(character) ? null
+                : BattleOverrideResolver.TryResolveOfficialCombatStat(config, character, GameplaySession.CombatIdleAddress);
             CombatLevel source = null;
             for (int i = 0; i < config.List.Count; i++)
             {
                 CombatLevel candidate = config.List[i];
                 if (candidate == null || candidate.EnemyStat == null
                     || candidate.MusicData == null) continue;
-                if (!CombatCharacterPolicy.IsUserCharacter(character)
-                    && string.Equals(candidate.EnemyStat.Name, character, StringComparison.Ordinal)
-                    && candidate.EnemyStat.CombatAvatar != null)
+                if (identity != null && candidate.EnemyStat == identity)
                 {
                     source = candidate;
                     break;
@@ -70,7 +70,7 @@ namespace MortalModHost
 
             _runtimeLevel = UnityObject.Instantiate(source);
             _runtimeLevel.name = RuntimeLevelName;
-            _runtimeStat = UnityObject.Instantiate(source.EnemyStat);
+            _runtimeStat = UnityObject.Instantiate(identity != null ? identity : source.EnemyStat);
             _runtimeStat.name = RuntimeLevelName + "_STAT";
             ResetAuthorFacingState(_runtimeStat);
             CombatStatOverridePatch.ApplyConfiguredValues(_runtimeStat);
@@ -96,6 +96,7 @@ namespace MortalModHost
             fields.Field("_talkingEvent").SetValue(null);
             fields.Field("_winResult").SetValue(new CombatResultFlag[0]);
             fields.Field("_loseResult").SetValue(new CombatResultFlag[0]);
+            fields.Field("_conditionResult").SetValue(new CombatConditionResultFlag[0]);
             Sprite preparedBackground = CombatBackgroundOverridePatch.GetPreparedSprite(
                 CombatManager.Instance);
             if (preparedBackground != null)
@@ -184,6 +185,7 @@ namespace MortalModHost
     internal static class CombatBackgroundOverridePatch
     {
         private static string _address;
+        private static string _combatSpriteName;
         private static readonly Dictionary<int, AsyncOperationHandle<Sprite>> Handles =
             new Dictionary<int, AsyncOperationHandle<Sprite>>();
         private static Dictionary<string, string> _addresses;
@@ -193,11 +195,17 @@ namespace MortalModHost
         internal static void Capture()
         {
             _address = null;
+            _combatSpriteName = null;
             try
             {
                 string background = GameplaySession.ConfigString("background");
                 if (string.IsNullOrWhiteSpace(background))
                     throw new InvalidOperationException("Combat 缺少独立 background");
+                if (CombatBackgroundAddressPolicy.TryGetCombatSpriteName(background, out _combatSpriteName))
+                {
+                    LuaManagerPatch.Log?.LogInfo("Combat 专用背景已选择：" + _combatSpriteName);
+                    return;
+                }
                 EnsureAddressMap();
                 if (!_addresses.TryGetValue(background, out _address)
                     || string.IsNullOrEmpty(_address))
@@ -256,8 +264,25 @@ namespace MortalModHost
             // 原协程结束后再异步等背景，否则 InitCombatRound 先 NextRound、随后被
             // Start 的 Reset 改回 0。先完成背景请求，再让原版按正常顺序运行。
             string address = _address;
+            string combatSpriteName = _combatSpriteName;
             int managerId = manager != null ? manager.GetInstanceID() : 0;
-            if (!string.IsNullOrEmpty(address))
+            bool failed = false;
+            if (combatSpriteName != null)
+            {
+                try
+                {
+                    _preparedSprite = ResolveCombatSprite(manager, combatSpriteName);
+                    _preparedManagerId = managerId;
+                    LuaManagerPatch.Log?.LogInfo("Combat 专用背景已从原版关卡引用读取：" + combatSpriteName);
+                }
+                catch (Exception error)
+                {
+                    GameplayOverrideFailure.Abort("决斗专用背景", error);
+                    failed = true;
+                }
+                if (failed) yield break;
+            }
+            else if (!string.IsNullOrEmpty(address))
             {
                 AsyncOperationHandle<Sprite> handle = Addressables.LoadAssetAsync<Sprite>(address);
                 if (managerId != 0) Handles[managerId] = handle;
@@ -280,6 +305,23 @@ namespace MortalModHost
                 LuaManagerPatch.Log?.LogWarning("Combat 独立背景不可用；保留可用背景继续决斗");
             }
             while (original != null && original.MoveNext()) yield return original.Current;
+        }
+
+        private static Sprite ResolveCombatSprite(CombatManager manager, string name)
+        {
+            CombatLevelConfig config = Traverse.Create(manager).Field("_levelConfig").GetValue<CombatLevelConfig>();
+            if (config == null || config.List == null) throw new InvalidOperationException("CombatLevelConfig 不可用");
+            Sprite selected = null;
+            foreach (CombatLevel level in config.List)
+            {
+                Sprite sprite = level != null ? level.BackImage : null;
+                if (sprite == null || !string.Equals(sprite.name, name, StringComparison.Ordinal)) continue;
+                if (selected != null && selected.GetInstanceID() != sprite.GetInstanceID())
+                    throw new InvalidOperationException("原版存在不同的同名决斗背景，无法唯一定位：" + name);
+                selected = sprite;
+            }
+            if (selected == null) throw new InvalidOperationException("本机原版关卡中没有此决斗背景：" + name);
+            return selected;
         }
 
         internal static Sprite GetPreparedSprite(CombatManager manager)

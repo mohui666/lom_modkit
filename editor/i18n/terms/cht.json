@@ -1534,5 +1534,36 @@
     "special19": "特殊19",
     "special20": "特殊20",
     "special21": "特殊21"
+  },
+  "combat_backgrounds": {
+    "combat:back_combat_alchemy_day": "煉丹房（日間）",
+    "combat:back_combat_backmountain_1": "後山挑戰場",
+    "combat:back_combat_backmountain_road1_day": "後山山道（日間）",
+    "combat:back_combat_backmountain_road1_night": "後山山道（夜間）",
+    "combat:back_combat_cellar": "地窖",
+    "combat:back_combat_center_1": "唐門廣場（日間）",
+    "combat:back_combat_center_night_1": "唐門廣場（夜間）",
+    "combat:back_combat_darkspace": "暗處",
+    "combat:back_combat_forest_2_day": "林間空地（日間）",
+    "combat:back_combat_forest_day": "樹林（日間）",
+    "combat:back_combat_forest_night": "樹林（夜間）",
+    "combat:back_combat_house_day": "屋舍（日間）",
+    "combat:back_combat_inn_1": "客棧一",
+    "combat:back_combat_inn_1_night": "客棧一（夜間）",
+    "combat:back_combat_inn_2": "客棧二",
+    "combat:back_combat_roof_day": "屋頂（日間）",
+    "combat:back_combat_section_01_center_day": "崆峒擂臺（日間）",
+    "combat:back_combat_section_01_center_night_rainy": "崆峒擂臺（雨夜）",
+    "combat:back_combat_section_01_out_day": "崆峒郊外（日間）",
+    "combat:back_combat_section_01_out_night": "崆峒郊外（夜間）",
+    "combat:back_combat_section_02_day": "青城（日間）",
+    "combat:back_combat_section_03_day": "峨嵋（日間）",
+    "combat:back_combat_snow_day": "雪地（日間）",
+    "combat:back_combat_top_moutain_day": "山巔（日間）",
+    "combat:back_combat_tower_1": "練功塔",
+    "combat:back_combat_village_1": "村落（日間）",
+    "combat:back_combat_village_night_1": "村落（夜間）",
+    "combat:back_combat_wild_dusk": "荒野（黃昏）"
   }
+
 }

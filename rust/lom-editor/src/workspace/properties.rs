@@ -208,6 +208,8 @@ impl App {
                                     let options = self.catalog.options(
                                         if official {
                                             "story_picture"
+                                        } else if node["type"] == "combat" {
+                                            "combat_background"
                                         } else if scene {
                                             "view"
                                         } else {
@@ -239,6 +241,8 @@ impl App {
                                                 key,
                                                 if official {
                                                     "story_picture"
+                                                } else if node["type"] == "combat" {
+                                                    "combat_background"
                                                 } else if scene {
                                                     "view"
                                                 } else {
