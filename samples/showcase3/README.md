@@ -38,6 +38,8 @@ cargo run --locked -p lomc -- inspect out/showcase3-check/showcase3.lommod --jso
 
 主路径包括演出、Gameplay、可跳过的 Combat／Battle，以及死亡测试或安全返回。事件演出、原版剧情补丁和人物补绘等章节可单独选择查看。
 
+第三章 `combat_demo` 的决斗使用原版后山专用背景 `combat:back_combat_backmountain_1`，因此本样例导出包要求 Host 1.6.2。已有素材库可补充提取背景缩略图；游戏中只使用对应背景，不继承原版后山关卡的事件或对手数值。
+
 ## 游戏手动检查
 
 1. 退出游戏，在编辑器同步 Host 后导出或试玩。

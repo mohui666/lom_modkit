@@ -1,6 +1,6 @@
 # Rust 工具端
 
-Cargo workspace 由 `rust/lom-core`、`rust/lomc`、`rust/lom-editor`、`rust/lom-assets` 和 `rust/lom-host-native` 组成，覆盖剧情编译、包读写、原生桌面编辑、游戏资源读取与 Host 批量计算。C# `runtime/MortalModHost` 保留游戏接入；1.6.0 的包、Story、用户内容版本仍为 **3 / 2 / 1**。
+Cargo workspace 由 `rust/lom-core`、`rust/lomc`、`rust/lom-editor`、`rust/lom-assets` 和 `rust/lom-host-native` 组成，覆盖剧情编译、包读写、原生桌面编辑、游戏资源读取与 Host 批量计算。C# `runtime/MortalModHost` 保留游戏接入；1.6.2 的包、Story、用户内容版本仍为 **3 / 2 / 1**。
 
 操作指南见 [软件使用](software_usage.md)，验证命令见 [测试入口](test_matrix.md)。
 
@@ -99,6 +99,8 @@ Windows 游戏管理调用已有 C# Host 协议；Mac 上禁用游戏接入按�
 ## Host 的 Rust 计算模块
 
 `rust/lom-host-native` 由 `scripts/build-host-native.ps1` 构建 x64／x86 DLL，作为资源嵌入 C# Host。`NativeHostKernel` 共用一次加载，包／路径检查、JSON、原版来源与补丁、事件计划、存档编解码、文本计数与流式音频通过批量 C ABI 进入 Rust；游戏对象、事件副作用与播放生命周期由 C# 管理。源码中仍保留无原生组件时的原计算入口，原生拒绝不会转为托管重试。包格式、字段、节点和已有作品的身份保持不变。完整构建、所有权与定向差分命令见 [Host 说明](../../runtime/MortalModHost/README.md#构建与测试)。
+
+1.6.2 的决斗专用图片由 `lom-assets` 按资源文件和精确 Sprite 名读取，与普通 `views` 分组保存；运行游戏时由 C# Host 读取 `CombatLevel.BackImage`，不从原版完整关卡继承事件或人物数值。素材库缺少新组仍可打开，补充提取后提供专用背景预览。
 
 ## 样例与验证
 

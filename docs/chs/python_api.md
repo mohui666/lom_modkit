@@ -1,6 +1,6 @@
 # Python API 接口参考
 
-本文对应 1.6.0 配套 SDK；完整教程见 [对象创作指南](https://github.com/mohui666/lom_modkit/blob/v1.6.0/docs/chs/ai_cli.md)，SDK 中对应本地 `README.md`，命令参数见 [CLI 参数](cli_parameters.md)。Python 3.10+，只用标准库。SDK 必须从使用中的 exe 导出，不能复用已退役的旧 Python 编辑器模块。Windows 正式发布只提供该内置组件 exe，不另发 SDK 安装包。
+本文对应 1.6.2 配套 SDK；完整教程见 [对象创作指南](https://github.com/mohui666/lom_modkit/blob/v1.6.2/docs/chs/ai_cli.md)，SDK 中对应本地 `README.md`，命令参数见 [CLI 参数](cli_parameters.md)。Python 3.10+，只用标准库。SDK 必须从使用中的 exe 导出，不能复用已退役的旧 Python 编辑器模块。Windows 正式发布只提供该内置组件 exe，不另发 SDK 安装包。
 
 ```powershell
 .\lom-editor.exe --cli sdk -o .\authoring --json
@@ -131,7 +131,7 @@ entry 默认首章；mode=story/addon/sandbox/vanilla_patch，最后一种需要
 | `ChoiceStep` | node、option（0 基下标） |
 | `RouteTest` | name、story，choices=()、reaches_node=()、reaches_ending=True、flags/variables/initial_flags/initial_variables |
 
-素材对象的 `.ref` 是 user:namespace.name，供节点引用；`Project(assets=[...])` 自动生成内嵌 content.json 与资源路径映射。高级 metadata 及嵌套玩法字段沿用 [用户内容](https://github.com/mohui666/lom_modkit/blob/v1.6.0/docs/chs/user_content.md)，Rust 负责语义校验。翻译路径用 `cli.run("texts", chapter_path)` 查询；默认语言不重复放入 translations。
+素材对象的 `.ref` 是 user:namespace.name，供节点引用；`Project(assets=[...])` 自动生成内嵌 content.json 与资源路径映射。高级 metadata 及嵌套玩法字段沿用 [用户内容](https://github.com/mohui666/lom_modkit/blob/v1.6.2/docs/chs/user_content.md)，Rust 负责语义校验。翻译路径用 `cli.run("texts", chapter_path)` 查询；默认语言不重复放入 translations。
 
 ```python
 chapter = Chapter(..., _editor={"tests":[
@@ -158,6 +158,6 @@ except CLIError as error:
 
 构造参数问题抛 TypeError/ValueError，文件缺失抛 FileNotFoundError；Rust 命令失败抛 CLIError，含 result 和 returncode。不要捕获后仍声称成功。build 不自动执行游戏；open_editor 会开窗口，playtest/playtest_event/render_video/capture-effects 会执行明确的游戏操作。
 
-复杂可运行示例和一键重跑方法见 [创作指南](https://github.com/mohui666/lom_modkit/blob/v1.6.0/docs/chs/ai_cli.md#复杂样例与重跑)，SDK 根目录也提供 `complex_story.py` 和本地 `README.md`。
+复杂可运行示例和一键重跑方法见 [创作指南](https://github.com/mohui666/lom_modkit/blob/v1.6.2/docs/chs/ai_cli.md#复杂样例与重跑)，SDK 根目录也提供 `complex_story.py` 和本地 `README.md`。
 
 画外音使用 `Say(id="voice", mode="offscreen", text="救命！", speaker_name="？？？")`，不需要人物或立绘。临时高亮使用 `Dim(character="player", dimmed=False, mode="until_dialogue")`；解除持续亮暗使用 `Dim(character="player", dimmed=False, mode="auto")`。这些选项需要 Host 1.5.1，SDK 应由配套编辑器重新导出。

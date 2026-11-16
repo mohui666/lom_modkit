@@ -1,8 +1,8 @@
 # lom_modkit 文档
 
-当前版本为 **1.6.0**，编辑器和编译器使用 Rust，C# Host 提供游戏接入。更新内容见 [GitHub Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.0)，下载见 [发布页](https://github.com/mohui666/lom_modkit/releases/latest)。仓库维护当前操作与接口文档，历史更新正文仅保留在 GitHub Release。
+当前版本为 **1.6.2**，编辑器和编译器使用 Rust，C# Host 提供游戏接入并内置 Rust 计算组件。更新内容见 [GitHub Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.2)，下载见 [发布页](https://github.com/mohui666/lom_modkit/releases/latest)。仓库维护当前操作与接口文档，历史更新正文仅保留在 GitHub Release。
 
-本版加入多工程标签与恢复、跨窗口步骤复制、后台游戏原生视频和预览分辨率选择；CLI／Python 新增素材查询、舞台图与视频导出、试玩状态查询及可选演出助手。
+本版完善游戏内 F8 开发工具、独立工具语言、原版事件前后文和条件说明，支持日期／章节跳转测试；决斗加入 28 张专用背景并修复小梅形态解析。升级时请同步游戏 Host，已有素材库可补充提取新背景缩略图。
 
 ## 开始使用
 
@@ -11,6 +11,8 @@
 | [Windows 快速开始](chs/windows_quick_start.md) | 安装、升级、配置游戏和提取素材 |
 | [软件使用](chs/software_usage.md) | 多工程标签、步骤、预览分辨率、后台视频和导出 |
 | [原版剧情编辑与路线图](chs/software_usage.md#原版剧情编辑与路线图) | 整章导入、条件插入、游戏标记与定位 |
+| [游戏内 F8 工坊](chs/software_usage.md#游戏内-mod-工坊与开发工具) | 独立工具语言、原版事件目录、开发跳转与操作记录 |
+| [决斗背景](chs/software_usage.md#查找官方背景) | 后山等专用背景、缩略图与 Host 版本要求 |
 | [Mac 编辑器](chs/macos.md) | 源码构建、启动与素材设置 |
 | [当前能力与边界](chs/current_capabilities.md) | 功能范围、Host 需求和本版验证范围 |
 

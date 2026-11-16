@@ -4,7 +4,7 @@
 
 **所有组件（编辑器 / 编译器 / 运行时插件）以本文档为准。** 改动需同步更新本文档。
 
-1.6.0 继续使用 **package_format=3 / story_schema=2 / content_schema=1**。工程标签、跨窗口剪贴板、预览分辨率、SDK 舞台出图与后台原生视频不增加剧情节点字段；临时试玩请求的 format 与包格式是两套协议。版本变化见 [GitHub Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.0)，仓库不保留版本 notes。
+1.6.2 继续使用 **package_format=3 / story_schema=2 / content_schema=1**。决斗专用背景扩展既有 `combat.background` 的资源 ID，不改变包格式；F8 工具语言和开发跳转属于 Host 会话与测试请求，不写入作者剧情。临时试玩请求的 format 与包格式是两套协议。版本变化见 [GitHub Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.2)，仓库不保留版本 notes。
 
 2026-10-24 工作区扩展：Host ≥1.1.3 支持 `play_mode=addon/sandbox` 与独立的 `scenario.json`。事件、任务和结果动作使用[事件与任务配置](events_and_tasks.md)契约，旧作品继续兼容。
 
@@ -249,9 +249,13 @@ Host 从包内 Story 构建来源缓存，每次加载作品后首次进入该�
 | `time` | `op`("set"/"round"/"month"/"mission")；set 用 `year,month,stage`；mission 用 `name,year,month,stage` | 时间 `SetGameTime/NextRound/NextMonth/SetMissionTime` |
 | `autosave` | 可选 `kind`("story"默认/"free"/"prologue")；可选 `save_button`(0/1，单独控制存档按钮) | `AutoSave()/AutoFreeSave()/PrologueSave(mode)`；`save_button` 单独 emit `ToggleSaveButton(n)` |
 
-1.4 的玩法内容沿用 `content_schema:1`，新增 `item`、`martial`、`support`、`skill` 类型，详细字段见[用户内容库](user_content.md#14-自定义物品功法援助与招式)。`item`、`item_check`、奖励的物品 ID 可引用本包 `user:` 内容：book 对应 martial，misc/special/consumable 对应同类别 item。事件结果的 item 动作也可使用 `key=user:...`。`custom_shop` 仅允许 book/misc/special，明确拒绝原版界面不展示的 consumable。类别不符、缺失定义或非法引用会拒绝打包。
+1.4 的玩法内容沿用 `content_schema:1`，新增 `item`、`martial`、`support`、`skill` 类型，详细字段见[用户内容库](user_content.md#自定义物品功法援助与招式)。`item`、`item_check`、奖励的物品 ID 可引用本包 `user:` 内容：book 对应 martial，misc/special/consumable 对应同类别 item。事件结果的 item 动作也可使用 `key=user:...`。`custom_shop` 仅允许 book/misc/special，明确拒绝原版界面不展示的 consumable。类别不符、缺失定义或非法引用会拒绝打包。
 
 `combat` 可选 `player_supports`、`enemy_supports` 字符串列表，各最多 16 项且不重复；元素必须是本包 `user:` support 引用。`player_skills`、`enemy_skills` 各最多 8 项且不重复，必须是本包 `user:` skill 引用。编译时与既有决斗配置一起传给 Host。引用这些玩法内容的作品，导出时自动要求 Host **1.4.0**，未使用新功能的作品保持原来的最低版本要求。
+
+`combat.background` 保留 `center`、`backmountain` 等既有场景 ID，也接受决斗专用清单 `editor_data.combat_backgrounds` 中的 `combat:<Sprite.name>`，如 `combat:back_combat_backmountain_1`。当前收录 28 项；这些 ID 不可用于 `scene.view`，也不是 `user:` 图片或可自行填写的 Addressables 路径。Host 按原版 `CombatLevel.BackImage` 的精确 Sprite 引用加载，图片不打入作品包。只有使用专用 ID 的导出包自动提高最低 Host 要求到 **1.6.2**，旧背景的最低要求不因此改变。
+
+官方决斗人物按 `EnemyStat.Name` 与冻结的剧情 normal 立绘／`AvatarAddressKey` 关联消除同名形态歧义；例如 `girl5` 和入魔外观不再因共用名称而冲突。运行时克隆身份与动画配置，清空原版关卡的事件、胜负及条件结果旗标，保留本场作者数值；不要求选择固定 CL 或固定血量预设。
 
 **流程类**
 
