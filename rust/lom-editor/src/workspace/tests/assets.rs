@@ -1,6 +1,191 @@
 use super::*;
 
 #[test]
+fn copying_all_project_images_keeps_layout_variants_parallel_groups_and_one_undo() {
+    let temp = tempfile::tempdir().unwrap();
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../lom-core/tests/fixtures/released-1.5.9-scenario-modes.lommod");
+    let original_package = std::fs::read(&fixture).unwrap();
+    let mut incoming = Project::open(&fixture).unwrap();
+    let pixels = temp.path().join("normal.png");
+    image::RgbaImage::new(2, 3).save(&pixels).unwrap();
+    let pixels = std::fs::read(pixels).unwrap();
+    for (kind, id, extends) in [
+        ("image", "copy.picture", ""),
+        ("character", "copy.hero", ""),
+        ("character", "copy.player", "player"),
+    ] {
+        let directory = format!("assets/user/{kind}/{id}");
+        let mut meta = json!({"schema":1,"content_schema":1,"id":id,"type":kind,"name":id,
+            "files":{"main":"normal.png"}});
+        if kind == "character" {
+            meta["portraits"] = json!({"normal":"normal.png","happy":"normal.png"});
+            meta["scale"] = json!(370);
+            meta["portrait_layouts"] = json!({"normal":{"scale":100,"x":0,"y":0}});
+            if !extends.is_empty() {
+                meta["extends"] = json!(extends);
+            }
+        }
+        incoming.assets.insert(
+            format!("{directory}/content.json"),
+            lom_core::stable_json(&meta).unwrap(),
+        );
+        incoming
+            .assets
+            .insert(format!("{directory}/normal.png"), pixels.clone());
+    }
+    let mut original_layout = json!({"id":"custom","title":"原有图片演出","story_schema":2,"start":"first","nodes":[
+        {"id":"first","type":"show","character":"user:copy.hero","position":"L","portrait":"normal","scale":82,"facing":"right"},
+        {"id":"first_offset","type":"offset","character":"user:copy.hero","absolute":true,"x":-1.5,"y":2,"scale":126,"duration":0},
+        {"id":"picture","type":"overlay","action":"show","slot":"main","image":"user:copy.picture","position":"left","x":-22,"y":13,"scale":146},
+        {"id":"second","type":"parallel","actions":[
+            {"type":"offset","character":"user:copy.hero","absolute":true,"x":6.5,"y":-7,"scale":94,"duration":0,"start_delay":0.3},
+            {"type":"overlay","action":"show","slot":"main","image":"user:copy.picture","position":"right","x":14,"y":22,"scale":211},
+            {"type":"show","character":"player","position":"R","portrait":"happy","scale":97}
+        ]},
+        {"id":"player_offset","type":"offset","character":"player","absolute":true,"x":3,"y":5,"scale":184,"duration":0},
+        {"id":"line","type":"say","character":"user:copy.hero","portrait":"happy","text":"不要复制原正文","voice":"user:missing.voice"},
+        {"id":"official","type":"cg","kind":"item","action":"show","key":"book1"},
+        {"id":"last","type":"custom_cg","action":"show","image":"user:copy.picture","scale":74,"x":3,"y":-6},
+        {"id":"end","type":"end"}
+    ]});
+    let nodes = original_layout["nodes"].as_array_mut().unwrap();
+    let end = nodes.pop().unwrap();
+    for kind in ["event", "picture", "item", "big"] {
+        nodes.push(json!({"id":format!("custom_{kind}"),"type":"cg","kind":kind,"action":"show","key":"user:copy.picture","scale":123}));
+        nodes.push(json!({"id":format!("hide_{kind}"),"type":"cg","kind":kind,"action":"hide"}));
+    }
+    nodes.push(end);
+    incoming
+        .stories
+        .insert("custom".into(), original_layout.clone());
+    let source = temp.path().join("source");
+    incoming.save_to(&source).unwrap();
+    let original_story = std::fs::read(source.join("story/custom.json")).unwrap();
+
+    let mut app = app();
+    let before = snapshot(&app.project);
+    let entry = app.project.manifest["entry"].clone();
+    let scenario = app.project.scenario.clone();
+    app.copy_project_images_at(&source);
+    assert!(app.error.is_none(), "{:?}", app.error);
+    assert_eq!(app.project.manifest["entry"], entry);
+    assert_eq!(app.project.scenario, scenario);
+    assert!(
+        app.project.assets == incoming.assets,
+        "copy preserves exact asset bytes"
+    );
+    // The released fixture already has one image layout in main; both that
+    // historical layout and the newly authored custom layout are retained.
+    assert_eq!(app.project.stories.len(), before.stories.len() + 2);
+    let layout = &app.project.stories["image_layout1"];
+    assert!(!serde_json::to_string(layout)
+        .unwrap()
+        .contains("不要复制原正文"));
+    assert!(!serde_json::to_string(layout)
+        .unwrap()
+        .contains("missing.voice"));
+    let pictures: Vec<_> = layout["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|node| node["type"] == "cg")
+        .collect();
+    assert_eq!(pictures.len(), 8);
+    assert!(pictures
+        .iter()
+        .filter(|node| node["action"] == "show")
+        .all(|node| node["key"] == "user:copy.picture" && node["scale"] == 123));
+    let second = layout["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|node| node["type"] == "parallel")
+        .unwrap();
+    assert_eq!(second["actions"], original_layout["nodes"][3]["actions"]);
+    let second_id = second["id"].as_str().unwrap();
+    let original_state = crate::preview::simulate(&original_layout, "second");
+    let copied_state = crate::preview::simulate(layout, second_id);
+    for key in ["actors", "overlays"] {
+        assert_eq!(copied_state[key], original_state[key], "{key}");
+    }
+    let copied = snapshot(&app.project);
+    assert_eq!(app.undo.len(), 1);
+    app.undo();
+    assert!(snapshot(&app.project) == before);
+    app.redo();
+    assert!(snapshot(&app.project) == copied);
+    let saved = temp.path().join("saved");
+    app.project.save_to(&saved).unwrap();
+    let reopened = open_project(&saved).unwrap();
+    assert_eq!(reopened.stories, app.project.stories);
+    assert!(
+        reopened.assets == incoming.assets,
+        "project save preserves exact asset bytes"
+    );
+    let output = temp.path().join("copied.lommod");
+    reopened.export(&output).unwrap();
+    let exported = open_project(&output).unwrap();
+    assert_eq!(exported.stories, reopened.stories);
+    assert!(exported.assets.keys().eq(incoming.assets.keys()));
+    for (path, original) in &incoming.assets {
+        if path.ends_with("/content.json") {
+            // Package export already normalizes metadata (e.g. 0 -> 0.0 in
+            // portrait registration); verify that all authored settings agree.
+            let normalized = |bytes: &[u8]| {
+                lom_core::content::normalize_content_metadata(
+                    &serde_json::from_slice(bytes).unwrap(),
+                )
+                .unwrap()
+            };
+            assert_eq!(
+                normalized(&exported.assets[path]),
+                normalized(original),
+                "{path}"
+            );
+        } else {
+            assert!(&exported.assets[path] == original, "{path}");
+        }
+    }
+    assert_eq!(
+        std::fs::read(source.join("story/custom.json")).unwrap(),
+        original_story
+    );
+    assert_eq!(std::fs::read(fixture).unwrap(), original_package);
+}
+
+#[test]
+fn image_copy_without_layout_does_not_add_chapters_and_conflicts_leave_everything_unchanged() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut incoming = Project::new();
+    let meta = "assets/user/image/copy.one/content.json";
+    let image = "assets/user/image/copy.one/main.png";
+    incoming.assets.insert(
+        meta.into(),
+        lom_core::stable_json(&json!({
+            "schema":1,"content_schema":1,"id":"copy.one","type":"image","name":"尚未使用的图片","files":{"main":"main.png"}
+        }))
+        .unwrap(),
+    );
+    incoming
+        .assets
+        .insert(image.into(), b"original picture".to_vec());
+    let source = temp.path().join("source");
+    incoming.save_to(&source).unwrap();
+    let mut app = app();
+    let stories = app.project.stories.clone();
+    app.copy_project_images_at(&source);
+    assert!(app.error.is_none(), "{:?}", app.error);
+    assert_eq!(app.project.stories, stories);
+    assert_eq!(app.project.assets, incoming.assets);
+    let before = snapshot(&app.project);
+    std::fs::write(source.join(image), b"different picture").unwrap();
+    app.copy_project_images_at(&source);
+    assert!(app.error.as_ref().unwrap().contains("同名图片素材"));
+    assert!(snapshot(&app.project) == before);
+}
+
+#[test]
 fn error_navigation_selects_the_owned_node_and_asset() {
     let mut app = app();
     let ctx = egui::Context::default();

@@ -117,10 +117,17 @@ fn release_editor_stress_profile() {
     for per_chapter in cases {
         let mut app = app();
         let mut project = Project::new();
-        let story = json!({"story_schema":2,"id":"main","title":"压力测试","start":"n0","nodes":
+        let mut story = json!({"story_schema":2,"id":"main","title":"压力测试","start":"n0","nodes":
             (0..per_chapter).map(|i| json!({"id":format!("n{i}"),"type":"say",
                 "mode":"narrative","text":format!("压力测试对白 {i}，检查编辑与切换步骤是否卡顿。")
             })).collect::<Vec<_>>()});
+        if std::env::var_os("LOM_STRESS_GROUPED").is_some() {
+            story["_editor"] = json!({"sections":(0..per_chapter).step_by(200).map(|start| {
+                let end = (start + 199).min(per_chapter - 1);
+                json!({"id":format!("section{start}"),"title":"分区","start":format!("n{start}"),"end":format!("n{end}"),
+                    "groups":(start..=end).step_by(50).map(|a| json!({"id":format!("group{a}"),"title":"分组","start":format!("n{a}"),"end":format!("n{}",(a+49).min(end))})).collect::<Vec<_>>()})
+            }).collect::<Vec<_>>()});
+        }
         project.stories.insert("main".into(), story);
         for chapter in 1..10 {
             let id = format!("chapter{chapter}");
@@ -206,6 +213,44 @@ fn release_editor_stress_profile() {
             edit.push(start.elapsed().as_secs_f64() * 1000.0);
         }
         report(&format!("{per_chapter}_edit_capture"), &mut edit);
+        // Include the frame after each keystroke: idle frames reuse the preview,
+        // whereas typing used to discard every prefix and replay the chapter.
+        for parallel in [false, true] {
+            if parallel {
+                app.project.stories.get_mut("main").unwrap()["nodes"][per_chapter - 1] = json!({
+                    "id":format!("n{}", per_chapter - 1),"type":"parallel","actions":[
+                        {"type":"show","character":"player","position":"L","portrait":"normal"},
+                        {"type":"offset","character":"player","x":25,"y":10,"duration":0.5},
+                        {"type":"wait","seconds":1}
+                    ]
+                });
+                app.track();
+            }
+            let mut editing = [Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new()];
+            for i in 0..20 {
+                let start = Instant::now();
+                let node =
+                    &mut app.project.stories.get_mut("main").unwrap()["nodes"][per_chapter - 1];
+                if parallel {
+                    node["actions"][1]["x"] = json!(i);
+                } else {
+                    node["text"] = json!(format!("连续打字检查 {i}"));
+                }
+                app.track();
+                let times = draw(&mut app, 3);
+                for part in 0..4 {
+                    editing[part].push(times[part]);
+                }
+                editing[4].push(start.elapsed().as_secs_f64() * 1000.0);
+            }
+            let kind = if parallel { "parallel_edit" } else { "typing" };
+            for (i, part) in ["sidebar", "preview", "form", "track", "frame"]
+                .into_iter()
+                .enumerate()
+            {
+                report(&format!("{per_chapter}_{kind}_{part}"), &mut editing[i]);
+            }
+        }
         let saved = tempfile::tempdir().unwrap();
         let start = Instant::now();
         assert!(app.save_at(saved.path(), false), "{:?}", app.error);

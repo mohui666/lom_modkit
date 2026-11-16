@@ -611,6 +611,7 @@ impl App {
         self.rename_dialog = None;
         self.asset_import_dialog = None;
         self.video_dialog = None;
+        self.font_conversion_dialog = None;
         self.image_import_target = None;
         self.audio.stop();
         self.auto = false;
@@ -642,6 +643,21 @@ impl App {
         self.asset_dirty = false;
         self.needs_compile = true;
         self.status = format!("已载入 {} 个章节", self.project.stories.len());
+        if let Some(parent) = self
+            .project
+            .source
+            .as_ref()
+            .filter(|source| {
+                source.is_file() && source.extension().and_then(|s| s.to_str()) == Some("json")
+            })
+            .filter(|_| !self.project.has_manifest)
+            .and_then(|source| source.parent())
+        {
+            self.status = crate::i18n::message(
+                "workspace.open.standalone_notice",
+                &[("directory", parent.display().to_string())],
+            );
+        }
         if let Some(notice) = self
             .project
             .stories

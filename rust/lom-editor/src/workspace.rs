@@ -5,6 +5,7 @@ mod chapter_navigation;
 mod clipboard;
 mod dialogs;
 mod editor_shortcuts;
+mod font_conversion;
 mod history;
 mod navigation;
 mod original_content;
@@ -201,7 +202,7 @@ struct App {
     saved: Snapshot,
     document_dirty: bool,
     document_revision: u64,
-    chapter_view: Option<std::sync::Arc<history::ChapterView>>,
+    chapter_view: Option<(u64, std::sync::Arc<history::ChapterView>)>,
     step_search: Option<history::StepSearch>,
     background_save: background_save::State,
     pending_history: Option<Snapshot>,
@@ -254,6 +255,7 @@ struct App {
     asset_selection: String,
     asset_import_dialog: Option<AssetImportDialog>,
     video_dialog: Option<video_export::Dialog>,
+    font_conversion_dialog: Option<font_conversion::Dialog>,
     image_import_target: Option<(String, String)>,
     shell: shell::Shell,
     scroll_selection: (String, usize),
@@ -715,6 +717,7 @@ impl App {
             asset_selection: String::new(),
             asset_import_dialog: None,
             video_dialog: None,
+            font_conversion_dialog: None,
             image_import_target: None,
             shell: shell::Shell::from_preferences(&prefs),
             scroll_selection: (String::new(), usize::MAX),
@@ -922,6 +925,7 @@ impl eframe::App for App {
         self.quick_tools(ctx);
         self.guided_export(ctx);
         self.video_export_dialog(ctx);
+        self.font_conversion(ctx);
         self.dialogs(ctx);
         self.poll_background_save(ctx);
         self.tools_panel.show_dialog(ctx, &self.project);

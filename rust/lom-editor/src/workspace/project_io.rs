@@ -34,7 +34,8 @@ pub(super) fn template_project(key: &str) -> anyhow::Result<Project> {
     Ok(project)
 }
 // All editor entry points open the owning project, including a recent chapter
-// JSON or a selected story/ folder. Standalone JSON keeps its import semantics.
+// JSON or a selected story/ folder. Unowned loose chapters keep standalone
+// ownership; opening their folder explicitly loads all its chapters together.
 pub(super) fn project_sources(path: &Path) -> anyhow::Result<Vec<PathBuf>> {
     let absolute = path.canonicalize()?;
     let parent = if absolute.is_dir() {
@@ -50,6 +51,16 @@ pub(super) fn project_sources(path: &Path) -> anyhow::Result<Vec<PathBuf>> {
     let project_document =
         absolute.is_dir() || absolute.extension().and_then(|s| s.to_str()) == Some("json");
     if project_document && root.join("manifest.json").is_file() {
+        return Ok(vec![root.to_owned()]);
+    }
+    let chapter = absolute.is_file()
+        && absolute.extension().and_then(|s| s.to_str()) == Some("json")
+        && is_chapter_file(&absolute)?;
+    let inside_story = parent.file_name().and_then(|s| s.to_str()) == Some("story");
+    if project_document
+        && root.join("story").is_dir()
+        && (absolute.is_dir() || chapter && inside_story)
+    {
         return Ok(vec![root.to_owned()]);
     }
     if !absolute.is_dir() || is_project_directory(&absolute)? {
@@ -74,6 +85,17 @@ pub(super) fn project_sources(path: &Path) -> anyhow::Result<Vec<PathBuf>> {
         absolute.display()
     );
     Ok(candidates)
+}
+
+fn is_chapter_file(path: &Path) -> anyhow::Result<bool> {
+    if !path.is_file() || path.extension().and_then(|s| s.to_str()) != Some("json") {
+        return Ok(false);
+    }
+    let bytes = std::fs::read(path)?;
+    Ok(
+        serde_json::from_slice::<Value>(bytes.strip_prefix(&[0xef, 0xbb, 0xbf]).unwrap_or(&bytes))
+            .is_ok_and(|value| value.get("nodes").is_some_and(Value::is_array)),
+    )
 }
 
 fn is_project_directory(path: &Path) -> anyhow::Result<bool> {

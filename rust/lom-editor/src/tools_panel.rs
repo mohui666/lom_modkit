@@ -196,7 +196,10 @@ impl ToolsPanel {
         script: &str,
         node: &str,
     ) -> anyhow::Result<String> {
-        play_project(project, script, node, &self.game, &self.runtime)
+        // Workspace::play has just checked this same in-memory project and
+        // shown any diagnostics. Do not write/recheck its complete asset set
+        // a second time before preparing the preview package.
+        play_preflighted_project(project, script, node, &self.game, &self.runtime)
     }
     pub(crate) fn render_video(
         &mut self,
@@ -1820,7 +1823,7 @@ fn settings_path() -> PathBuf {
         .unwrap()
         .join("settings.json")
 }
-pub(crate) fn play_project(
+fn play_preflighted_project(
     project: &Project,
     script: &str,
     node: &str,
@@ -1828,7 +1831,7 @@ pub(crate) fn play_project(
     runtime: &std::path::Path,
 ) -> anyhow::Result<String> {
     Ok(
-        play_project_request(project, script, node, game, runtime, None)?["message"]
+        send_project_preview(project, script, node, game, runtime, None)?["message"]
             .as_str()
             .unwrap_or("")
             .to_owned(),
@@ -1973,6 +1976,28 @@ fn play_project_request(
         errors.is_empty(),
         "{}",
         crate::error_location::issue_report(&errors, project)
+    );
+    send_project_preview(project, script, node, game, runtime, request_id)
+}
+
+fn send_project_preview(
+    project: &Project,
+    script: &str,
+    node: &str,
+    game: &std::path::Path,
+    runtime: &std::path::Path,
+    request_id: Option<&str>,
+) -> anyhow::Result<Value> {
+    // Both callers have completed preflight: the workspace UI before calling
+    // play_preflighted_project, and standalone automation above. Export and
+    // installation still perform their package and ownership checks.
+    anyhow::ensure!(
+        cfg!(windows),
+        "游戏接入仅支持 Windows；当前 Mac 可编辑、编译和预览"
+    );
+    anyhow::ensure!(
+        !game.as_os_str().is_empty() && !runtime.as_os_str().is_empty(),
+        "请先打开“游戏与 MOD”，选择游戏目录并完成一键配置"
     );
     let preview = prepare_preview(project, script, node)?;
     let temp = lom_core::workdir::create()?;

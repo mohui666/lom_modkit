@@ -242,6 +242,43 @@ fn content_preflight_distinguishes_type_portrait_and_hidden_images() {
 }
 
 #[test]
+fn repeated_content_keeps_each_nodes_reference_checks() {
+    let mut p = project();
+    p.stories.get_mut("main").unwrap()["nodes"] = json!([
+        {"id":"say1","type":"show","character":"user:demo.hero","position":"M","portrait":"normal"},
+        {"id":"bad_portrait","type":"say","character":"user:demo.hero","portrait":"missing","text":"旧素材的后续引用仍须检查表情"},
+        {"id":"music1","type":"music","name":"user:demo.theme"},
+        {"id":"bad_sound","type":"sound","name":"user:demo.theme"},
+        {"id":"end1","type":"end"}
+    ]);
+    p.assets.insert("assets/user/character/demo.hero/content.json".into(), serde_json::to_vec(&json!({"content_schema":1,"id":"demo.hero","name":"Hero","type":"character","files":{"main":"normal.png"},"portraits":{"normal":"normal.png"}})).unwrap());
+    p.assets.insert(
+        "assets/user/character/demo.hero/normal.png".into(),
+        b"image".to_vec(),
+    );
+    p.assets.insert("assets/user/audio/demo.theme/content.json".into(), serde_json::to_vec(&json!({"content_schema":1,"id":"demo.theme","name":"Theme","type":"audio","audio_kind":"music","files":{"main":"theme.wav"}})).unwrap());
+    p.assets.insert(
+        "assets/user/audio/demo.theme/theme.wav".into(),
+        b"audio".to_vec(),
+    );
+    let issues = run_preflight(&p, Profile::Editing, env!("CARGO_PKG_VERSION"));
+    assert!(
+        issues
+            .iter()
+            .any(|issue| issue.code == "missing_portrait" && issue.node_id == "bad_portrait"),
+        "{issues:?}"
+    );
+    assert!(
+        issues
+            .iter()
+            .any(|issue| issue.code == "wrong_user_content_type" && issue.node_id == "bad_sound"),
+        "{issues:?}"
+    );
+    let root = tempfile::tempdir().unwrap();
+    assert!(p.export(&root.path().join("invalid.lommod")).is_err());
+}
+
+#[test]
 fn statistics_and_missing_voice_report_use_dialogue_roles() {
     let stories = BTreeMap::from([
         (

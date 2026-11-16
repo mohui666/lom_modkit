@@ -23,14 +23,14 @@ fn chapter_views_and_search_follow_bulk_edits_replacements_and_undo() {
     app.track();
     app.flush();
     assert_eq!(app.step_search("bulk-marker").len(), 2);
-    assert!(!std::sync::Arc::ptr_eq(&view, &app.chapter_view()));
+    assert!(std::sync::Arc::ptr_eq(&view, &app.chapter_view()));
     app.undo();
     assert!(app.step_search("bulk-marker").is_empty());
     assert!(!app.dirty());
     app.redo();
     assert_eq!(app.step_search("bulk-marker").len(), 2);
-    // Replacing a whole map through deserialization also invalidates views,
-    // even if it has exactly the same chapter IDs and length.
+    // Replacing a whole map through deserialization must still refresh search,
+    // even if the row structure and chapter IDs stay the same.
     let mut replacement = serde_json::to_value(&app.project.stories).unwrap();
     replacement["main"]["nodes"][0]["text"] = json!("replacement-marker");
     app.project.stories = serde_json::from_value(replacement).unwrap();
@@ -44,6 +44,54 @@ fn chapter_views_and_search_follow_bulk_edits_replacements_and_undo() {
     app.track();
     assert!(!app.last.stories.contains_key("other"));
     assert!(app.last.stories.contains_key("third"));
+}
+
+#[test]
+fn grouped_chapter_rows_reuse_prose_edits_but_follow_sections_ids_and_undo() {
+    let mut app = app();
+    app.project.stories.insert(
+        "main".into(),
+        json!({"id":"main","start":"n1","nodes":[
+            {"id":"n1","type":"say","text":"原文"},
+            {"id":"n2","type":"wait","seconds":1},
+            {"id":"n3","type":"end"}
+        ]}),
+    );
+    app.project.stories.get_mut("main").unwrap()["_editor"] = json!({"sections":[{
+        "id":"section1","title":"分区","start":"n1","end":"n3","collapsed":false,
+        "groups":[{"id":"group1","title":"分组","start":"n1","end":"n3","collapsed":false}]
+    }]});
+    app.track();
+    app.flush();
+    let view = app.chapter_view();
+    assert!(view.sections_error.is_none());
+    app.project.stories.get_mut("main").unwrap()["nodes"][0]["text"] = json!("继续创作");
+    app.track();
+    app.flush();
+    assert!(std::sync::Arc::ptr_eq(&view, &app.chapter_view()));
+
+    app.project.stories.get_mut("main").unwrap()["_editor"]["sections"][0]["collapsed"] =
+        json!(true);
+    app.track();
+    app.flush();
+    let collapsed = app.chapter_view();
+    assert!(!std::sync::Arc::ptr_eq(&view, &collapsed));
+    assert_eq!(collapsed.rows, authoring::section_rows(app.story()));
+    app.undo();
+    assert_eq!(app.chapter_view().rows, view.rows);
+
+    app.project.stories.get_mut("main").unwrap()["nodes"][0]["id"] = json!("renamed");
+    app.track();
+    assert!(app.chapter_view().sections_error.is_some());
+    assert_eq!(
+        app.chapter_view().rows,
+        authoring::section_rows(app.story())
+    );
+    app.current = "other".into();
+    app.project
+        .stories
+        .insert("other".into(), json!({"id":"other","nodes":[]}));
+    assert!(app.chapter_view().rows.is_empty());
 }
 
 #[test]

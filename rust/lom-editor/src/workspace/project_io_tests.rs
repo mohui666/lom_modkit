@@ -176,3 +176,180 @@ fn empty_or_unrelated_outer_folder_reports_the_selected_path() {
             .to_string()
     ));
 }
+
+#[test]
+fn chapter_and_story_folder_without_manifest_open_the_full_released_project_and_assets() {
+    let temp = tempfile::tempdir().unwrap();
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../lom-core/tests/fixtures/released-1.5.9-scenario-modes.lommod");
+    let original = std::fs::read(&fixture).unwrap();
+    let mut historical = Project::open(&fixture).unwrap();
+    let folder = temp.path().join("old-project");
+    historical.save_to(&folder).unwrap();
+    std::fs::remove_file(folder.join("manifest.json")).unwrap();
+    // A stale draft in the parent must not replace the chapters owned by story/.
+    let draft = lom_core::stable_json(&json!({"story_schema":2,"id":"main","nodes":[
+        {"id":"old","type":"say","text":"早期草稿"},{"id":"end","type":"end"}
+    ]}))
+    .unwrap();
+    std::fs::write(folder.join("main.json"), &draft).unwrap();
+    for (index, selected) in [
+        &folder,
+        &folder.join("story"),
+        &folder.join("story/side.json"),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let mut opened = open_project(selected).unwrap();
+        assert_eq!(opened.stories, historical.stories);
+        assert_eq!(opened.assets, historical.assets);
+        assert_eq!(opened.source, Some(folder.canonicalize().unwrap()));
+        opened.stories.get_mut("side").unwrap()["title"] = json!("继续编写第二章");
+        // A chapter-only backup cannot reconstruct the deleted save identity;
+        // authors can enter it in settings before exporting the reunited work.
+        opened.manifest["campaign_id"] = json!("restored_story_folder");
+        let saved = temp.path().join(format!("saved-{index}"));
+        opened.save_to(&saved).unwrap();
+        let reopened = open_project(&saved.join("story/main.json")).unwrap();
+        assert_eq!(reopened.stories, opened.stories);
+        assert_eq!(reopened.assets, historical.assets);
+        let exported = saved.join("edited.lommod");
+        reopened.export(&exported).unwrap();
+        assert_eq!(open_project(&exported).unwrap().stories, opened.stories);
+    }
+    // Without a manifest, a root-level JSON has no established ownership by
+    // story/. Selecting it explicitly must still open that standalone draft.
+    let standalone = open_project(&folder.join("main.json")).unwrap();
+    assert_eq!(standalone.stories.len(), 1);
+    assert_eq!(standalone.stories["main"]["nodes"][0]["text"], "早期草稿");
+    assert_eq!(
+        standalone.source,
+        Some(folder.join("main.json").canonicalize().unwrap())
+    );
+    assert_eq!(std::fs::read(folder.join("main.json")).unwrap(), draft);
+    assert_eq!(std::fs::read(fixture).unwrap(), original);
+}
+
+#[test]
+fn loose_chapter_files_explain_missing_ownership_and_folder_reunites_all_four() {
+    let temp = tempfile::tempdir().unwrap();
+    let fixture = released_package();
+    let released = Project::open(&fixture).unwrap();
+    let mut chapters = released.stories.clone();
+    for index in 1..=3 {
+        let id = format!("chapter{index}");
+        let mut story = released.stories["main"].clone();
+        story["id"] = json!(id);
+        chapters.insert(id, story);
+    }
+    for (id, story) in &chapters {
+        std::fs::write(
+            temp.path().join(format!("{id}.json")),
+            lom_core::stable_json(story).unwrap(),
+        )
+        .unwrap();
+    }
+    let original_main = std::fs::read(temp.path().join("main.json")).unwrap();
+    // A loose chapter remains openable on its own; the UI explains how to
+    // deliberately load its siblings without assuming they are the same work.
+    let single = open_project(&temp.path().join("chapter1.json")).unwrap();
+    assert_eq!(single.stories.len(), 1);
+    let cc = eframe::CreationContext::_new_kittest(egui::Context::default());
+    let mut app = App::new(&cc, None, None);
+    app.install(single);
+    assert!(
+        app.status.contains("独立 JSON") && app.status.contains("打开目录"),
+        "{}",
+        app.status
+    );
+    let mut combined = open_project(temp.path()).unwrap();
+    assert_eq!(combined.stories, chapters);
+    combined.stories.get_mut("chapter3").unwrap()["title"] = json!("四章一起继续编辑");
+    combined.manifest["campaign_id"] = json!("restored_four_chapters");
+    let saved = temp.path().join("saved");
+    combined.save_to(&saved).unwrap();
+    let reopened = open_project(&saved.join("chapter2.json")).unwrap();
+    assert_eq!(reopened.stories, combined.stories);
+    let exported = temp.path().join("continued.lommod");
+    reopened.export(&exported).unwrap();
+    assert_eq!(open_project(&exported).unwrap().stories, combined.stories);
+    assert_eq!(
+        std::fs::read(temp.path().join("main.json")).unwrap(),
+        original_main
+    );
+}
+
+#[test]
+fn lone_json_keeps_standalone_ownership_without_importing_unrelated_configs() {
+    let temp = tempfile::tempdir().unwrap();
+    let chapter = temp.path().join("my-story.json");
+    let project = Project::new();
+    std::fs::write(
+        &chapter,
+        lom_core::stable_json(&project.stories["main"]).unwrap(),
+    )
+    .unwrap();
+    std::fs::write(
+        temp.path().join("source.json"),
+        br#"{"stories":{"main":{"nodes":[]}}}"#,
+    )
+    .unwrap();
+    assert_eq!(
+        project_sources(&chapter).unwrap(),
+        vec![chapter.canonicalize().unwrap()]
+    );
+    let opened = open_project(&chapter).unwrap();
+    assert_eq!(opened.source, Some(chapter.canonicalize().unwrap()));
+    assert_eq!(opened.stories, project.stories);
+}
+
+#[test]
+fn unrelated_or_empty_story_folder_never_takes_ownership_of_a_standalone_released_chapter() {
+    let temp = tempfile::tempdir().unwrap();
+    let fixture = released_package();
+    let original_package = std::fs::read(&fixture).unwrap();
+    let entries = lom_core::package::read_package(&fixture).unwrap();
+    let original_chapter = &entries["story/main.json"];
+    for with_other_work in [false, true] {
+        let root = temp.path().join(if with_other_work {
+            "other-work"
+        } else {
+            "empty-story"
+        });
+        std::fs::create_dir_all(root.join("story")).unwrap();
+        let chapter = root.join("main.json");
+        std::fs::write(&chapter, original_chapter).unwrap();
+        let other = root.join("story/other.json");
+        let other_bytes = lom_core::stable_json(
+            &json!({"id":"other","story_schema":2,"start":"line","nodes":[
+                {"id":"line","type":"say","text":"另一作品的章节"},{"id":"end","type":"end"}
+            ]}),
+        )
+        .unwrap();
+        if with_other_work {
+            std::fs::write(&other, &other_bytes).unwrap();
+        }
+        let mut opened = open_project(&chapter).unwrap();
+        assert_eq!(opened.source, Some(chapter.canonicalize().unwrap()));
+        assert_eq!(opened.stories.len(), 1);
+        assert_eq!(
+            opened.stories["main"],
+            serde_json::from_slice::<Value>(original_chapter).unwrap()
+        );
+        opened.stories.get_mut("main").unwrap()["title"] = json!("独立旧章节继续编辑");
+        opened.manifest["campaign_id"] = json!("legacy_standalone");
+        let saved = root.join("saved");
+        opened.save_to(&saved).unwrap();
+        let reopened = open_project(&saved.join("story/main.json")).unwrap();
+        assert_eq!(reopened.stories, opened.stories);
+        let exported = root.join("continued.lommod");
+        reopened.export(&exported).unwrap();
+        assert_eq!(open_project(&exported).unwrap().stories, opened.stories);
+        assert_eq!(std::fs::read(&chapter).unwrap(), *original_chapter);
+        if with_other_work {
+            assert_eq!(std::fs::read(&other).unwrap(), other_bytes);
+        }
+    }
+    assert_eq!(std::fs::read(&fixture).unwrap(), original_package);
+}

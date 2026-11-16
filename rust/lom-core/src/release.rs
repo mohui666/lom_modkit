@@ -202,6 +202,10 @@ fn missing_code(r: &ContentSpec<'_>) -> &'static str {
 fn audit_content(project: &Project, root: &Path) -> Vec<PreflightIssue> {
     let mut out = Vec::new();
     let mut referenced = BTreeSet::new();
+    // The preflight root is a private snapshot. Resolve each asset once while
+    // retaining the per-node portrait/type diagnostics for every reference.
+    let mut resolved: BTreeMap<(String, String), std::result::Result<Value, String>> =
+        BTreeMap::new();
     if let Ok(extensions) = crate::content::character_extensions(&project.assets) {
         for (target, (_, meta)) in extensions {
             if project.stories.values().any(|s| {
@@ -268,11 +272,17 @@ fn audit_content(project: &Project, root: &Path) -> Vec<PreflightIssue> {
                         ));
                         continue;
                     }
-                    match crate::content::resolve_content(root, r.kind, id) {
-                        Ok((meta, _)) => {
+                    match resolved
+                        .entry((r.kind.to_owned(), id.to_owned()))
+                        .or_insert_with(|| {
+                            crate::content::resolve_content(root, r.kind, id)
+                                .map(|(meta, _)| meta)
+                                .map_err(|error| format!("{error:#}"))
+                        }) {
+                        Ok(meta) => {
                             if node["type"] == "character_profile" {
                                 if let Err(error) =
-                                    crate::character_profile::validate_reference(node, &meta)
+                                    crate::character_profile::validate_reference(node, meta)
                                 {
                                     out.push(PreflightIssue::new(
                                         "error",
@@ -443,10 +453,16 @@ fn audit_content(project: &Project, root: &Path) -> Vec<PreflightIssue> {
             ));
             continue;
         }
-        match crate::content::resolve_content(root, kind, id) {
-            Ok((meta, _)) => {
+        match resolved
+            .entry((kind.to_owned(), id.to_owned()))
+            .or_insert_with(|| {
+                crate::content::resolve_content(root, kind, id)
+                    .map(|(meta, _)| meta)
+                    .map_err(|error| format!("{error:#}"))
+            }) {
+            Ok(meta) => {
                 if kind == "character" {
-                    if let Err(error) = crate::character_profile::validate_for_export(&meta) {
+                    if let Err(error) = crate::character_profile::validate_for_export(meta) {
                         out.push(PreflightIssue::new(
                             "error",
                             "conflicting_biography",
@@ -468,7 +484,7 @@ fn audit_content(project: &Project, root: &Path) -> Vec<PreflightIssue> {
                     valid.insert((kind.to_owned(), id.to_owned()));
                     if kind == "character"
                         && meta["extends"].as_str().unwrap_or("").is_empty()
-                        && crate::character_profile::has_profile(&meta)
+                        && crate::character_profile::has_profile(meta)
                     {
                         referenced.insert((kind.to_owned(), id.to_owned()));
                     }
