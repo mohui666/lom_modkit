@@ -121,6 +121,7 @@ namespace MortalModHost
             internal void Mix(float[] output)
             {
                 if (!IsPlaying) return;
+                if (NativeAudioMix.IsAvailable) { MixNative(output); return; }
                 for (int frame = 0; frame < output.Length / 2 && IsPlaying; ++frame)
                 {
                     float fraction = (float)_phase;
@@ -134,6 +135,37 @@ namespace MortalModHost
                         _left = _nextLeft; _right = _nextRight;
                         _next = Read(out _nextLeft, out _nextRight);
                     }
+                }
+            }
+
+            private void MixNative(float[] output)
+            {
+                var state = new NativeAudioMix.State { Phase = _phase, Left = _left, Right = _right,
+                    NextLeft = _nextLeft, NextRight = _nextRight, HasNext = _next ? 1u : 0u };
+                int frame = 0;
+                while (IsPlaying)
+                {
+                    int channels = _source.Channels;
+                    int stride = channels * 2;
+                    // Read historically decodes a whole physical frame when
+                    // any byte remains, including stale bytes after a short read.
+                    int available = _at >= _end ? 0 : (_end - _at + stride - 1) / stride;
+                    int consumed, produced;
+                    uint status = NativeAudioMix.Process(_buffer, _at, available, channels,
+                        _step, Volume, output, frame * 2, output.Length / 2 - frame,
+                        ref state, out consumed, out produced);
+                    _at += consumed * stride;
+                    frame += produced;
+                    _phase = state.Phase; _left = state.Left; _right = state.Right;
+                    _nextLeft = state.NextLeft; _nextRight = state.NextRight;
+                    _next = state.HasNext != 0;
+                    if (status == NativeAudioMix.Done) return;
+                    if (status == NativeAudioMix.Stopped) { Dispose(); return; }
+                    // Apply promoted samples/phase before Read: callbacks and
+                    // failures observe exactly the original managed ordering.
+                    _next = Read(out _nextLeft, out _nextRight);
+                    state.NextLeft = _nextLeft; state.NextRight = _nextRight;
+                    state.HasNext = _next ? 1u : 0u;
                 }
             }
 

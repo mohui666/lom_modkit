@@ -30,32 +30,39 @@ namespace MortalModHost
 
         internal static bool IsAddonSlot(string slot)
         {
-            if (string.IsNullOrEmpty(slot)) return false;
-            for (int i = 1; i <= OfficialManualCount; i++)
-                if (string.Equals(slot, AddonManualSlot(i), StringComparison.Ordinal)) return true;
-            return slot == AddonAutoSlot("auto") || slot == AddonAutoSlot("auto_free")
-                || slot == AddonAutoSlot("auto_battle");
+            if (string.IsNullOrEmpty(slot) || !slot.StartsWith(AddonRoot, StringComparison.Ordinal)) return false;
+            if (IsAddonManualSuffix(slot)) return true;
+            int suffixLength = slot.Length - AddonRoot.Length;
+            return suffixLength == 5 && string.CompareOrdinal(slot, AddonRoot.Length, "_auto", 0, 5) == 0
+                || suffixLength == 10 && string.CompareOrdinal(slot, AddonRoot.Length, "_auto_free", 0, 10) == 0
+                || suffixLength == 12 && string.CompareOrdinal(slot, AddonRoot.Length, "_auto_battle", 0, 12) == 0;
         }
 
         internal static bool IsAddonManualSlot(string slot)
         {
-            for (int i = 1; i <= OfficialManualCount; i++)
-                if (slot == AddonManualSlot(i)) return true;
-            return false;
+            return !string.IsNullOrEmpty(slot) && slot.StartsWith(AddonRoot, StringComparison.Ordinal)
+                && IsAddonManualSuffix(slot);
+        }
+
+        private static bool IsAddonManualSuffix(string slot)
+        {
+            int end = AddonRoot.Length;
+            if (slot.Length == end) return true;
+            return slot.Length == end + 5 && slot[end] == '_' && slot[end + 1] == 's'
+                && slot[end + 2] == '0'
+                && (slot[end + 3] == '0' && slot[end + 4] >= '2' && slot[end + 4] <= '9'
+                    || slot[end + 3] == '1' && slot[end + 4] >= '0' && slot[end + 4] <= '9'
+                    || slot[end + 3] == '2' && slot[end + 4] == '0');
         }
 
         internal static bool OwnsBrowserSlot(string campaignId, bool addon, string slot, bool allowAuto)
         {
             if (string.IsNullOrEmpty(slot) || (!addon && !CampaignIdentity.IsValid(campaignId)))
                 return false;
-            for (int i = 1; i <= OfficialManualCount; i++)
-                if (slot == (addon ? AddonManualSlot(i) : IsolatedManualSlot(campaignId, i)))
-                    return true;
-            if (!allowAuto) return false;
-            foreach (string kind in new[] { "auto", "auto_free", "auto_battle" })
-                if (slot == (addon ? AddonAutoSlot(kind) : IsolatedAutoSlotForCampaign(campaignId, kind)))
-                    return true;
-            return false;
+            if (addon) return allowAuto ? IsAddonSlot(slot) : IsAddonManualSlot(slot);
+            if (!CampaignIdentity.OwnsSlot(campaignId, slot)) return false;
+            int end = "mod_campaign_".Length + campaignId.Length;
+            return allowAuto || slot.Length == end || slot.Length == end + 5 && slot[end + 1] == 's';
         }
 
         internal static bool IsOfficialAutoSlot(string slot)
@@ -93,12 +100,9 @@ namespace MortalModHost
         {
             if (!CampaignIdentity.IsValid(campaignId) || string.IsNullOrEmpty(slot))
                 return false;
-            return string.Equals(slot, IsolatedAutoSlotForCampaign(campaignId, "auto"),
-                    StringComparison.Ordinal)
-                || string.Equals(slot, IsolatedAutoSlotForCampaign(campaignId, "auto_free"),
-                    StringComparison.Ordinal)
-                || string.Equals(slot, IsolatedAutoSlotForCampaign(campaignId, "auto_battle"),
-                    StringComparison.Ordinal);
+            int end = "mod_campaign_".Length + campaignId.Length;
+            return CampaignIdentity.OwnsSlot(campaignId, slot) && slot.Length > end
+                && slot[end + 1] == 'a';
         }
 
         /// <summary>

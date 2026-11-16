@@ -4,9 +4,11 @@
     <!-- 目标框架与现有插件 MortalInstantWin 一致（net48），BepInEx 6 Mono + Unity 2020.3 实测可加载 -->
     <TargetFramework>net48</TargetFramework>
     <AssemblyName>MortalModHost</AssemblyName>
-    <Version>1.6.1</Version>
+    <Version>1.6.2</Version>
     <RootNamespace>MortalModHost</RootNamespace>
     <LangVersion>7.3</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <HostNativeDirectory Condition="'$(HostNativeDirectory)' == ''">$(MSBuildThisFileDirectory)..\..\out\host-native</HostNativeDirectory>
     <!-- 同一托管 Host 兼容旧 x86 与当前 x64 Mono；原生加载器按游戏位数选择。 -->
     <PlatformTarget>AnyCPU</PlatformTarget>
     <Prefer32Bit>false</Prefer32Bit>
@@ -29,6 +31,12 @@
          Runtime 不依赖 StoryViewImage 是否已实例化，也不读取游戏目录外数据。 -->
     <EmbeddedResource Include="..\..\data\assets\_probe\view_map.json"
                       LogicalName="MortalModHost.view_map.json" />
+    <EmbeddedResource Include="$(HostNativeDirectory)\x64\lom_host_native.dll"
+                      LogicalName="MortalModHost.Native.x64.dll"
+                      Condition="Exists('$(HostNativeDirectory)\x64\lom_host_native.dll')" />
+    <EmbeddedResource Include="$(HostNativeDirectory)\x86\lom_host_native.dll"
+                      LogicalName="MortalModHost.Native.x86.dll"
+                      Condition="Exists('$(HostNativeDirectory)\x86\lom_host_native.dll')" />
   </ItemGroup>
 
   <!-- test/ 是离线冒烟测试工程，别编进插件 DLL -->

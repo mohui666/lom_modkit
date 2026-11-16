@@ -9,6 +9,8 @@
     <AssemblyName>MortalModHost.SmokeTest</AssemblyName>
     <RootNamespace>MortalModHost</RootNamespace>
     <DefineConstants>$(DefineConstants);LOM_OFFLINE_SMOKE</DefineConstants>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <HostNativeDirectory Condition="'$(HostNativeDirectory)' == ''">$(MSBuildThisFileDirectory)..\..\..\..\out\host-native</HostNativeDirectory>
   </PropertyGroup>
 
   <ItemGroup>
@@ -41,6 +43,9 @@
     <Compile Include="..\..\src\PositionNameMap.cs" />
     <Compile Include="..\..\src\EffectPlaybackState.cs" />
     <Compile Include="..\..\src\PreviewRequest.cs" />
+    <Compile Include="..\..\src\DevelopmentNavigationPolicy.cs" />
+    <Compile Include="..\..\src\DevelopmentEventCatalog.cs" />
+    <Compile Include="..\..\src\DevelopmentEventText.cs" />
     <Compile Include="..\..\src\PlaytestStatusRuntime.cs" />
     <Compile Include="..\..\src\VideoRenderRequest.cs" />
     <Compile Include="..\..\src\VideoFrameWriter.cs" />
@@ -58,6 +63,24 @@
     <Compile Include="..\..\src\RuntimeEnvironmentLease.cs" />
     <Compile Include="..\..\src\ModDisclosurePolicy.cs" />
     <Compile Include="..\..\src\DisclosureIntegrity.cs" />
+    <Compile Include="..\..\src\NativeIntegrity.cs" />
+    <Compile Include="..\..\src\NativeHostKernel.cs" />
+    <Compile Include="..\..\src\NativeSha256.cs" />
+    <Compile Include="..\..\src\NativeArchivePath.cs" />
+    <Compile Include="..\..\src\NativeJsonWrite.cs" />
+    <Compile Include="..\..\src\NativeJson.cs" />
+    <Compile Include="..\..\src\NativeTextScan.cs" />
+    <Compile Include="..\..\src\NativeStoryPatch.cs" />
+    <Compile Include="..\..\src\NativeSourceCompare.cs" />
+    <Compile Include="..\..\src\NativeScenarioPlan.cs" />
+    <Compile Include="..\..\src\NativeStateCodec.cs" />
+    <Compile Include="..\..\src\ReadTextRegistry.cs" />
+    <Compile Include="..\..\src\ReadTextPatch.cs" />
+    <Compile Include="..\..\src\NativePcmConvert.cs" />
+    <Compile Include="..\..\src\NativeAudioMix.cs" />
+    <Compile Include="..\..\src\NativePcmPlayer.cs" />
+    <Compile Include="..\..\src\NativeOggSource.cs" />
+    <Compile Include="..\..\src\VideoAudioMixer.cs" />
     <Compile Include="..\..\src\ProvenanceWatermarkProtocol.cs" />
     <Compile Include="..\..\src\ProvenanceWatermarkCodec.cs" />
     <Compile Include="..\..\src\GameplaySession.cs" />
@@ -74,6 +97,16 @@
     <Compile Include="..\..\src\GameplayCheckpointStore.cs" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="NVorbis" Version="0.8.6" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="$(HostNativeDirectory)\x64\lom_host_native.dll"
+                      LogicalName="MortalModHost.Native.x64.dll"
+                      Condition="Exists('$(HostNativeDirectory)\x64\lom_host_native.dll')" />
+    <EmbeddedResource Include="$(HostNativeDirectory)\x86\lom_host_native.dll"
+                      LogicalName="MortalModHost.Native.x86.dll"
+                      Condition="Exists('$(HostNativeDirectory)\x86\lom_host_native.dll')" />
+    <Content Include="../../../../rust/lom-core/tests/fixtures/released-1.5.9-*.lommod" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../../../rust/lom-core/tests/fixtures/scenario-contract.json" Link="scenario-contract.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../../../rust/lom-core/data/schema.json" Link="node-schema.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../../../rust/lom-core/tests/fixtures/vanilla-import.json" Link="vanilla-import.json" CopyToOutputDirectory="PreserveNewest" />

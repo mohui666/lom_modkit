@@ -101,6 +101,25 @@ namespace MortalModHost
             return difference == 0;
         }
 
+        internal static uint VerifySessionIntegrityManaged(
+            string modId, string fingerprint, byte[] candidate)
+        {
+            if (!VerifySessionSeal(modId, fingerprint, candidate)) return 0;
+            return IsFixedStampIntact() ? 3u : 1u;
+        }
+
+        internal static uint VerifySessionIntegrity(
+            string modId, string fingerprint, byte[] candidate)
+        {
+            uint status;
+            if (!NativeIntegrity.TryVerify(modId, fingerprint, candidate, EncodedStamp,
+                ExpectedStampDigest, KeyPartA, KeyPartB, out status))
+                return VerifySessionIntegrityManaged(modId, fingerprint, candidate);
+            if (status != 0 && status != 1 && status != 3)
+                throw new InvalidOperationException("原生身份校验返回了无效状态：" + status);
+            return status;
+        }
+
         internal static string ProtectedObjectName(string role, string fingerprint)
         {
             if (string.IsNullOrEmpty(role)) role = "surface";

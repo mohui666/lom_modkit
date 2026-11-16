@@ -24,6 +24,9 @@ namespace MortalModHost
         /// <summary>texts.json 原始 key → 台词文本（不含 Story/ 前缀，Apply 时拼上）。</summary>
         private static readonly Dictionary<string, string> _texts = new Dictionary<string, string>();
         private static readonly List<ModPackage> _mods = new List<ModPackage>();
+        private static readonly List<KeyValuePair<string, string>> _registrations = new List<KeyValuePair<string, string>>();
+        private static string _locale;
+        private static bool _prepared;
 
         /// <summary>已收集文本条目数（日志/自检用）。</summary>
         public static int Count
@@ -41,7 +44,9 @@ namespace MortalModHost
 
         private static void SelectLocale(string locale, Action<string> logWarn = null)
         {
+            _prepared = false;
             _texts.Clear();
+            _registrations.Clear();
             foreach (var mod in _mods)
             {
                 foreach (var pair in mod.GetTexts(locale))
@@ -53,8 +58,11 @@ namespace MortalModHost
                         continue;
                     }
                     _texts[pair.Key] = pair.Value;
+                    _registrations.Add(new KeyValuePair<string, string>(Prefix + pair.Key, pair.Value));
                 }
             }
+            _locale = locale;
+            _prepared = true;
         }
 
         /// <summary>
@@ -63,12 +71,15 @@ namespace MortalModHost
         /// </summary>
         public static void Apply()
         {
-            // LeanLocalization invokes this after a language switch, so select the
-            // locale on every Apply rather than requiring a mod rescan.
-            SelectLocale(I18n.StoryLocale);
-            foreach (var pair in _texts)
+            // Loaded package text dictionaries change only when ReloadMods
+            // calls Rebuild. A language change selects a different snapshot.
+            // Translation objects themselves are never cached: actual Lean
+            // refreshes clear/reuse them and must always receive these values.
+            string locale = I18n.StoryLocale;
+            if (!_prepared || !string.Equals(_locale, locale, StringComparison.Ordinal)) SelectLocale(locale);
+            foreach (var pair in _registrations)
             {
-                LeanTranslation translation = LeanLocalization.RegisterTranslation(Prefix + pair.Key);
+                LeanTranslation translation = LeanLocalization.RegisterTranslation(pair.Key);
                 if (translation != null)
                     translation.Data = pair.Value;
             }

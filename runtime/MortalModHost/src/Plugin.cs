@@ -28,7 +28,7 @@ namespace MortalModHost
     {
         public const string GUID = "com.mohui666.mortalmodhost";
         public const string NAME = "MortalModHost";
-        public const string VERSION = "1.6.1";
+        public const string VERSION = "1.6.2";
 
         internal static Plugin Instance { get; private set; }
 
@@ -67,6 +67,7 @@ namespace MortalModHost
 
         private ConfigEntry<bool> _enabled;
         private ConfigEntry<KeyboardShortcut> _menuHotkey;
+        private ConfigEntry<string> _menuLanguage;
         private ConfigEntry<KeyboardShortcut> _vanillaStoryHotkey;
         private ConfigEntry<KeyboardShortcut> _debuggerHotkey;
         private ConfigEntry<KeyboardShortcut> _storyBookmarkHotkey;
@@ -80,9 +81,14 @@ namespace MortalModHost
         private bool _runInBackgroundOverridden;
 
         private bool _showMenu;
+        private bool _showMenuLanguagePicker;
+        private static readonly string[] MenuLanguageCodes = { "", "chs", "cht", "ja", "ko" };
+        private static readonly string[] MenuLanguageNames = { "", "简体中文", "繁體中文", "日本語", "한국어" };
         private bool _inTitleScene; // 当前菜单是否处于标题画面（Title 场景仅提供战役区）
         private bool _titleFallbackMenu;
-        private Rect _windowRect = new Rect(40f, 40f, 460f, 420f);
+        private Rect _windowRect;
+        private int _menuTab;
+        private int _menuScreenWidth, _menuScreenHeight;
         private Vector2 _scroll;
         private float _nextPreviewPoll;
         private long _loadedPreviewStamp = -1L;
@@ -114,6 +120,10 @@ namespace MortalModHost
                 "总开关。false 时禁用热键、mod 菜单与 LuaManager 注入；若 mod 剧情正在演出，为保持强制披露，会延迟到回到官方枢纽后卸载补丁。");
             _menuHotkey = Config.Bind("General", "MenuHotkey", new KeyboardShortcut(KeyCode.F8),
                 "打开/关闭 mod 菜单的快捷键（Free 自由场景与 Title 标题画面生效，契约 §6.3）。旧默认 F9 与同机 MortalInstantWin 冲突，启动时自动迁移为 F8。");
+            _menuLanguage = Config.Bind("General", "ToolsLanguage", "", new ConfigDescription(
+                "开发工具界面语言；空值跟随游戏，chs 简体、cht 繁体、ja 日语、ko 韩语。只影响工具界面，不切换游戏或作品语言。",
+                new AcceptableValueList<string>("", "chs", "cht", "ja", "ko")));
+            I18n.SetMenuLanguage(_menuLanguage.Value);
             _vanillaStoryHotkey = Config.Bind("General", "VanillaStoryHotkey", new KeyboardShortcut(KeyCode.F7),
                 "切换「禁用原版游戏剧情」的全局临时开关（任意场景可切换；会话级，不持久化）。开启后跳过返回 Free 时自动触发及地点点击触发的官方主线、支线和默认脚本，mod 触发器仍优先。");
             _debuggerHotkey = Config.Bind("Development", "DebuggerHotkey", new KeyboardShortcut(KeyCode.F10),
@@ -622,10 +632,11 @@ namespace MortalModHost
                     CompleteDisable();
                 return;
             }
-            if (!_enabled.Value || !_runtimeReady) return;
+            if (!_enabled.Value || !_runtimeReady) { DevelopmentNavigationRuntime.Clear(); return; }
             AutoDialogueRuntime.Tick();
             VideoRenderRuntime.Tick();
             UpdateOverlaySceneTracking();
+            DevelopmentNavigationRuntime.Maintain();
             bool traceActive = RuntimeTrace.Active;
             if (traceActive && IsHotkeyDown(_debuggerHotkey.Value))
                 _showDebugger = !_showDebugger;
@@ -661,7 +672,7 @@ namespace MortalModHost
             }
             if (ModPlayModeSession.Selected == ModPlayModeKind.Original) return;
             _showMenu = !_showMenu;
-            if (_showMenu) ClampWindowToScreen();
+            if (_showMenu) { _showMenuLanguagePicker = false; ClampWindowToScreen(); }
             Logger.LogInfo("检测到菜单热键按下（当前场景：" + scene + "），" + (_showMenu ? "已打开菜单。" : "已关闭菜单。"));
         }
 
@@ -972,6 +983,7 @@ namespace MortalModHost
         internal void SelectPlayMode(ModPlayModeKind mode)
         {
             if (ModPlayModeSession.Selected == mode) return;
+            DevelopmentNavigationRuntime.Clear();
             VanillaModCampaignPanel.Remove();
             CustomGameplayRuntime.Clear();
             ModPlayModeSession.Select(mode);
@@ -1007,6 +1019,8 @@ namespace MortalModHost
 
         private void OnDestroy()
         {
+            DevelopmentNavigationRuntime.Clear();
+            ModMenuTheme.Release();
             VideoRenderRuntime.Shutdown();
             if (_debugInputCanvas != null) Destroy(_debugInputCanvas);
             RouteRuntimeCapture.Reset();
@@ -1053,7 +1067,7 @@ namespace MortalModHost
             isTitle = false;
             if (SceneController.Instance == null) return false;
             string scene = SceneController.Instance.CurrentScene;
-            if (scene == "Free") return true;
+            if (scene == "Free") return IsSceneReadyForModNavigation(SceneController.Instance);
             if (scene == "Title")
             {
                 isTitle = true;
@@ -1281,7 +1295,9 @@ namespace MortalModHost
 
         private void UpdateDebuggerInputBlocker()
         {
-            bool visible = _enabled != null && _enabled.Value && RuntimeTrace.Active && _showDebugger;
+            bool debuggerVisible = RuntimeTrace.Active && _showDebugger;
+            bool navigationVisible = _showMenu;
+            bool visible = _enabled != null && _enabled.Value && (debuggerVisible || navigationVisible);
             if (!visible)
             {
                 if (_debugInputCanvas != null) _debugInputCanvas.SetActive(false);
@@ -1303,8 +1319,9 @@ namespace MortalModHost
                 _debugInputRect.anchorMin = _debugInputRect.anchorMax = _debugInputRect.pivot = new Vector2(0f, 1f);
             }
             _debugInputCanvas.SetActive(true);
-            _debugInputRect.anchoredPosition = new Vector2(_debugWindowRect.x, -_debugWindowRect.y);
-            _debugInputRect.sizeDelta = _debugWindowRect.size;
+            Rect blocked = navigationVisible ? new Rect(0, 0, Screen.width, Screen.height) : _debugWindowRect;
+            _debugInputRect.anchoredPosition = new Vector2(blocked.x, -blocked.y);
+            _debugInputRect.sizeDelta = blocked.size;
         }
 
         private void OnGUI()
@@ -1314,7 +1331,7 @@ namespace MortalModHost
             if (_enabled != null && _enabled.Value && RuntimeTrace.Active && _showDebugger)
             {
                 _debugWindowRect.height = Mathf.Min(680f, Math.Max(240f, Screen.height - 40f));
-                _debugWindowRect = GUI.Window(DebugWindowId, _debugWindowRect, DrawDebuggerWindow, I18n.T("debug.window", _debuggerHotkey.Value));
+                _debugWindowRect = GUI.Window(DebugWindowId, _debugWindowRect, DrawDebuggerWindow, I18n.MenuT("debug.window", _debuggerHotkey.Value));
             }
             bool isTitle;
             if (!_enabled.Value || !_runtimeReady
@@ -1328,7 +1345,21 @@ namespace MortalModHost
             // MOD 管理与原版玩法分开；纯原版不显示常驻 MOD 操作按钮。
             if (!_inTitleScene) DrawEntryButton();
             if (_showMenu)
-                _windowRect = GUI.Window(WindowId, _windowRect, DrawWindow, I18n.T("window", _menuHotkey.Value));
+            {
+                ClampWindowToScreen();
+                GUISkin previousSkin = GUI.skin;
+                Matrix4x4 previousMatrix = GUI.matrix;
+                try
+                {
+                    GUI.skin = ModMenuTheme.Skin;
+                    float scale = ModMenuTheme.Scale;
+                    GUIUtility.ScaleAroundPivot(new Vector2(scale, scale), Vector2.zero);
+                    ModMenuTheme.Fill(new Rect(0, 0, Screen.width / scale, Screen.height / scale), new Color(0.06f, 0.08f, 0.06f, .42f));
+                    ModMenuTheme.Shadow(_windowRect);
+                    _windowRect = GUI.Window(WindowId, _windowRect, DrawWindow, "", GUI.skin.window);
+                }
+                finally { GUI.skin = previousSkin; GUI.matrix = previousMatrix; }
+            }
         }
 
         private void HandleStoryBookmarkKey(Event input)
@@ -1373,26 +1404,26 @@ namespace MortalModHost
             try
             {
                 GUILayout.BeginHorizontal();
-                string state = RuntimeDebugControl.Paused ? I18n.T("debug.state.paused")
-                    : RuntimeDebugControl.PausePending ? I18n.T("debug.state.pending") : I18n.T("debug.state.running");
-                GUILayout.Label(I18n.T("debug.state") + ": " + state);
-                if (GUILayout.Button(I18n.T("debug.pause"))) RuntimeDebugControl.PauseBeforeNextNode();
+                string state = RuntimeDebugControl.Paused ? I18n.MenuT("debug.state.paused")
+                    : RuntimeDebugControl.PausePending ? I18n.MenuT("debug.state.pending") : I18n.MenuT("debug.state.running");
+                GUILayout.Label(I18n.MenuT("debug.state") + ": " + state);
+                if (GUILayout.Button(I18n.MenuT("debug.pause"))) RuntimeDebugControl.PauseBeforeNextNode();
                 bool oldEnabled = GUI.enabled;
                 GUI.enabled = RuntimeDebugControl.Paused;
-                if (GUILayout.Button(I18n.T("debug.step"))) RuntimeDebugControl.Step();
+                if (GUILayout.Button(I18n.MenuT("debug.step"))) RuntimeDebugControl.Step();
                 GUI.enabled = oldEnabled;
-                if (GUILayout.Button(I18n.T("debug.continue"))) RuntimeDebugControl.Continue();
+                if (GUILayout.Button(I18n.MenuT("debug.continue"))) RuntimeDebugControl.Continue();
                 GUILayout.EndHorizontal();
                 _debugScroll = GUILayout.BeginScrollView(_debugScroll);
-                GUILayout.Label(I18n.T("debug.mod") + ": " + RuntimeTrace.CurrentMod);
-                GUILayout.Label(I18n.T("debug.story") + ": " + RuntimeTrace.CurrentStory);
-                GUILayout.Label(I18n.T("debug.node") + ": " + RuntimeTrace.CurrentNode);
-                GUILayout.Label(I18n.T("debug.characters") + ": " + JoinOrNone(CustomCharacterRuntime.ActiveCharacterIds()));
-                GUILayout.Label(I18n.T("debug.music") + ": " + EmptyAsNone(CustomAudioPlayer.CurrentMusic));
-                GUILayout.Label(I18n.T("debug.voice") + ": " + EmptyAsNone(CustomAudioPlayer.CurrentVoice));
-                DrawDebugMap(I18n.T("debug.variables"), RuntimeTrace.VariablesSnapshot());
-                DrawDebugMap(I18n.T("debug.flags"), RuntimeTrace.FlagsSnapshot());
-                GUILayout.Label(I18n.T("debug.trace"));
+                GUILayout.Label(I18n.MenuT("debug.mod") + ": " + RuntimeTrace.CurrentMod);
+                GUILayout.Label(I18n.MenuT("debug.story") + ": " + RuntimeTrace.CurrentStory);
+                GUILayout.Label(I18n.MenuT("debug.node") + ": " + RuntimeTrace.CurrentNode);
+                GUILayout.Label(I18n.MenuT("debug.characters") + ": " + JoinOrNone(CustomCharacterRuntime.ActiveCharacterIds()));
+                GUILayout.Label(I18n.MenuT("debug.music") + ": " + EmptyAsNone(CustomAudioPlayer.CurrentMusic));
+                GUILayout.Label(I18n.MenuT("debug.voice") + ": " + EmptyAsNone(CustomAudioPlayer.CurrentVoice));
+                DrawDebugMap(I18n.MenuT("debug.variables"), RuntimeTrace.VariablesSnapshot());
+                DrawDebugMap(I18n.MenuT("debug.flags"), RuntimeTrace.FlagsSnapshot());
+                GUILayout.Label(I18n.MenuT("debug.trace"));
                 List<RuntimeTrace.Entry> entries = RuntimeTrace.Snapshot();
                 int start = Math.Max(0, entries.Count - 24);
                 for (int i = start; i < entries.Count; i++)
@@ -1402,11 +1433,11 @@ namespace MortalModHost
                         + EmptyAsNone(item.NodeId) + (string.IsNullOrEmpty(item.Detail) ? "" : "  " + item.Detail));
                 }
                 GUILayout.EndScrollView();
-                if (GUILayout.Button(I18n.T("debug.hide"))) _showDebugger = false;
+                if (GUILayout.Button(I18n.MenuT("debug.hide"))) _showDebugger = false;
             }
             catch (Exception ex)
             {
-                GUILayout.Label(I18n.T("debug.draw_error") + ": " + ex.Message);
+                GUILayout.Label(I18n.MenuT("debug.draw_error") + ": " + ex.Message);
             }
             GUI.DragWindow(new Rect(0f, 0f, _debugWindowRect.width, 20f));
         }
@@ -1414,7 +1445,7 @@ namespace MortalModHost
         private static void DrawDebugMap(string title, Dictionary<string, string> values)
         {
             GUILayout.Label(title + " (" + values.Count + ")");
-            if (values.Count == 0) { GUILayout.Label("  " + I18n.T("debug.none")); return; }
+            if (values.Count == 0) { GUILayout.Label("  " + I18n.MenuT("debug.none")); return; }
             int shown = 0;
             foreach (var pair in values)
             {
@@ -1441,70 +1472,138 @@ namespace MortalModHost
 
         private static string JoinOrNone(List<string> values)
         {
-            return values == null || values.Count == 0 ? I18n.T("debug.none") : string.Join(", ", values.ToArray());
+            return values == null || values.Count == 0 ? I18n.MenuT("debug.none") : string.Join(", ", values.ToArray());
         }
 
         private static string EmptyAsNone(string value)
         {
-            return string.IsNullOrEmpty(value) ? I18n.T("debug.none") : value;
+            return string.IsNullOrEmpty(value) ? I18n.MenuT("debug.none") : value;
         }
 
         /// <summary>Free 场景左下角常驻小按钮：不依赖热键的菜单入口；菜单打开时隐藏，避免重复。</summary>
         private void DrawEntryButton()
         {
             if (_showMenu) return;
-            Color oldColor = GUI.color;
-            GUI.color = new Color(1f, 1f, 1f, 0.8f); // 半透明，尽量不显眼
-            if (GUI.Button(new Rect(10f, Screen.height - 38f, 100f, 28f), I18n.T("entry")))
+            GUISkin previous = GUI.skin;
+            Matrix4x4 matrix = GUI.matrix;
+            try
             {
-                _showMenu = true;
-                ClampWindowToScreen();
-                Logger.LogInfo("通过左下角按钮打开 mod 菜单。");
+                GUI.skin = ModMenuTheme.Skin;
+                float scale = ModMenuTheme.Scale;
+                GUIUtility.ScaleAroundPivot(new Vector2(scale, scale), Vector2.zero);
+                if (GUI.Button(new Rect(18, Screen.height / scale - 58, 146, 40), I18n.MenuT("menu.title")))
+                {
+                    _showMenu = true;
+                    ClampWindowToScreen();
+                    Logger.LogInfo("通过左下角按钮打开 mod 菜单。");
+                }
             }
-            GUI.color = oldColor;
+            finally { GUI.skin = previous; GUI.matrix = matrix; }
         }
 
         private void DrawWindow(int id)
         {
-            GUILayout.BeginVertical();
-            GUILayout.BeginHorizontal();
-            GUILayout.Label(I18n.T("auto.speed"));
-            foreach (AutoDialogueSpeed speed in Enum.GetValues(typeof(AutoDialogueSpeed)))
-                if (GUILayout.Toggle(AutoDialogueRuntime.Speed.Value == speed,
-                    I18n.T("auto." + speed.ToString().ToLowerInvariant()), GUI.skin.button))
-                    AutoDialogueRuntime.Speed.Value = speed;
-            GUILayout.EndHorizontal();
-            if (_titleFallbackMenu)
+            float width = _windowRect.width, height = _windowRect.height;
+            GUI.Label(new Rect(26, 16, width - 110, 34), I18n.MenuT("menu.title"), ModMenuTheme.HeaderTitle);
+            GUI.Label(new Rect(27, 51, width - 110, 24), I18n.MenuT("menu.subtitle"), ModMenuTheme.HeaderCaption);
+            if (GUI.Button(new Rect(width - 62, 23, 34, 34), "×", ModMenuTheme.Close)) CloseModMenu();
+            string languageName = I18n.MenuLanguage.Length == 0 ? I18n.MenuT("menu.language_auto") : MenuLanguageNames[Array.IndexOf(MenuLanguageCodes, I18n.MenuLanguage)];
+            if (GUI.Button(new Rect(width - 274, 24, 194, 32), new GUIContent(languageName + "  ▾", I18n.MenuT("menu.language_hint"))))
+                _showMenuLanguagePicker = !_showMenuLanguagePicker;
+            bool windowEnabled = GUI.enabled;
+            GUI.enabled = windowEnabled && !_showMenuLanguagePicker;
+            ModMenuTheme.RuleAt(24, 88, width - 48);
+            Rect sidebar = new Rect(18, 103, 146, height - 183);
+            GUI.Box(sidebar, GUIContent.none, ModMenuTheme.Sidebar);
+            GUI.Label(new Rect(sidebar.x + 14, sidebar.y + 15, sidebar.width - 28, 22), I18n.MenuT("menu.mode_caption"), ModMenuTheme.Caption);
+            GUI.Label(new Rect(sidebar.x + 14, sidebar.y + 43, sidebar.width - 28, 30),
+                I18n.MenuT(ModPlayModeSession.Selected == ModPlayModeKind.Addon ? "menu.context_addon" : "menu.context_campaign"), ModMenuTheme.Body);
+            if (GUI.Button(new Rect(sidebar.x + 8, sidebar.y + 92, sidebar.width - 16, 44), I18n.MenuT("menu.works"), _menuTab == 0 ? ModMenuTheme.SelectedTab : ModMenuTheme.Tab)) _menuTab = 0;
+            bool previous = GUI.enabled;
+            GUI.enabled = previous && DevelopmentNavigationRuntime.HasContext && !_inTitleScene;
+            bool developerAvailable = GUI.enabled;
+            if (GUI.Button(new Rect(sidebar.x + 8, sidebar.y + 144, sidebar.width - 16, 44),
+                new GUIContent(I18n.MenuT("menu.developer"), developerAvailable ? "" : I18n.MenuT("menu.developer_unavailable")),
+                _menuTab == 1 ? ModMenuTheme.SelectedTab : ModMenuTheme.Tab)) _menuTab = 1;
+            GUI.enabled = previous;
+            if (_menuTab == 0 || _menuTab == 1)
+                ModMenuTheme.Fill(new Rect(sidebar.x + 8, sidebar.y + (_menuTab == 0 ? 101 : 153), 3, 26), ModMenuTheme.Accent);
+            ModMenuTheme.RuleAt(sidebar.x + 14, sidebar.y + 208, sidebar.width - 28);
+            string shortcut = I18n.MenuT("menu.shortcut", _menuHotkey.Value), sidebarHint = I18n.MenuT("menu.sidebar_hint");
+            float shortcutHeight = ModMenuTheme.LabelHeight(shortcut, ModMenuTheme.Caption, sidebar.width - 28);
+            float hintHeight = ModMenuTheme.LabelHeight(sidebarHint, ModMenuTheme.Caption, sidebar.width - 28);
+            GUI.Label(new Rect(sidebar.x + 14, sidebar.yMax - shortcutHeight - 16, sidebar.width - 28, shortcutHeight), shortcut, ModMenuTheme.Caption);
+            GUI.Label(new Rect(sidebar.x + 14, sidebar.yMax - shortcutHeight - hintHeight - 30, sidebar.width - 28, hintHeight), sidebarHint, ModMenuTheme.Caption);
+            Rect content = new Rect(184, 105, width - 208, height - 189);
+            if (_menuTab == 1 && DevelopmentNavigationRuntime.HasContext && !_inTitleScene)
             {
-                bool hasAddons = LoadedMods.Exists(m => m.PlayMode == "addon");
-                GUILayout.Label(I18n.T(hasAddons ? "campaign.addon_only" : "campaign.none"));
-                GUILayout.Label(I18n.T(hasAddons ? "campaign.addon_hint" : "campaign.none_hint"));
-            }
-            else if (LoadedMods.Count == 0)
-            {
-                GUILayout.Label(I18n.T("empty"));
-            }
-            else if (_inTitleScene)
-            {
-                GUILayout.Label("MOD 战役只能从标题画面的官方样式入口打开。");
-                GUILayout.Label(I18n.T("title.hint"));
+                if (DevelopmentNavigationRuntime.Draw(content)) _showMenu = false;
             }
             else
             {
+                _menuTab = 0;
+                GUI.Label(new Rect(content.x, content.y, content.width, 34), I18n.MenuT("menu.works"), ModMenuTheme.Heading);
+                GUILayout.BeginArea(new Rect(content.x, content.y + 52, content.width, content.height - 52));
                 _scroll = GUILayout.BeginScrollView(_scroll);
-                GUILayout.Label(I18n.T("section.play"));
-                foreach (var mod in LoadedMods)
-                    if (ModPlayModeSession.Allows(mod)) DrawModEntry(mod);
+                if (_titleFallbackMenu)
+                {
+                    bool hasAddons = LoadedMods.Exists(m => m.PlayMode == "addon");
+                    GUILayout.Label(I18n.MenuT(hasAddons ? "campaign.addon_only" : "campaign.none"), ModMenuTheme.Heading);
+                    GUILayout.Space(12);
+                    GUILayout.Label(I18n.MenuT(hasAddons ? "campaign.addon_hint" : "campaign.none_hint"), ModMenuTheme.Muted);
+                }
+                else if (LoadedMods.Count == 0) GUILayout.Label(I18n.MenuT("empty"), ModMenuTheme.Muted);
+                else if (_inTitleScene) GUILayout.Label(I18n.MenuT("title.hint"), ModMenuTheme.Muted);
+                else foreach (var mod in LoadedMods) if (ModPlayModeSession.Allows(mod)) DrawModEntry(mod, content.width - 60);
                 GUILayout.EndScrollView();
+                GUILayout.EndArea();
             }
-            GUILayout.Space(6f);
-            if (GUILayout.Button(I18n.T("close")))
+            ModMenuTheme.RuleAt(24, height - 66, width - 48);
+            GUI.Label(new Rect(30, height - 49, 144, 30), I18n.MenuT("auto.speed"), ModMenuTheme.Single);
+            int speedIndex = 0;
+            foreach (AutoDialogueSpeed speed in Enum.GetValues(typeof(AutoDialogueSpeed)))
             {
-                _showMenu = false;
-                _titleFallbackMenu = false;
+                if (GUI.Toggle(new Rect(184 + speedIndex++ * 87, height - 52, 80, 36), AutoDialogueRuntime.Speed.Value == speed,
+                    I18n.MenuT("auto." + speed.ToString().ToLowerInvariant()), GUI.skin.button)) AutoDialogueRuntime.Speed.Value = speed;
             }
-            GUILayout.EndVertical();
-            GUI.DragWindow(new Rect(0f, 0f, _windowRect.width, 20f)); // 仅标题栏可拖动，避免与关闭按钮/滚动区抢点击
+            if (!string.IsNullOrEmpty(GUI.tooltip))
+                GUI.Label(new Rect(480, height - 53, width - 656, 44), GUI.tooltip, ModMenuTheme.Caption);
+            if (GUI.Button(new Rect(width - 152, height - 52, 128, 36), I18n.MenuT("close"))) CloseModMenu();
+            GUI.enabled = windowEnabled;
+            if (_showMenuLanguagePicker) DrawMenuLanguagePicker(new Rect(width - 274, 63, 194, MenuLanguageCodes.Length * 38 + 14));
+        }
+
+        private void DrawMenuLanguagePicker(Rect area)
+        {
+            GUI.Box(area, GUIContent.none, ModMenuTheme.Card);
+            for (int i = 0; i < MenuLanguageCodes.Length; i++)
+            {
+                string text = i == 0 ? I18n.MenuT("menu.language_auto") : MenuLanguageNames[i];
+                if (GUI.Button(new Rect(area.x + 7, area.y + 7 + i * 38, area.width - 14, 34), text,
+                    I18n.MenuLanguage == MenuLanguageCodes[i] ? ModMenuTheme.SelectedRow : ModMenuTheme.Row))
+                {
+                    SelectMenuLanguage(MenuLanguageCodes[i]);
+                    GUI.FocusControl(null);
+                }
+            }
+            var input = Event.current;
+            if (input.type == EventType.MouseDown && !area.Contains(input.mousePosition))
+            { _showMenuLanguagePicker = false; input.Use(); }
+        }
+
+        private void SelectMenuLanguage(string language)
+        {
+            I18n.SetMenuLanguage(language);
+            _menuLanguage.Value = language;
+            DevelopmentNavigationRuntime.RefreshPresentation();
+            _showMenuLanguagePicker = false;
+        }
+
+        private void CloseModMenu()
+        {
+            _showMenu = false;
+            _showMenuLanguagePicker = false;
+            _titleFallbackMenu = false;
         }
 
         /// <summary>
@@ -1658,6 +1757,7 @@ namespace MortalModHost
             ModSaveIsolation.BeforeEnterModSlot(saves.CurrentSlot);
             try
             {
+                DevelopmentNavigationRuntime.Clear();
                 SelectPlayMode(ModPlayModeKind.Campaign);
                 CustomGameplayRuntime.Clear();
                 saves = SaveSystem.Instance;
@@ -1880,6 +1980,7 @@ namespace MortalModHost
         /// </summary>
         private static void ResetModRuntimeForLoad()
         {
+            DevelopmentNavigationRuntime.Clear();
             GameplaySession.Reset();
             GameplaySceneTransition.Reset();
             CombatPlayerStatSession.Restore();
@@ -1909,17 +2010,25 @@ namespace MortalModHost
             }
         }
 
-        private void DrawModEntry(ModPackage mod)
+        private void DrawModEntry(ModPackage mod, float textWidth)
         {
-            GUILayout.BeginVertical("box");
-            GUILayout.Label(FormatModHeading(mod));
+            GUILayout.BeginVertical(ModMenuTheme.Card);
+            string heading = FormatModHeading(mod);
+            GUILayout.Label(heading, ModMenuTheme.Heading, GUILayout.Height(ModMenuTheme.LabelHeight(heading, ModMenuTheme.Heading, textWidth)));
+            GUILayout.Space(8);
             string description = ModDisclosurePolicy.SafePackageDescription(mod);
             if (!string.IsNullOrEmpty(description))
-                GUILayout.Label(description);
-            GUILayout.Label(I18n.T("entry.scripts", mod.Entry, mod.LuaScripts.Count));
+                GUILayout.Label(description, ModMenuTheme.Muted, GUILayout.Height(ModMenuTheme.LabelHeight(description, ModMenuTheme.Muted, textWidth)));
+            GUILayout.Space(8);
+            string scripts = I18n.MenuT("entry.scripts", mod.Entry, mod.LuaScripts.Count);
+            GUILayout.Label(scripts, ModMenuTheme.Caption, GUILayout.Height(ModMenuTheme.LabelHeight(scripts, ModMenuTheme.Caption, textWidth)));
             if (mod.Scenario!=null)
-                GUILayout.Label(mod.PlayMode=="addon" ? "原版附加剧情：按事件条件自动或点击地点触发" : "自由剧本：从标题页选择此作品，事件与任务独立调度");
-            else if (GUILayout.Button(I18n.T("play")))
+            {
+                GUILayout.Space(8);
+                string kind = I18n.MenuT(mod.PlayMode=="addon" ? "menu.scenario_addon" : "menu.scenario_campaign");
+                GUILayout.Label(kind, ModMenuTheme.Muted, GUILayout.Height(ModMenuTheme.LabelHeight(kind, ModMenuTheme.Muted, textWidth)));
+            }
+            else if (GUILayout.Button(I18n.MenuT("play")))
                 PlayMod(mod);
             GUILayout.EndVertical();
         }
@@ -1950,8 +2059,16 @@ namespace MortalModHost
 
         private void ClampWindowToScreen()
         {
-            _windowRect.x = Mathf.Clamp(_windowRect.x, 0f, Math.Max(0f, Screen.width - _windowRect.width));
-            _windowRect.y = Mathf.Clamp(_windowRect.y, 0f, Math.Max(0f, Screen.height - _windowRect.height));
+            float scale = ModMenuTheme.Scale;
+            float width = Screen.width / scale, height = Screen.height / scale;
+            _windowRect.width = Mathf.Min(1120, width - 80);
+            _windowRect.height = Mathf.Min(720, height - 80);
+            if (_menuScreenWidth != Screen.width || _menuScreenHeight != Screen.height)
+            {
+                _menuScreenWidth = Screen.width; _menuScreenHeight = Screen.height;
+                _menuTab = DevelopmentNavigationRuntime.HasContext ? 1 : 0;
+            }
+            _windowRect.position = new Vector2((width - _windowRect.width) / 2, (height - _windowRect.height) / 2);
         }
 
         /// <summary>把单个 mod 的元信息和脚本清单拼成多行日志文本。</summary>

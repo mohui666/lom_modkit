@@ -17,6 +17,15 @@ namespace MortalModHost
         public static object Parse(string json)
         {
             if (json == null) throw new FormatException("JSON 文本为 null");
+            object value;
+            return NativeJson.TryParse(json, out value) ? value : ParseManaged(json);
+        }
+
+        // Original parser remains the optional-component compatibility path and
+        // the exact runtime-specific differential reference.
+        public static object ParseManaged(string json)
+        {
+            if (json == null) throw new FormatException("JSON 文本为 null");
             int pos = 0;
             object result = ParseValue(json, ref pos, 0);
             SkipWhitespace(json, ref pos);

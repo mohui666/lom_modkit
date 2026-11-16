@@ -1,6 +1,6 @@
 # Rust 工具端
 
-Cargo workspace 由 `rust/lom-core`、`rust/lomc`、`rust/lom-editor`、`rust/lom-assets` 组成，覆盖剧情编译、包读写、原生桌面编辑和游戏资源读取。C# `runtime/MortalModHost` 保留游戏接入；1.6.0 的包、Story、用户内容版本仍为 **3 / 2 / 1**。
+Cargo workspace 由 `rust/lom-core`、`rust/lomc`、`rust/lom-editor`、`rust/lom-assets` 和 `rust/lom-host-native` 组成，覆盖剧情编译、包读写、原生桌面编辑、游戏资源读取与 Host 批量计算。C# `runtime/MortalModHost` 保留游戏接入；1.6.0 的包、Story、用户内容版本仍为 **3 / 2 / 1**。
 
 操作指南见 [软件使用](software_usage.md)，验证命令见 [测试入口](test_matrix.md)。
 
@@ -50,6 +50,7 @@ Windows 构建入口为 `scripts/build-windows.ps1 -NoArchive`，需要已构建
 | `rust/lomc` | 原生命令行与受控创作 API |
 | `rust/lom-editor` | egui 界面、字段表单、舞台／流程预览、编辑历史、草稿与恢复、按文件归属保存 |
 | `rust/lom-assets` | 原生游戏资源提取器，独立进程报告进度与结果 |
+| `rust/lom-host-native` | Windows x64／x86 字节、JSON、剧情参照、事件计划、文本与流式音频计算，通过 C ABI 供 C# Host 调用；构建见 [Runtime 说明](../../runtime/MortalModHost/README.md#构建与测试) |
 | `rust/lom-editor/src/macos_window.rs` | 标准 AppKit 窗口外观、现有系统应用菜单中的设置项与重绘通知 |
 | `editor/` | 图标、翻译和帮助等静态资源；旧 Python 编辑器已退役 |
 | `tools/` | 游戏资源提取／研究脚本；预览提取器单独打包供原生界面调用，其余脚本不作为编辑器或编译器运行依赖 |
@@ -94,6 +95,10 @@ cargo run --locked -p lomc -- detect-watermark-video path/to/video.mp4 --ffmpeg 
 迁移沿用既有版本规则，不猜测无法可靠转换的旧 Combat／Battle 数据。可迁移文件在写入前保留原字节备份；多文件写盘失败不保证整个目录一次回滚。新项目生成独立 `campaign_id`，导入已有项目不重置存档身份。
 
 Windows 游戏管理调用已有 C# Host 协议；Mac 上禁用游戏接入按钮。BepInEx 安装按 `Mortal.exe` 自动识别 x86／x64，接受对应的官方 **6.0.0-be.692+851521c / Unity Mono** ZIP，界面提供匹配的下载链接；校验值或原生代理位数不符时拒绝写入。C# Host 保持 AnyCPU，正式 exe 使用内置 Host，源码运行才需明确完整宿主目录。游戏从 32 位升级到 64 位后的加载器与旧代理修复见 [维护者手册](maintainers.md#windows-游戏接入与-runtime-回滚)。Mac 构建和离线预览都不能代替 Windows／游戏流程；本次 1.6.0 未运行 Mac 构建或实测。
+
+## Host 的 Rust 计算模块
+
+`rust/lom-host-native` 由 `scripts/build-host-native.ps1` 构建 x64／x86 DLL，作为资源嵌入 C# Host。`NativeHostKernel` 共用一次加载，包／路径检查、JSON、原版来源与补丁、事件计划、存档编解码、文本计数与流式音频通过批量 C ABI 进入 Rust；游戏对象、事件副作用与播放生命周期由 C# 管理。源码中仍保留无原生组件时的原计算入口，原生拒绝不会转为托管重试。包格式、字段、节点和已有作品的身份保持不变。完整构建、所有权与定向差分命令见 [Host 说明](../../runtime/MortalModHost/README.md#构建与测试)。
 
 ## 样例与验证
 

@@ -23,7 +23,27 @@ namespace MortalModHost
 
         internal static VanillaImportSource Parse(string json)
         {
-            var story = MiniJson.Parse(json) as Dictionary<string, object>;
+            VanillaImportSource result;
+            if (NativeSourceCompare.TryParse(json, out result)) return result;
+            return ParseManaged(json);
+        }
+
+        internal static VanillaImportSource FromNative(string target, string original, bool changed,
+            bool verified, string[] ids, uint[] flags)
+        {
+            var result = new VanillaImportSource { Target = target, OriginalSource = original,
+                LogicChanged = changed, OriginalVerified = verified };
+            for (int i = 0; i < ids.Length; ++i)
+            {
+                if ((flags[i] & 1) != 0) result._original.Add(ids[i]);
+                if ((flags[i] & 2) != 0) result._persistent.Add(ids[i]);
+            }
+            return result;
+        }
+
+        internal static VanillaImportSource ParseManaged(string json)
+        {
+            var story = MiniJson.ParseManaged(json) as Dictionary<string, object>;
             object value;
             if (story == null || !story.TryGetValue("vanilla_import", out value)) return null;
             var metadata = value as Dictionary<string, object>;
@@ -68,7 +88,7 @@ namespace MortalModHost
                 string id = (string)node["id"];
                 int index = OriginIndex(node);
                 bool native = index >= 0 && index < origins.Count && claimed.Add(index);
-                var comparable = node;
+                int normalizedEdges = 0;
                 if (native)
                 {
                     if (index <= previous) result.LogicChanged = true;
@@ -76,17 +96,18 @@ namespace MortalModHost
                     var baseline = (Dictionary<string, object>)((Dictionary<string, object>)origins[index])["node"];
                     if (Equals(metadata["schema"], 2d))
                     {
-                        comparable = new Dictionary<string, object>(node);
-                        foreach (string edge in new[] { "goto", "success", "failure" })
+                        string[] edges = { "goto", "success", "failure" };
+                        for (int edgeIndex = 0; edgeIndex < edges.Length; ++edgeIndex)
                         {
+                            string edge = edges[edgeIndex];
                             object originalTarget, actualTarget;
                             if (baseline.TryGetValue(edge, out originalTarget) && node.TryGetValue(edge, out actualTarget)
                                 && originalTarget is string && actualTarget is string
                                 && TransientDetour((string)actualTarget, (string)originalTarget, byId, following, originalIds))
-                                comparable[edge] = originalTarget;
+                                normalizedEdges |= 1 << edgeIndex;
                         }
                     }
-                    if (EqualNode(baseline, comparable))
+                    if (EqualNode(baseline, node, normalizedEdges, false))
                     {
                         result._original.Add(id);
                         continue;
@@ -104,14 +125,8 @@ namespace MortalModHost
                 // Speaker, portrait and layout edits continue to affect later lines.
                 if (kind == "say" && native)
                 {
-                    var baseline = new Dictionary<string, object>((Dictionary<string, object>)((Dictionary<string, object>)origins[index])["node"]);
-                    foreach (string key in new[] { "text", "font_size", "voice", "mood_icon", "mood_character" })
-                    {
-                        object text;
-                        if (node.TryGetValue(key, out text)) baseline[key] = text;
-                        else baseline.Remove(key);
-                    }
-                    if (!EqualNode(baseline, comparable)) result._persistent.Add(id);
+                    var baseline = (Dictionary<string, object>)((Dictionary<string, object>)origins[index])["node"];
+                    if (!EqualNode(baseline, node, normalizedEdges, true)) result._persistent.Add(id);
                 }
             }
             if (claimed.Count != origins.Count) result.LogicChanged = true;
@@ -212,13 +227,30 @@ namespace MortalModHost
             return (int)number;
         }
 
-        private static bool EqualNode(Dictionary<string, object> left, Dictionary<string, object> right)
+        private static bool Ignored(string key, int edges, bool presentation)
         {
-            var leftFields = new Dictionary<string, object>(left);
-            var rightFields = new Dictionary<string, object>(right);
-            leftFields.Remove("id"); leftFields.Remove("_editor");
-            rightFields.Remove("id"); rightFields.Remove("_editor");
-            return EqualValue(leftFields, rightFields);
+            return key == "id" || key == "_editor"
+                || (edges & 1) != 0 && key == "goto" || (edges & 2) != 0 && key == "success"
+                || (edges & 4) != 0 && key == "failure"
+                || presentation && (key == "text" || key == "font_size" || key == "voice"
+                    || key == "mood_icon" || key == "mood_character");
+        }
+
+        private static bool EqualNode(Dictionary<string, object> left, Dictionary<string, object> right,
+            int edges, bool presentation)
+        {
+            if (left == null || right == null) throw new ArgumentNullException("dictionary");
+            int a = 0, b = 0;
+            foreach (var pair in left) if (!Ignored(pair.Key, edges, presentation)) a++;
+            foreach (var pair in right) if (!Ignored(pair.Key, edges, presentation)) b++;
+            if (a != b) return false;
+            foreach (var pair in left)
+            {
+                if (Ignored(pair.Key, edges, presentation)) continue;
+                object value;
+                if (!right.TryGetValue(pair.Key, out value) || !EqualValue(pair.Value, value)) return false;
+            }
+            return true;
         }
 
         private static bool EqualValue(object left, object right)

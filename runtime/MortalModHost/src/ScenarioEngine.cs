@@ -58,7 +58,9 @@ namespace MortalModHost
             }
             return state;
         }
-        internal static string ToJson(object value) {var b=new StringBuilder();Write(b,value);return b.ToString();}
+        internal static string ToJson(object value) { return WriteJson(value,true); }
+        internal static string ToJsonManaged(object value) { return WriteJson(value,false); }
+        private static string WriteJson(object value,bool native) {var b=new StringBuilder();char[] scratch=null;Write(b,value,ref scratch,native);return b.ToString();}
         internal string Serialize()
         {
             var completed = new List<string>(Completed); completed.Sort(StringComparer.Ordinal);
@@ -68,14 +70,15 @@ namespace MortalModHost
             };
             if (Pending != null) r.Add("pending",Pending);
             if (StoryReturn != null) r.Add("story_return",StoryReturn.ToJson());
-            var b = new StringBuilder(); Write(b,r); return b.ToString();
+            return WriteJson(r,true);
         }
-        private static void Write(StringBuilder b, object value)
+        private static void Write(StringBuilder b, object value, ref char[] scratch, bool native)
         {
             if (value == null) { b.Append("null"); return; }
             string text = value as string;
             if (text != null)
             {
+                if (native && NativeJsonWrite.TryAppend(b,text,ref scratch)) return;
                 b.Append('"');
                 foreach (char c in text)
                 {
@@ -90,14 +93,14 @@ namespace MortalModHost
             {
                 var keys = new List<string>(); foreach (object key in d.Keys) keys.Add((string)key); keys.Sort(StringComparer.Ordinal);
                 b.Append('{'); bool first=true;
-                foreach (string key in keys) { if (!first) b.Append(','); first=false; Write(b,key); b.Append(':'); Write(b,d[key]); }
+                foreach (string key in keys) { if (!first) b.Append(','); first=false; Write(b,key,ref scratch,native); b.Append(':'); Write(b,d[key],ref scratch,native); }
                 b.Append('}'); return;
             }
             var a = value as IEnumerable;
             if (a != null)
             {
                 b.Append('['); bool first=true;
-                foreach (object v in a) { if (!first) b.Append(','); first=false; Write(b,v); } b.Append(']'); return;
+                foreach (object v in a) { if (!first) b.Append(','); first=false; Write(b,v,ref scratch,native); } b.Append(']'); return;
             }
             if (value is bool) b.Append((bool)value ? "true" : "false");
             else b.Append(Convert.ToString(value,CultureInfo.InvariantCulture));
@@ -169,6 +172,10 @@ namespace MortalModHost
             return Select(trigger,position,null,null);
         }
         internal ScenarioEvent Select(string trigger, string position, string target, string from)
+        { return SelectCore(trigger,position,target,from,true); }
+        internal ScenarioEvent SelectManaged(string trigger,string position,string target,string from)
+        { return SelectCore(trigger,position,target,from,false); }
+        private ScenarioEvent SelectCore(string trigger, string position, string target, string from,bool native)
         {
             if (State.Pending != null) return null;
             // Old auto/position-only packages must not advance task transitions
@@ -185,31 +192,49 @@ namespace MortalModHost
                 }
             }
             foreach (var change in transitions) State.Tasks[change.Key]=change.Value;
+            var periodTokens = new PeriodTokens();
             var candidates=new List<ScenarioEvent>();
+            var declarations = native && Config.Events.Count >= 32 && NativeScenarioPlan.IsAvailable ? new List<int>() : null;
+            int declaration=-1;
             foreach (ScenarioEvent e in Config.Events)
             {
+                declaration++;
                 string attempt;
                 if (!e.Enabled || e.Trigger != trigger || (trigger=="position" && e.Position!=position)
                     || trigger=="story_entry" && (e.Target!=target || e.From!=null && e.From!=from)
                     || e.Once && State.Completed.Contains(e.Id)
-                    || e.Pool!=null && State.Pools.TryGetValue(e.Pool,out attempt) && attempt==Token(e.Check)
-                    || State.Attempts.TryGetValue(e.Id,out attempt) && attempt==Token(e.Check) || !Test(e.When)) continue;
+                    || e.Pool!=null && State.Pools.TryGetValue(e.Pool,out attempt) && attempt==Token(e.Check,ref periodTokens,native)
+                    || State.Attempts.TryGetValue(e.Id,out attempt) && attempt==Token(e.Check,ref periodTokens,native) || !Test(e.When)) continue;
                 candidates.Add(e);
+                if(declarations!=null)declarations.Add(declaration);
             }
             // List.Sort is not stable; preserve declaration order explicitly for equal priorities.
-            candidates.Sort((a,b) => a.Priority != b.Priority ? b.Priority.CompareTo(a.Priority) : Config.Events.IndexOf(a).CompareTo(Config.Events.IndexOf(b)));
+            NativeScenarioPlan plan = native && candidates.Count >= 32 && NativeScenarioPlan.IsAvailable
+                ? NativeScenarioPlan.Build(candidates,declarations) : null;
+            if(plan==null)candidates.Sort((a,b) => a.Priority != b.Priority ? b.Priority.CompareTo(a.Priority) : Config.Events.IndexOf(a).CompareTo(Config.Events.IndexOf(b)));
             var processed=new HashSet<string>(StringComparer.Ordinal);
-            foreach (ScenarioEvent first in candidates)
+            for(int firstIndex=0;firstIndex<candidates.Count;firstIndex++)
             {
+                int candidateIndex=plan==null?firstIndex:plan.Order[firstIndex];
+                ScenarioEvent first=candidates[candidateIndex];
                 if (!processed.Add(first.Id)) continue;
-                var group=new List<ScenarioEvent>();
-                foreach (ScenarioEvent e in candidates)
-                    if (ReferenceEquals(e,first) || first.Pool!=null && first.Pool==e.Pool) { group.Add(e); processed.Add(e.Id); }
+                List<ScenarioEvent> group=null;
+                int begin=0,groupCount=0;
+                if(plan!=null){
+                    begin=plan.Offsets[candidateIndex];groupCount=plan.Counts[candidateIndex];
+                    for(int member=begin;member<begin+groupCount;member++)processed.Add(candidates[plan.Members[member]].Id);
+                } else {
+                    group=new List<ScenarioEvent>();
+                    foreach (ScenarioEvent e in candidates)
+                        if (ReferenceEquals(e,first) || first.Pool!=null && first.Pool==e.Pool) { group.Add(e); processed.Add(e.Id); }
+                    groupCount=group.Count;
+                }
                 var ready=new List<ScenarioEvent>(); var weights=new List<long>(); long total=0;
-                if(first.Pool!=null)State.Pools[first.Pool]=Token(first.Check);
-                foreach (ScenarioEvent e in group)
+                if(first.Pool!=null)State.Pools[first.Pool]=Token(first.Check,ref periodTokens,native);
+                for(int member=0;member<groupCount;member++)
                 {
-                    State.Attempts[e.Id]=Token(e.Check);
+                    ScenarioEvent e=plan==null?group[member]:candidates[plan.Members[begin+member]];
+                    State.Attempts[e.Id]=Token(e.Check,ref periodTokens,native);
                     // A failed chance draw consumes this period, so reopening a scene cannot reroll it.
                     if (e.Chance <= 0 || e.Chance < 100 && Draw()*100 >= e.Chance) continue;
                     long weight=e.Weight;
@@ -276,6 +301,36 @@ namespace MortalModHost
             State.Completed.Add(e.Id); State.Pending=null; State.Result="completed"; State.StoryReturn=null;
         }
         internal void Abort() { State.Pending=null; State.Result="completed"; State.StoryReturn=null; }
+        private struct PeriodTokens
+        {
+            internal PeriodToken Month, Stage, Action;
+        }
+        private struct PeriodToken
+        {
+            private int _year, _month, _stage, _action;
+            private string _text;
+            internal string Format(int year,int month,int stage,int action,int components)
+            {
+                if(_text!=null && _year==year && _month==month && _stage==stage && _action==action) return _text;
+                _year=year;_month=month;_stage=stage;_action=action;
+                string token=year.ToString(CultureInfo.InvariantCulture)+"/"+month.ToString(CultureInfo.InvariantCulture);
+                if(components>=3)token+="/"+stage.ToString(CultureInfo.InvariantCulture);
+                if(components==4)token+="/"+action.ToString(CultureInfo.InvariantCulture);
+                return _text=token;
+            }
+        }
+        private string Token(string check,ref PeriodTokens tokens,bool reuse)
+        {
+            if(!reuse)return Token(check);
+            // Read every property at the original call site and in the original
+            // order. Reuse only the formatted immutable value within this Select;
+            // Context may change between reads, callbacks or separate dispatches.
+            int year=_context.Year,month=_context.Month;
+            if(check=="month")return tokens.Month.Format(year,month,0,0,2);
+            int stage=_context.Stage;
+            if(check!="action")return tokens.Stage.Format(year,month,stage,0,3);
+            return tokens.Action.Format(year,month,stage,_context.Action,4);
+        }
         private string Token(string check)
         {
             string token=_context.Year.ToString(CultureInfo.InvariantCulture)+"/"+_context.Month.ToString(CultureInfo.InvariantCulture);

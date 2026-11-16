@@ -7,6 +7,7 @@ use serde_json::{json, Value};
 pub(crate) struct ReferenceRequest {
     pub script: String,
     pub flag: String,
+    pub scripts: Vec<String>,
 }
 
 pub(crate) fn take_reference(ctx: &egui::Context) -> Option<ReferenceRequest> {
@@ -172,6 +173,9 @@ pub(crate) fn field(
                 }
             });
             details(ui, data, &id);
+            if initial_default_condition(data, node, &id) {
+                ui.small(i18n::key("game_flags.initial_condition_hint"));
+            }
         }
         forms::unavailable_game_flag_warning(ui, &id);
     });
@@ -199,6 +203,16 @@ pub(crate) fn field(
     node.get(key) != before.as_ref()
 }
 
+fn initial_default_condition(data: &Value, node: &Value, id: &str) -> bool {
+    node["type"] != "game_flag"
+        && node["source"] == "game_flag"
+        && node["op"] == "eq"
+        && row(data, id)
+            .and_then(|row| row["default"].as_f64())
+            .zip(node["value"].as_f64())
+            .is_some_and(|(default, value)| default == value)
+}
+
 fn details(ui: &mut Ui, data: &Value, id: &str) {
     let Some(row) = row(data, id) else {
         ui.weak(i18n::key("game_flags.unknown_detail"));
@@ -220,6 +234,29 @@ fn details(ui: &mut Ui, data: &Value, id: &str) {
         .as_array()
         .filter(|scripts| !scripts.is_empty())
     {
+        let scripts: Vec<_> = scripts
+            .iter()
+            .filter_map(Value::as_str)
+            .map(str::to_owned)
+            .collect();
+        let ctx = ui.ctx().clone();
+        let open = |script: &str| {
+            ctx.data_mut(|data| {
+                data.insert_temp(
+                    egui::Id::new("flag-story-reference"),
+                    ReferenceRequest {
+                        script: script.into(),
+                        flag: id.into(),
+                        scripts: scripts.clone(),
+                    },
+                )
+            });
+        };
+        if let Some(first) = scripts.first() {
+            if ui.button(i18n::key("game_flags.view_context")).clicked() {
+                open(first);
+            }
+        }
         egui::CollapsingHeader::new(i18n::message(
             "game_flags.references",
             &[("count", scripts.len().to_string())],
@@ -229,17 +266,9 @@ fn details(ui: &mut Ui, data: &Value, id: &str) {
             egui::ScrollArea::vertical()
                 .max_height(180.0)
                 .show(ui, |ui| {
-                    for script in scripts.iter().filter_map(Value::as_str) {
+                    for script in &scripts {
                         if ui.link(script).clicked() {
-                            ui.ctx().data_mut(|data| {
-                                data.insert_temp(
-                                    egui::Id::new("flag-story-reference"),
-                                    ReferenceRequest {
-                                        script: script.into(),
-                                        flag: id.into(),
-                                    },
-                                )
-                            });
+                            open(script);
                         }
                     }
                 });
@@ -398,6 +427,75 @@ mod tests {
         assert_eq!(kongtong["id"], "M20011");
         assert!(advanced(row(data, "A00001").unwrap()));
         assert!(!advanced(kongtong));
+    }
+
+    #[test]
+    fn initial_default_hint_only_describes_equal_numeric_game_flag_conditions_without_edits() {
+        i18n::set_locale("chs");
+        let data = json!({"game_flags":[
+            {"id":"M30077","name":"小竹參戰江陵大戰","default":0},
+            {"id":"negative","name":"旧条件","default":-2},
+            {"id":"unknown","name":"未知默认值"}
+        ]});
+        for (mut node, expected) in [
+            (
+                json!({"type":"flag_check","source":"game_flag","key":"M30077","op":"eq","value":0}),
+                true,
+            ),
+            (
+                json!({"source":"game_flag","key":"M30077","op":"eq","value":0.0}),
+                true,
+            ),
+            (
+                json!({"source":"game_flag","key":"negative","op":"eq","value":-2}),
+                true,
+            ),
+            (
+                json!({"source":"flag_value","key":"M30077","op":"eq","value":0}),
+                false,
+            ),
+            (
+                json!({"source":"game_flag","key":"M30077","op":"ge","value":0}),
+                false,
+            ),
+            (
+                json!({"source":"game_flag","key":"M30077","op":"eq","value":1}),
+                false,
+            ),
+            (
+                json!({"source":"game_flag","key":"M30077","op":"eq"}),
+                false,
+            ),
+            (
+                json!({"source":"game_flag","key":"unknown","op":"eq","value":0}),
+                false,
+            ),
+            (
+                json!({"type":"game_flag","source":"game_flag","key":"M30077","op":"eq","value":0}),
+                false,
+            ),
+        ] {
+            let before = node.clone();
+            assert_eq!(
+                initial_default_condition(&data, &node, node["key"].as_str().unwrap()),
+                expected
+            );
+            let output = frame(&egui::Context::default(), vec![], |ui| {
+                assert!(!field(ui, &data, &mut node, "key", "原版旗标", false));
+            });
+            let hint = i18n::key("game_flags.initial_condition_hint");
+            let shown = output
+                .platform_output
+                .accesskit_update
+                .unwrap()
+                .nodes
+                .iter()
+                .any(|(_, node)| {
+                    node.label() == Some(hint.as_str()) || node.value() == Some(hint.as_str())
+                });
+            assert_eq!(shown, expected);
+            assert_eq!(node, before);
+        }
     }
 
     #[test]

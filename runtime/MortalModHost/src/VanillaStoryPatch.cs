@@ -30,6 +30,13 @@ namespace MortalModHost
             if (source == null) throw new ArgumentNullException("source");
             var edits = MiniJson.Parse(editsJson) as List<object>;
             if (edits == null || edits.Count > 4096) throw new FormatException("原版剧情补丁必须是最多 4096 项的修改列表");
+            if (NativeStoryPatch.IsAvailable) return NativeStoryPatch.Apply(source, edits);
+            return ApplyManaged(source, edits);
+        }
+
+        // Original search/copy algorithm is also the differential reference.
+        internal static string ApplyManaged(string source, List<object> edits)
+        {
             var replacements = new List<Replacement>();
             foreach (object value in edits)
             {

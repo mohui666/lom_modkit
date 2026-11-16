@@ -62,7 +62,7 @@
 | `render-video` | project、game、output | script、node、scope、width/height、fps、auto_speed、choices、choice_hold、background、runtime、overwrite | 复用游戏原生画面与声音生成 MP4；默认后台，等待成片完成，stderr 输出进度 JSON，stdout 返回最终结果 |
 | `preview-adjust` | project、script、node、target、x、y、output | scale=100、effect_scale=[x,y] | 复用预览拖动规则，保存调整后的完整工程 |
 | `prepare-playtest` | project、script、output | node=章节入口 | 生成隔离演出包，不写游戏、不推进任务 |
-| `prepare-event-playtest` | project、event_id、output | entry_mode、source_script、year、month、stage、values、include_official_events | 生成保留条件和调度规则的隔离事件包，不写游戏；准备完成不代表执行了原版前置 |
+| `prepare-event-playtest` | project、event_id、output | entry_mode、source_script、year、month、stage、values、include_official_events、developer_mode | 生成保留条件和调度规则的隔离事件包，不写游戏；准备完成不代表执行了原版前置 |
 | `playtest-event` | project、event_id、game | 同上，另有 runtime=内置Host | 从指定原版前置章实际播放并沿真实调度进入事件，或显式测试入口边界；返回可查询的 request_id |
 | `playtest` | project、script、game | node=入口、runtime=内置Host | 安装／更新试玩所需Host，返回 request_id 及确认阶段；需要重启时不发送给旧 Host |
 | `playtest-status` | game、request_id | 无 | 查询一次状态、来源证据及游戏进程是否仍运行，不启动游戏或持续轮询 |
@@ -158,5 +158,7 @@ Windows 正式 exe 内置专用于原生导出的精简 FFmpeg，保留 H.264、
 `event_selected` 只表示目标事件在真实调度中获选，`event_dispatch` 是该观察的 evidence；只有匹配所测事件 ID 后启动对应 Lua，`event_entered` 和事件请求的 `game_execution_confirmed` 才为 true。它们仍不代表已执行目标节点，节点确认单看 `event_node_entered`。若同一脚本被另一个事件选中，不能认作所测事件成功；到达原版 target 而事件未进入时保留 event_not_triggered。
 
 新的跟踪事件请求采用 `format=2`，使旧 Host 拒绝执行，防止忽略前置模式而静默变成入口直达。新版 Host 仍接受旧 `format=1` 的 F5、旧事件测试和视频请求；`.lommod` 格式不变。正在运行的游戏需要退出后加载配套新版 Host。
+
+可选 `developer_mode=true` 必须同时设置 `include_official_events=true`。它为本次隔离事件测试授权游戏内的开发者跳转入口；进入养成后按默认 F8，勾选开发测试，可改日期或从原版章节开头开始。`developer_mode` 不写回作者工程，也不重建更早的历史或改变事件的条件、概率、优先级。此功能的实时请求使用 `format=3`，并要求完整的跟踪事件字段；旧 Host 会明确拒绝它，常规事件请求仍保持 `format=2`。离线 `prepare-event-playtest` 只准备包，不表示已经授权运行中的游戏。
 
 1.6.0 顶层 `lom-editor --help`／`--version` 直接输出文字，不准备组件、不打开窗口。查询不支持该顶层入口的旧版时使用 `lom-editor --cli --version`，避免误开窗口。版本变化以对应 [GitHub Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.0) 为准，仓库不保留版本 notes。

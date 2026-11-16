@@ -19,6 +19,7 @@ namespace MortalModHost
             if (!RuntimeTrace.IsDevelopmentPackage(package) || package.Id != "lom_modkit_preview"
                 || package.Scenario == null || !request.FreshCampaign)
                 throw new InvalidOperationException("事件测试仅允许编辑器临时包");
+            DevelopmentNavigationPolicy.ValidatePreview(package, request);
             request.ValidateEvent(package.Scenario,
                 script => Resources.Load<TextAsset>("Story/ChineseTraditional/" + script) != null);
             _package = package;
@@ -34,6 +35,7 @@ namespace MortalModHost
             var package = _package;
             var request = _request;
             Clear();
+            DevelopmentNavigationRuntime.ArmPreview(package, request);
             var engine = ScenarioRuntime.Open(package);
             var selected = package.Scenario.Events.Find(e => e.Id == request.EventId);
             ScenarioRuntime.Log?.LogInfo("事件测试条件：" + request.EventId + " = " + engine.Test(selected.When)

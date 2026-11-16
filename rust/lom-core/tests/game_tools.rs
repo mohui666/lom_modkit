@@ -111,6 +111,60 @@ fn tracked_event_preview_separates_setup_from_the_real_event_and_preserves_conte
         .get("source_script")
         .is_none());
 }
+
+#[test]
+fn developer_event_navigation_uses_a_distinct_protocol_and_legacy_requests_stay_unchanged() {
+    let dir = tempfile::tempdir().unwrap();
+    fixture(dir.path());
+    let event =
+        serde_json::json!({"id":"visit","script":"side","trigger":"position","position":"Gym"});
+    let original = event.clone();
+    let id = "0123456789abcdef0123456789abcdef";
+    let path = g::request_tracked_event_preview_with_developer(
+        dir.path(),
+        "event_test_setup_1",
+        &event,
+        "greeting",
+        None,
+        true,
+        id,
+    )
+    .unwrap();
+    let request = lom_core::load_json(&path).unwrap();
+    assert_eq!(request["format"], 3);
+    assert_eq!(request["developer_mode"], true);
+    assert_eq!(request["fresh_campaign"], true);
+    assert_eq!(request["event_script"], "side");
+    assert_eq!(request["event_node"], "greeting");
+    assert_eq!(request["request_id"], id);
+    assert_eq!(event, original);
+    g::request_tracked_event_preview(
+        dir.path(),
+        "event_test_setup_1",
+        &event,
+        "greeting",
+        None,
+        id,
+    )
+    .unwrap();
+    let legacy = lom_core::load_json(&path).unwrap();
+    assert_eq!(legacy["format"], 2);
+    assert!(legacy.get("developer_mode").is_none());
+    let before = fs::read(&path).unwrap();
+    let mut invalid = event;
+    invalid["script"] = serde_json::json!("../unowned");
+    assert!(g::request_tracked_event_preview_with_developer(
+        dir.path(),
+        "event_test_setup_1",
+        &invalid,
+        "greeting",
+        None,
+        true,
+        id,
+    )
+    .is_err());
+    assert_eq!(fs::read(path).unwrap(), before);
+}
 #[test]
 fn video_preview_request_publishes_job_and_rejects_invalid_identity() {
     let dir = tempfile::tempdir().unwrap();

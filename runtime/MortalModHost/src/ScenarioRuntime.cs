@@ -2,7 +2,6 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
-using System.Text;
 using BepInEx.Logging;
 using HarmonyLib;
 using Mortal.Core;
@@ -19,7 +18,6 @@ namespace MortalModHost
     {
         internal static ManualLogSource Log;
         private static readonly Random Random = new Random();
-        private static readonly UTF8Encoding Utf8 = new UTF8Encoding(false,true);
         internal static string Prefix(ModPackage package) { return "LOMMOD_SCENARIO_V1:"+package.CampaignId+":"; }
         private static List<string> Keys
         {
@@ -31,15 +29,9 @@ namespace MortalModHost
         }
         internal static ScenarioEngine Open(ModPackage package)
         {
-            string prefix=Prefix(package), encoded=null;
-            foreach (string key in Keys)
-            {
-                if (key==null || !key.StartsWith(prefix,StringComparison.Ordinal)) continue;
-                if (encoded!=null) throw new InvalidOperationException("事件存档存在重复记录："+package.Id);
-                encoded=key.Substring(prefix.Length);
-            }
-            if (encoded!=null && encoded.Length>180000) throw new InvalidOperationException("事件存档超过上限");
-            var state=encoded==null ? new ScenarioState() : ScenarioState.Parse(Utf8.GetString(Convert.FromBase64String(encoded)));
+            string prefix=Prefix(package);
+            string json=NativeStateCodec.ReadRecord(Keys,prefix,package.Id);
+            var state=json==null ? new ScenarioState() : ScenarioState.Parse(json);
             return new ScenarioEngine(package.Scenario,state,new Context(package),Random.NextDouble);
         }
         private static void Store(ModPackage package,ScenarioEngine engine)
@@ -48,10 +40,7 @@ namespace MortalModHost
         }
         private static string EncodeRecord(ModPackage package,ScenarioState state)
         {
-            string json=state.Serialize();
-            byte[] bytes=Utf8.GetBytes(json);
-            if (bytes.Length>128*1024) throw new InvalidOperationException("事件存档超过 128 KiB");
-            return Prefix(package)+Convert.ToBase64String(bytes);
+            return NativeStateCodec.EncodeRecord(Prefix(package),state.Serialize());
         }
         private static void StoreRecord(ModPackage package,string record)
         {
@@ -88,17 +77,21 @@ namespace MortalModHost
         {
             script=null;
             if (!Plugin.CanScheduleEvents || Plugin.LoadedMods==null) return false;
-            var eligible=new List<ModPackage>();
+            var eligible=new List<KeyValuePair<ModPackage,ScenarioEngine>>();
             foreach (ModPackage package in Plugin.LoadedMods)
             {
                 if (!Allowed(package)) continue;
-                if (Open(package).State.Pending!=null) return false;
-                if (trigger=="story_entry" && !package.Scenario.MatchesStoryEntry(target,from)) continue;
-                eligible.Add(package);
-            }
-            foreach (ModPackage package in eligible)
-            {
                 var engine=Open(package);
+                if (engine.State.Pending!=null) return false;
+                if (trigger=="story_entry" && !package.Scenario.MatchesStoryEntry(target,from)) continue;
+                eligible.Add(new KeyValuePair<ModPackage,ScenarioEngine>(package,engine));
+            }
+            foreach (var candidate in eligible)
+            {
+                ModPackage package=candidate.Key;
+                var engine=candidate.Value;
+                // Records have unique campaign namespaces. Context.Read still
+                // reads current official keys after earlier packages' Store.
                 var selected=engine.Select(trigger,position,target,from);
                 if (selected!=null && trigger=="story_entry") {
                     if(storyReturn==null || storyReturn.Target!=target || storyReturn.From!=from)

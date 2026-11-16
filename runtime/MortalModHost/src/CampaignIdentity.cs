@@ -38,19 +38,24 @@ namespace MortalModHost
 
             // 先按已知 campaign_id 精确匹配。仅靠 TryParseSlot 无法区分
             // campaign_id="chapter_s002" 的主槽和普通 campaign_id 的 002 槽。
-            string root = SaveSlot(campaignId);
-            if (string.Equals(slot, root, StringComparison.Ordinal)) return true;
-            if (string.Equals(slot, root + "_auto", StringComparison.Ordinal)
-                || string.Equals(slot, root + "_auto_free", StringComparison.Ordinal)
-                || string.Equals(slot, root + "_auto_battle", StringComparison.Ordinal))
+            const string prefix = "mod_campaign_";
+            int end = prefix.Length + campaignId.Length;
+            if (slot.Length < end || !slot.StartsWith(prefix, StringComparison.Ordinal)
+                || string.CompareOrdinal(slot, prefix.Length, campaignId, 0, campaignId.Length) != 0)
+                return false;
+            int suffixLength = slot.Length - end;
+            if (suffixLength == 0) return true;
+            if (suffixLength == 5 && string.CompareOrdinal(slot, end, "_auto", 0, 5) == 0
+                || suffixLength == 10 && string.CompareOrdinal(slot, end, "_auto_free", 0, 10) == 0
+                || suffixLength == 12 && string.CompareOrdinal(slot, end, "_auto_battle", 0, 12) == 0)
                 return true;
-            for (int index = 2; index <= 20; index++)
-            {
-                if (string.Equals(slot, root + "_s" + index.ToString("000"),
-                    StringComparison.Ordinal))
-                    return true;
-            }
-            return false;
+            // Only _s002 through _s020 are generated manual slots. Do not use
+            // TryParseSlot here: its historical parser also accepts numeric signs.
+            return suffixLength == 5 && slot[end] == '_' && slot[end + 1] == 's'
+                && slot[end + 2] == '0'
+                && (slot[end + 3] == '0' && slot[end + 4] >= '2' && slot[end + 4] <= '9'
+                    || slot[end + 3] == '1' && slot[end + 4] >= '0' && slot[end + 4] <= '9'
+                    || slot[end + 3] == '2' && slot[end + 4] == '0');
         }
 
         internal static bool TryParseSlot(string slot, out string campaignId)

@@ -1906,12 +1906,13 @@ pub(crate) fn play_event_tracked(
         let setup = prepared.project.manifest["entry"]
             .as_str()
             .ok_or_else(|| anyhow::anyhow!("事件测试包缺少入口"))?;
-        game_tools::request_tracked_event_preview(
+        game_tools::request_tracked_event_preview_with_developer(
             game,
             setup,
             &prepared.event,
             &prepared.event_node,
             prepared.source_script.as_deref(),
+            prepared.developer_mode,
             request_id,
         )?;
         game_tools::launch_game()?;

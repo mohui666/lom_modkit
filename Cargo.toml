@@ -1,10 +1,10 @@
 [workspace]
-members = ["rust/lom-core", "rust/lomc", "rust/lom-editor", "rust/lom-assets"]
+members = ["rust/lom-core", "rust/lomc", "rust/lom-editor", "rust/lom-assets", "rust/lom-host-native"]
 exclude = ["vendor/egui-winit"]
 resolver = "2"
 
 [workspace.package]
-version = "1.6.1"
+version = "1.6.2"
 edition = "2021"
 license = "MIT"
 
@@ -27,3 +27,6 @@ opt-level = "s"
 lto = "thin"
 codegen-units = 1
 strip = "symbols"
+
+[profile.release.package.lom-host-native]
+opt-level = 3

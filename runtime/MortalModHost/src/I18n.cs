@@ -6,15 +6,18 @@ using Lean.Localization;
 namespace MortalModHost
 {
     /// <summary>
-    /// 游戏内 Mod 菜单文案。跟随官方 LeanLocalization 当前语言：
-    /// 繁中 / 简中 / 韩语来自游戏官方语言表用语；日语官方游戏没有，回退简中。
+    /// 游戏语言识别与工具多语言文案。工具语言可单独选择，
+    /// 不改变游戏与作品的剧情语言。
     /// </summary>
-    internal static class I18n
+    internal static partial class I18n
     {
         internal const string Chs = "chs";
         internal const string Cht = "cht";
         internal const string Ja = "ja";
         internal const string Ko = "ko";
+        private static string _menuLanguage = "";
+
+        static I18n() { ExtendDevelopmentCatalogs(); }
 
         private static readonly Dictionary<string, Dictionary<string, string>> Catalogs =
             new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase)
@@ -33,6 +36,19 @@ namespace MortalModHost
                 return Catalogs.ContainsKey(detected) ? detected : Chs;
             }
         }
+
+        // Tool UI language is independent of story/game localization.
+        internal static string MenuLanguage { get { return _menuLanguage; } }
+        internal static string MenuLocale { get { return _menuLanguage.Length == 0 ? Current : _menuLanguage; } }
+        internal static string MenuCharacters { get { return string.Join("", Catalogs[MenuLocale].Values)+"0123456789=≠<>≤≥∧∨−"; } }
+        internal static void SetMenuLanguage(string language)
+        {
+            language = language ?? "";
+            if (language.Length != 0 && !Catalogs.ContainsKey(language)) throw new ArgumentException("Unsupported tool language", "language");
+            _menuLanguage = language;
+        }
+        internal static string MenuT(string key) { return Catalogs[MenuLocale][key]; }
+        internal static string MenuT(string key, params object[] args) { return string.Format(MenuT(key), args); }
 
         /// <summary>Story localization uses canonical chs/cht/ja/ko IDs.</summary>
         internal static string StoryLocale
@@ -96,6 +112,26 @@ namespace MortalModHost
             return new Dictionary<string, string>
             {
                 { "auto.speed", "自动播放速度" }, { "auto.slow", "慢" }, { "auto.standard", "标准" }, { "auto.fast", "快" },
+                { "dev.title", "—— 开发测试 ——" },
+                { "menu.title", "MOD 工坊" }, { "menu.subtitle", "作品管理与剧情测试" },
+                { "menu.works", "作品列表" }, { "menu.developer", "开发测试" },
+                { "menu.context_addon", "原版 ＋ MOD" }, { "menu.context_campaign", "独立作品" }, { "menu.shortcut", "{0} 打开 / 关闭" },
+                { "dev.timeline", "原版事件" }, { "dev.details", "跳转设置" },
+                { "dev.search_hint", "搜索事件、时间或章节" }, { "dev.matches", "{0} 个节点" }, { "dev.no_matches", "没有匹配的事件，试试其他关键词。" },
+                { "dev.choose", "选择左侧事件，查看时间与章节。" }, { "dev.enable", "启用开发测试" }, { "dev.disable", "停用开发测试" },
+                { "dev.year", "年" }, { "dev.month", "月" }, { "dev.date_section", "游戏时间" }, { "dev.chapter_section", "原版章节" },
+                { "dev.opt_in", "将当前进度用于开发测试" },
+                { "dev.warning", "会修改当前模式的进度，原自动保存规则照常；本面板不会主动保存。" },
+                { "dev.history", "跳时间会重置行动次数，不补齐过去的任务或选择，事件仍按当前条件判定。跳章节从原版正文开头开始，不补历史或伪造来源。" },
+                { "dev.require_free", "请在养成界面结束读取、对话和暂停后使用。" },
+                { "dev.current", "当前日期：第{0}年 {1}月{2}" },
+                { "dev.date", "年 / 月" }, { "dev.early", "上旬" }, { "dev.middle", "中旬" }, { "dev.late", "下旬" },
+                { "dev.set_date", "跳到日期" }, { "dev.script", "原版章节" }, { "dev.goto_script", "跳到开头" },
+                { "dev.search", "任务节点" }, { "dev.refresh", "刷新" }, { "dev.inactive", "[停用]" },
+                { "dev.selected", "已选择：{0} · {1}；确认日期或章节后再跳转。" },
+                { "dev.invalid_date", "请输入1～9年、1～12月和有效旬。" },
+                { "dev.invalid_script", "本机没有此原版章节，未跳转。" },
+                { "dev.failed", "开发跳转失败：{0}" },
                 { "entry", "活侠MOD" },
                 { "title.mod_campaign", "开始 MOD 战役" },
                 { "window", "MortalModHost — Mod 菜单（{0} 开关）" },
@@ -146,6 +182,26 @@ namespace MortalModHost
             return new Dictionary<string, string>
             {
                 { "auto.speed", "自動播放速度" }, { "auto.slow", "慢" }, { "auto.standard", "標準" }, { "auto.fast", "快" },
+                { "dev.title", "—— 開發測試 ——" },
+                { "menu.title", "MOD 工坊" }, { "menu.subtitle", "作品管理與劇情測試" },
+                { "menu.works", "作品列表" }, { "menu.developer", "開發測試" },
+                { "menu.context_addon", "原版 ＋ MOD" }, { "menu.context_campaign", "獨立作品" }, { "menu.shortcut", "{0} 開啟 / 關閉" },
+                { "dev.timeline", "原版事件" }, { "dev.details", "跳轉設定" },
+                { "dev.search_hint", "搜尋事件、時間或章節" }, { "dev.matches", "{0} 個節點" }, { "dev.no_matches", "沒有符合的事件，請試試其他關鍵字。" },
+                { "dev.choose", "選擇左側事件，查看時間與章節。" }, { "dev.enable", "啟用開發測試" }, { "dev.disable", "停用開發測試" },
+                { "dev.year", "年" }, { "dev.month", "月" }, { "dev.date_section", "遊戲時間" }, { "dev.chapter_section", "原版章節" },
+                { "dev.opt_in", "將目前進度用於開發測試" },
+                { "dev.warning", "會修改目前模式的進度，原自動存檔規則照常；本面板不會主動存檔。" },
+                { "dev.history", "跳時間會重設行動次數，不補齊過去的任務或選擇，事件仍按目前條件判定。跳章節從原版正文開頭開始，不補歷史或偽造來源。" },
+                { "dev.require_free", "請在養成畫面結束讀取、對話和暫停後使用。" },
+                { "dev.current", "目前日期：第{0}年 {1}月{2}" },
+                { "dev.date", "年 / 月" }, { "dev.early", "上旬" }, { "dev.middle", "中旬" }, { "dev.late", "下旬" },
+                { "dev.set_date", "跳至日期" }, { "dev.script", "原版章節" }, { "dev.goto_script", "跳至開頭" },
+                { "dev.search", "任務節點" }, { "dev.refresh", "重新整理" }, { "dev.inactive", "[停用]" },
+                { "dev.selected", "已選擇：{0} · {1}；確認日期或章節後再跳轉。" },
+                { "dev.invalid_date", "請輸入1～9年、1～12月和有效旬。" },
+                { "dev.invalid_script", "本機沒有此原版章節，未跳轉。" },
+                { "dev.failed", "開發跳轉失敗：{0}" },
                 { "entry", "活俠MOD" },
                 { "title.mod_campaign", "開始 MOD 戰役" },
                 { "window", "MortalModHost — Mod 選單（{0} 開關）" },
@@ -196,6 +252,26 @@ namespace MortalModHost
             return new Dictionary<string, string>
             {
                 { "auto.speed", "自動再生速度" }, { "auto.slow", "遅い" }, { "auto.standard", "標準" }, { "auto.fast", "速い" },
+                { "dev.title", "—— 開発テスト ——" },
+                { "menu.title", "MOD 工房" }, { "menu.subtitle", "作品管理とシナリオテスト" },
+                { "menu.works", "作品一覧" }, { "menu.developer", "開発テスト" },
+                { "menu.context_addon", "本編 ＋ MOD" }, { "menu.context_campaign", "独立作品" }, { "menu.shortcut", "{0} 開く / 閉じる" },
+                { "dev.timeline", "本編イベント" }, { "dev.details", "移動設定" },
+                { "dev.search_hint", "イベント・時期・章を検索" }, { "dev.matches", "{0} 件" }, { "dev.no_matches", "該当するイベントがありません。" },
+                { "dev.choose", "左のイベントで時期と章を確認。" }, { "dev.enable", "開発テストを有効化" }, { "dev.disable", "開発テストを終了" },
+                { "dev.year", "年" }, { "dev.month", "月" }, { "dev.date_section", "ゲーム内の日付" }, { "dev.chapter_section", "本編の章" },
+                { "dev.opt_in", "現在の進行状況を開発テストに使用" },
+                { "dev.warning", "現在のモードの進行状況を変更します。通常の自動保存は有効です。このパネルは保存を直接実行しません。" },
+                { "dev.history", "日付変更は行動回数をリセットします。過去の任務や選択は補完せず、イベントは現在の条件で判定します。章移動は原文の冒頭から始まり、履歴や移動元は作成しません。" },
+                { "dev.require_free", "育成画面で読み込み・会話・一時停止が終了してから使用してください。" },
+                { "dev.current", "現在の日付：{0}年 {1}月 {2}" },
+                { "dev.date", "年 / 月" }, { "dev.early", "上旬" }, { "dev.middle", "中旬" }, { "dev.late", "下旬" },
+                { "dev.set_date", "日付へ移動" }, { "dev.script", "原版の章" }, { "dev.goto_script", "冒頭へ移動" },
+                { "dev.search", "任務ノード" }, { "dev.refresh", "更新" }, { "dev.inactive", "[無効]" },
+                { "dev.selected", "選択：{0} · {1}。日付または章を確認してから移動してください。" },
+                { "dev.invalid_date", "年は1～9、月は1～12、有効な旬を指定してください。" },
+                { "dev.invalid_script", "この原版の章は見つかりません。移動していません。" },
+                { "dev.failed", "開発用の移動に失敗：{0}" },
                 { "entry", "活俠MOD" },
                 { "title.mod_campaign", "MOD戦役を開始" },
                 { "window", "MortalModHost — Mod メニュー（{0} で開閉）" },
@@ -246,6 +322,26 @@ namespace MortalModHost
             return new Dictionary<string, string>
             {
                 { "auto.speed", "자동 진행 속도" }, { "auto.slow", "느림" }, { "auto.standard", "보통" }, { "auto.fast", "빠름" },
+                { "dev.title", "—— 개발 테스트 ——" },
+                { "menu.title", "MOD 공방" }, { "menu.subtitle", "작품 관리와 스토리 테스트" },
+                { "menu.works", "작품 목록" }, { "menu.developer", "개발 테스트" },
+                { "menu.context_addon", "원본 ＋ MOD" }, { "menu.context_campaign", "독립 작품" }, { "menu.shortcut", "{0} 열기 / 닫기" },
+                { "dev.timeline", "원본 이벤트" }, { "dev.details", "이동 설정" },
+                { "dev.search_hint", "이벤트, 시기, 장 검색" }, { "dev.matches", "{0}개 노드" }, { "dev.no_matches", "일치하는 이벤트가 없습니다." },
+                { "dev.choose", "왼쪽 이벤트로 시기와 장을 확인하세요." }, { "dev.enable", "개발 테스트 켜기" }, { "dev.disable", "개발 테스트 끄기" },
+                { "dev.year", "년" }, { "dev.month", "월" }, { "dev.date_section", "게임 날짜" }, { "dev.chapter_section", "원본 장" },
+                { "dev.opt_in", "현재 진행 상황을 개발 테스트에 사용" },
+                { "dev.warning", "현재 모드의 진행 상황을 변경합니다. 기존 자동 저장은 유지됩니다. 이 패널은 직접 저장하지 않습니다." },
+                { "dev.history", "날짜 이동은 행동 횟수를 초기화합니다. 지난 임무나 선택을 채우지 않고 현재 조건으로 이벤트를 판정합니다. 장 이동은 원본 첫 부분부터 시작하며 과거나 출처를 만들지 않습니다." },
+                { "dev.require_free", "육성 화면에서 로딩, 대화, 일시 정지가 끝난 뒤 사용하세요." },
+                { "dev.current", "현재 날짜: {0}년 {1}월 {2}" },
+                { "dev.date", "년 / 월" }, { "dev.early", "상순" }, { "dev.middle", "중순" }, { "dev.late", "하순" },
+                { "dev.set_date", "날짜로 이동" }, { "dev.script", "원본 장" }, { "dev.goto_script", "처음으로 이동" },
+                { "dev.search", "임무 노드" }, { "dev.refresh", "새로 고침" }, { "dev.inactive", "[비활성]" },
+                { "dev.selected", "선택: {0} · {1}. 날짜 또는 장을 확인한 뒤 이동하세요." },
+                { "dev.invalid_date", "1~9년, 1~12월과 올바른 순을 입력하세요." },
+                { "dev.invalid_script", "이 원본 장이 없어 이동하지 않았습니다." },
+                { "dev.failed", "개발 이동 실패: {0}" },
                 { "entry", "활협MOD" },
                 { "title.mod_campaign", "MOD 전역 시작" },
                 { "window", "MortalModHost — Mod 메뉴（{0} 로 여닫기）" },
