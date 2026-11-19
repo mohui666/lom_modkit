@@ -49,6 +49,27 @@ pub fn build_play_bundle(
         installer.is_file(),
         "缺少 lomc.exe 安装助手，请使用完整的 Windows 编辑器目录"
     );
+    let mut files = bundle_files(runtime_dir, loader_archives)?;
+    files.insert("lomc.exe".into(), fs::read(installer)?);
+    write_bundle(project, output, files, runtime_version, None)
+}
+
+pub fn build_play_installer(
+    project: &Project,
+    output: &Path,
+    runtime_dir: &Path,
+    launcher: &Path,
+    loader_archives: &BTreeMap<String, PathBuf>,
+    runtime_version: &str,
+) -> Result<PlayBundleResult> {
+    let files = bundle_files(runtime_dir, loader_archives)?;
+    write_bundle(project, output, files, runtime_version, Some(launcher))
+}
+
+fn bundle_files(
+    runtime_dir: &Path,
+    loader_archives: &BTreeMap<String, PathBuf>,
+) -> Result<BTreeMap<String, Vec<u8>>> {
     let mut files = BTreeMap::new();
     for name in game_tools::HOST_FILES {
         let path = runtime_dir.join(name);
@@ -64,7 +85,6 @@ pub fn build_play_bundle(
             validate_loader_archive(architecture, archive)?,
         );
     }
-    files.insert("lomc.exe".into(), fs::read(installer)?);
     files.insert(
         "LICENSE.txt".into(),
         include_bytes!("../../../../LICENSE").to_vec(),
@@ -77,7 +97,7 @@ pub fn build_play_bundle(
         "LICENSE.UnityDoorstop".into(),
         include_bytes!("../../../../editor/assets/doorstop/LICENSE.UnityDoorstop").to_vec(),
     );
-    write_bundle(project, output, files, runtime_version)
+    Ok(files)
 }
 
 fn write_bundle(
@@ -85,9 +105,10 @@ fn write_bundle(
     output: &Path,
     mut files: BTreeMap<String, Vec<u8>>,
     runtime_version: &str,
+    launcher: Option<&Path>,
 ) -> Result<PlayBundleResult> {
     let mut output = output.to_path_buf();
-    output.set_extension("zip");
+    output.set_extension(if launcher.is_some() { "exe" } else { "zip" });
     let parent = output
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
@@ -108,11 +129,16 @@ fn write_bundle(
     );
     files.insert(
         "play_bundle.json".into(),
-        stable_json(&json!({"format":1,"package":package_name,"runtime_version":runtime_version}))?,
+        stable_json(
+            &json!({"format":1,"package":package_name,"runtime_version":runtime_version,
+            "name":text(&project.manifest,"name"),"version":text(&project.manifest,"version")}),
+        )?,
     );
-    files.insert("安装MOD.cmd".into(), b"@echo off\r\nchcp 65001 >nul\r\n\"%~dp0lomc.exe\" install-play-bundle \"%~dp0.\" %*\r\npause\r\n".to_vec());
-    let readme = format!("{} {}\r\n作者：{}\r\n\r\n{}\r\n\r\n这是 Windows 完整游玩包。请先安装正版《活侠传》，退出游戏。\r\n1. 将整个 ZIP 解压到一个普通文件夹。\r\n2. 双击“安装MOD.cmd”；自动找到单个 Steam 游戏目录时会直接安装，否则按提示输入包含 Mortal.exe 的目录。\r\n3. 从 Steam 启动游戏，选择原版＋MOD 或纯 MOD 中对应的作品。\r\n\r\n本包包含作品 .lommod、自有图片和音频、MortalModHost {}、NVorbis、x86/x64 BepInEx 加载组件和安装助手。玩家无需安装编辑器或另找美术素材，无需联网。原版游戏及原版立绘仍由玩家本机游戏提供。\r\n\r\n已有其它 MOD 和存档由原安装规则保留；更新同一作品时保留其启用/停用状态。安装不会启动游戏。\r\n命令行：lomc.exe install-play-bundle <本包目录> --game <游戏目录>\r\n",text(&project.manifest,"name"),text(&project.manifest,"version"),text(&project.manifest,"author"),text(&project.manifest,"description"),runtime_version);
-    files.insert("游玩说明.txt".into(), readme.into_bytes());
+    if launcher.is_none() {
+        files.insert("安装MOD.cmd".into(), b"@echo off\r\nchcp 65001 >nul\r\n\"%~dp0lomc.exe\" install-play-bundle \"%~dp0.\" %*\r\npause\r\n".to_vec());
+        let readme = format!("{} {}\r\n作者：{}\r\n\r\n{}\r\n\r\n这是 Windows 完整游玩包。请先安装正版《活侠传》，退出游戏。\r\n1. 将整个 ZIP 解压到一个普通文件夹。\r\n2. 双击“安装MOD.cmd”；自动找到单个 Steam 游戏目录时会直接安装，否则按提示输入包含 Mortal.exe 的目录。\r\n3. 从 Steam 启动游戏，选择原版＋MOD 或纯 MOD 中对应的作品。\r\n\r\n本包包含作品 .lommod、自有图片和音频、MortalModHost {}、NVorbis、x86/x64 BepInEx 加载组件和安装助手。玩家无需安装编辑器或另找美术素材，无需联网。原版游戏及原版立绘仍由玩家本机游戏提供。\r\n\r\n已有其它 MOD 和存档由原安装规则保留；更新同一作品时保留其启用/停用状态。安装不会启动游戏。\r\n命令行：lomc.exe install-play-bundle <本包目录> --game <游戏目录>\r\n",text(&project.manifest,"name"),text(&project.manifest,"version"),text(&project.manifest,"author"),text(&project.manifest,"description"),runtime_version);
+        files.insert("游玩说明.txt".into(), readme.into_bytes());
+    }
     let archive = staging.path().join("play-bundle.zip");
     let mut zip = zip::ZipWriter::new(fs::File::create(&archive)?);
     let options = zip::write::SimpleFileOptions::default()
@@ -123,13 +149,21 @@ fn write_bundle(
         zip.write_all(&bytes)?;
     }
     zip.finish()?.sync_all()?;
-    fs::rename(archive, &output)?;
+    let message = if let Some(launcher) = launcher {
+        let executable = staging.path().join("install.exe");
+        super::play_installer::append_payload(launcher, &archive, &executable)?;
+        fs::rename(executable, &output)?;
+        "一键安装包已导出；把这个 EXE 发给玩家双击运行。"
+    } else {
+        fs::rename(archive, &output)?;
+        "完整游玩包已导出；将 ZIP 发给玩家，解压后双击“安装MOD.cmd”。"
+    };
     Ok(PlayBundleResult {
         output: output.canonicalize()?,
         package_name,
         runtime_version: runtime_version.into(),
         warnings: built.warnings,
-        message: "完整游玩包已导出；将 ZIP 发给玩家，解压后双击“安装MOD.cmd”。".into(),
+        message: message.into(),
     })
 }
 
@@ -139,6 +173,13 @@ pub fn install_play_bundle(bundle: &Path, game: &Path) -> Result<Value> {
     ensure!(cfg!(windows), "游玩包安装请在 Windows 执行");
     game_tools::validate_root(game)?;
     ensure!(!game_tools::is_game_running()?, "请先退出游戏，再安装 MOD");
+    let embedded = bundle
+        .is_file()
+        .then(|| super::unpack_play_installer(bundle))
+        .transpose()?;
+    let bundle = embedded
+        .as_ref()
+        .map_or(bundle, |workspace| workspace.path());
     let metadata: Value = crate::load_json(bundle.join("play_bundle.json"))?;
     ensure!(metadata["format"] == 1, "不支持的游玩包格式");
     let name = metadata["package"]
@@ -167,6 +208,30 @@ pub fn install_play_bundle(bundle: &Path, game: &Path) -> Result<Value> {
         !version_greater(text(&manifest, "min_host_version"), &host_version),
         "随包 Host {host_version} 低于作品要求，请重新导出完整游玩包"
     );
+    let installed_runtime = game_tools::plugin_dir(game);
+    let installed_host = installed_runtime.join("MortalModHost.dll");
+    let installed_version = if installed_host.is_file() {
+        Some(game_tools::host_file_version(
+            &package::resolve_confined_file(game, &installed_host)?,
+        )?)
+    } else {
+        None
+    };
+    let reuse_host = installed_version.as_ref().is_some_and(|version| {
+        !version_greater(text(&manifest, "min_host_version"), version)
+            && installed_runtime.join("NVorbis.dll").is_file()
+    });
+    if reuse_host {
+        package::resolve_confined_file(game, &installed_runtime.join("NVorbis.dll"))?;
+    }
+    // Identify retired copies before writing. Only this plugin's GUID is eligible.
+    let installed_report = game_tools::installation_report(game)?;
+    let effective_version = if reuse_host {
+        installed_version.as_deref().unwrap()
+    } else {
+        &host_version
+    };
+    let retired = older_host_copies(game, &installed_report, &installed_host, effective_version)?;
     let architecture = game_tools::game_architecture(game)?;
     let loader = package::resolve_confined_file(
         bundle,
@@ -189,24 +254,118 @@ pub fn install_play_bundle(bundle: &Path, game: &Path) -> Result<Value> {
     if captured != snapshot {
         fs::rename(&snapshot, &captured)?;
     }
-    let windows = PathBuf::from(std::env::var_os("SystemRoot").context("缺少 SystemRoot")?);
-    let system_version = game_tools::system_version_dll(&windows, &architecture)?;
-    let doorstop = staging.path().join("doorstop.dll");
-    fs::write(&doorstop, game_tools::bundled_doorstop(&architecture)?)?;
-    game_tools::install_bepinex_archive(game, &loader)?;
-    game_tools::apply_steam_launch_fix(game, Some(&doorstop), Some(&system_version))?;
-    game_tools::install_runtime(game, &runtime)?;
-    game_tools::apply_installation_doctor_fixes(game, &runtime)?;
+    let loader_ready = game_tools::BEPINEX_FILES
+        .iter()
+        .all(|path| game.join(path).is_file())
+        && game_tools::steam_launch_fix_applied(game)?;
+    if !loader_ready {
+        let windows = PathBuf::from(std::env::var_os("SystemRoot").context("缺少 SystemRoot")?);
+        let system_version = game_tools::system_version_dll(&windows, &architecture)?;
+        let doorstop = staging.path().join("doorstop.dll");
+        fs::write(&doorstop, game_tools::bundled_doorstop(&architecture)?)?;
+        game_tools::install_bepinex_archive(game, &loader)?;
+        game_tools::apply_steam_launch_fix(game, Some(&doorstop), Some(&system_version))?;
+    }
+    if !reuse_host {
+        game_tools::install_runtime(game, &runtime)?;
+    }
+    for path in retired {
+        fs::remove_file(&path).with_context(|| format!("无法移除旧 Host：{}", path.display()))?;
+    }
+    game_tools::apply_installation_doctor_fixes(
+        game,
+        if reuse_host {
+            &installed_runtime
+        } else {
+            &runtime
+        },
+    )?;
     let target = game_tools::install_mod(game, &captured, enabled)?;
     Ok(
-        json!({"ok":true,"path":target,"enabled":enabled,"message":if enabled {"作品已安装，请从 Steam 启动《活侠传》。"} else {"作品已更新，仍保持停用；可在 MOD 管理中启用。"},"game_tested":false}),
+        json!({"ok":true,"path":target,"enabled":enabled,"reused_host":reuse_host,"message":if enabled {"作品已安装，请从 Steam 启动《活侠传》。"} else {"作品已更新，仍保持停用；可在 MOD 管理中启用。"},"game_tested":false}),
     )
+}
+
+fn older_host_copies(
+    game: &Path,
+    report: &Value,
+    active: &Path,
+    version: &str,
+) -> Result<Vec<PathBuf>> {
+    const PLUGIN_GUID: &[u8] = b"com.mohui666.mortalmodhost";
+    let canonical_active = active.canonicalize().ok();
+    let mut paths = Vec::new();
+    for relative in report["host_locations"]["mortalmodhost.dll"]
+        .as_array()
+        .into_iter()
+        .flatten()
+    {
+        let path = game.join(relative.as_str().context("旧 Host 路径无效")?);
+        if path == active {
+            continue;
+        }
+        let path = package::resolve_confined_file(game, &path)?;
+        if canonical_active.as_ref() == Some(&path) || paths.contains(&path) {
+            continue;
+        }
+        let bytes = fs::read(&path)?;
+        let known = bytes
+            .windows(PLUGIN_GUID.len())
+            .any(|window| window == PLUGIN_GUID);
+        ensure!(
+            known && version_greater(version, &game_tools::host_file_version(&path)?),
+            "游戏加载目录另有一份 Host，请核对后再安装：{}",
+            path.display()
+        );
+        paths.push(path);
+    }
+    Ok(paths)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::io::Read;
+
+    #[test]
+    fn installer_embeds_only_the_player_files_and_survives_a_certificate_table() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut project = Project::new();
+        project.manifest["id"] = json!("setup_demo");
+        project.stories.get_mut("main").unwrap()["nodes"][0]["text"] = json!("开场。");
+        // Minimal PE32+ header used to exercise the PE security directory layout.
+        let mut pe = vec![0; 512];
+        pe[..2].copy_from_slice(b"MZ");
+        pe[60..64].copy_from_slice(&64_u32.to_le_bytes());
+        pe[64..68].copy_from_slice(b"PE\0\0");
+        pe[84..86].copy_from_slice(&240_u16.to_le_bytes());
+        pe[88..90].copy_from_slice(&0x20b_u16.to_le_bytes());
+        let launcher = temp.path().join("launcher.exe");
+        fs::write(&launcher, pe).unwrap();
+        let output = temp.path().join("demo.exe");
+        write_bundle(&project, &output, BTreeMap::new(), "1.6.4", Some(&launcher)).unwrap();
+        let raw = fs::read(&output).unwrap();
+        assert_eq!(raw.len() % 8, 0);
+        let isolated = super::super::unpack_play_installer(&output).unwrap();
+        let mod_path = isolated.path().join("mods/setup_demo.lommod");
+        assert!(package::read_package(&mod_path).is_ok());
+        assert!(!isolated.path().join("lomc.exe").exists());
+        assert!(!isolated.path().join("安装MOD.cmd").exists());
+        let mut with_table = raw.clone();
+        let entry = 88 + 112 + 4 * 8;
+        with_table[entry..entry + 4].copy_from_slice(&(raw.len() as u32).to_le_bytes());
+        with_table[entry + 4..entry + 8].copy_from_slice(&8_u32.to_le_bytes());
+        with_table.extend_from_slice(&[8, 0, 0, 0, 0, 2, 2, 0]);
+        fs::write(&output, &with_table).unwrap();
+        let isolated = super::super::unpack_play_installer(&output).unwrap();
+        assert_eq!(
+            fs::read(isolated.path().join("mods/setup_demo.lommod")).unwrap(),
+            fs::read(mod_path).unwrap()
+        );
+        with_table.pop();
+        fs::write(&output, with_table).unwrap();
+        assert!(super::super::unpack_play_installer(&output).is_err());
+    }
 
     #[test]
     fn portable_package_embeds_project_art_and_does_not_walk_external_folders() {
@@ -227,6 +386,7 @@ mod tests {
             &output,
             BTreeMap::from([("runtime/MortalModHost.dll".into(), b"fixture".to_vec())]),
             "1.4.2",
+            None,
         )
         .unwrap();
         let mut zip = zip::ZipArchive::new(fs::File::open(&output).unwrap()).unwrap();
@@ -245,7 +405,7 @@ mod tests {
         assert_eq!(result.package_name, "play_demo.lommod");
         project.stories.get_mut("main").unwrap()["nodes"][0]["text"] = json!("在这里填写对白");
         let before = fs::read(&output).unwrap();
-        assert!(write_bundle(&project, &output, BTreeMap::new(), "1.4.2").is_err());
+        assert!(write_bundle(&project, &output, BTreeMap::new(), "1.4.2", None).is_err());
         assert_eq!(fs::read(output).unwrap(), before);
     }
 

@@ -712,16 +712,21 @@ impl ToolsPanel {
     }
     pub fn export_play_bundle(&mut self, project: &Project) {
         let directory = self.export_directory.clone();
-        let _ = self.export_play_bundle_in(project, directory.as_deref());
+        let _ = self.export_play_bundle_in(project, directory.as_deref(), crate::play_bundle::Format::Zip);
     }
     pub fn export_play_bundle_in(
         &mut self,
         project: &Project,
         directory: Option<&std::path::Path>,
+        format: crate::play_bundle::Format,
     ) -> Option<PathBuf> {
+        let (extension, suffix, job_title) = match format {
+            crate::play_bundle::Format::Zip => ("zip", "play.zip", "导出完整游玩包"),
+            crate::play_bundle::Format::Installer => ("exe", "setup.exe", "导出一键安装包"),
+        };
         if self.game.join("Mortal.exe").is_file() {
             if let Err(error) = game_tools::matching_installed_mod(&self.game, &project.manifest) {
-                self.result::<Value>("导出完整游玩包", Err(error));
+                self.result::<Value>(job_title, Err(error));
                 return None;
             }
         }
@@ -735,24 +740,30 @@ impl ToolsPanel {
                 .filter(|directory| directory.is_dir())
                 .or_else(|| crate::file_dialog::project_directory(project)),
         )
-        .set_title(crate::i18n::key("common.tools.save_play_pack"));
+        .set_title(crate::i18n::key(if format == crate::play_bundle::Format::Installer {
+            "usability.export.installer_title"
+        } else {
+            "common.tools.save_play_pack"
+        }));
         if let Some(output) = dialog
-            .add_filter("ZIP", &["zip"])
+            .add_filter(extension.to_ascii_uppercase(), &[extension])
             .set_file_name(format!(
-                "{}-play.zip",
+                "{}-{suffix}",
                 project.manifest["id"].as_str().unwrap_or("mod")
             ))
             .save_file()
         {
+            let output = output.with_extension(extension);
             let selected_output = output.clone();
             let project = project.clone();
             let runtime = self.runtime.clone();
             let cancel = self.cancel.clone();
-            self.background_progress("导出完整游玩包", move |sender| {
+            self.background_progress(job_title, move |sender| {
                 crate::play_bundle::export(
                     &project,
                     &output,
                     &runtime,
+                    format,
                     &cancel,
                     move |message, current| {
                         let _ = sender.send(JobEvent::Progress(

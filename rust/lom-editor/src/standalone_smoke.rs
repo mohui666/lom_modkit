@@ -57,6 +57,7 @@ pub fn run(project: &Path, game: &Path, output: &Path) -> Result<()> {
         &project,
         &output.join("play.zip"),
         &runtime,
+        crate::play_bundle::Format::Zip,
         &AtomicBool::new(false),
         |message, done| {
             println!(

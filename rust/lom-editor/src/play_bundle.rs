@@ -1,4 +1,4 @@
-//! A complete, offline player ZIP, prepared from the current unsaved project.
+//! Offline player packages prepared from the current unsaved project.
 use anyhow::{ensure, Context, Result};
 use lom_core::{game_tools, project::Project, release};
 use serde_json::Value;
@@ -8,15 +8,25 @@ use std::{
     sync::atomic::{AtomicBool, Ordering},
 };
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Format {
+    Zip,
+    Installer,
+}
+
 pub fn export(
     project: &Project,
     output: &Path,
     runtime: &Path,
+    format: Format,
     cancel: &AtomicBool,
     mut progress: impl FnMut(&str, u64),
 ) -> Result<Value> {
     ensure!(cfg!(windows), "完整游玩包请在 Windows 版编辑器导出");
-    let installer = crate::components::cli()?;
+    let launcher = match format {
+        Format::Zip => crate::components::cli()?,
+        Format::Installer => crate::components::installer()?,
+    };
     for name in game_tools::HOST_FILES {
         ensure!(
             runtime.join(name).is_file(),
@@ -56,8 +66,14 @@ pub fn export(
     }
     ensure!(!cancel.load(Ordering::Relaxed), "已取消导出游玩包");
     progress("正在编译作品并打包自有素材…", 2);
-    let result =
-        release::build_play_bundle(project, output, runtime, &installer, &archives, &version)?;
-    progress("完整游玩包已导出", 3);
+    let result = match format {
+        Format::Zip => {
+            release::build_play_bundle(project, output, runtime, &launcher, &archives, &version)?
+        }
+        Format::Installer => {
+            release::build_play_installer(project, output, runtime, &launcher, &archives, &version)?
+        }
+    };
+    progress(&result.message, 3);
     Ok(serde_json::to_value(result)?)
 }

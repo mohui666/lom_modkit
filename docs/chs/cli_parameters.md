@@ -31,8 +31,8 @@
 | `release PATH` | -o 输出目录必填 | 本地发布文件；不上传或创建远端版本 |
 | `migrate JSON` | --kind story/manifest/content，默认story | 已有迁移入口；可能修改原文件并保留其旧字节 |
 | `content-inspect/content-import CONTENT` | 可选 --library 内容库目录 | 检查／导入 .lomcontent；import 写入明确的素材库 |
-| `play-bundle PATH` | -o ZIP、--runtime-dir、--loader-x86 ZIP、--loader-x64 ZIP | 生成完整游玩包，参数均需提供 |
-| `install-play-bundle DIRECTORY` | --game 游戏目录；省略可定位或询问 | 安装已解压游玩包，会写入游戏目录 |
+| `play-bundle PATH` | -o ZIP 或 EXE、--runtime-dir、--loader-x86 ZIP、--loader-x64 ZIP | 生成游玩包，Windows EXE 使用随编辑器构建的安装器 |
+| `install-play-bundle PATH` | --game 游戏目录；省略可定位或询问 | 安装已解压的 ZIP 游玩包或一键安装 EXE，会写入游戏目录 |
 | `detect-watermark IMAGE` | 无 | 图片来源水印检测 |
 | `detect-watermark-video VIDEO` | --ffmpeg 路径、--interval 秒默认2、--max-frames 默认12 | 视频检测，需可用 FFmpeg |
 

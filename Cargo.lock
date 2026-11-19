@@ -2206,6 +2206,7 @@ version = "1.6.4"
 dependencies = [
  "anyhow",
  "lom-core",
+ "rfd",
  "serde_json",
  "tempfile",
 ]

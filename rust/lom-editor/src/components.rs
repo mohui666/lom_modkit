@@ -199,6 +199,9 @@ pub fn runtime() -> Option<PathBuf> {
 pub fn cli() -> Result<PathBuf> {
     file(if cfg!(windows) { "lomc.exe" } else { "lomc" })
 }
+pub fn installer() -> Result<PathBuf> {
+    file("lom-install.exe")
+}
 pub fn extractor() -> Result<PathBuf> {
     file(if cfg!(windows) {
         "asset-extractor/lom-asset-extractor.exe"

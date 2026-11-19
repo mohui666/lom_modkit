@@ -175,7 +175,7 @@ impl App {
             self.usability.export_bundle = bundle;
             self.save_usability_preferences();
             if bundle {
-                self.export_play_bundle();
+                self.export_player_package(crate::play_bundle::Format::Installer);
             } else {
                 self.export();
             }

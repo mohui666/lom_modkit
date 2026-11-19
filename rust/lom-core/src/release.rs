@@ -2,6 +2,7 @@
 mod diagnostic;
 mod flow;
 mod play_bundle;
+mod play_installer;
 mod stage;
 mod statistics;
 use crate::project::Project;
@@ -12,8 +13,10 @@ pub use diagnostic::{
     MAX_STRING_CHARS,
 };
 pub use play_bundle::{
-    build_play_bundle, install_play_bundle, validate_loader_archive, PlayBundleResult,
+    build_play_bundle, build_play_installer, install_play_bundle, validate_loader_archive,
+    PlayBundleResult,
 };
+pub use play_installer::unpack_play_installer;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
