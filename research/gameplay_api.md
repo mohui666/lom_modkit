@@ -1,5 +1,13 @@
 # Gameplay API 实证矩阵
 
+## 2026-11-19 原版剧情检索、开发跳转和移动高度
+
+实时核对 `LuaManager.ExecuteLuaScript` 从 `Story/ChineseTraditional/<ScriptName>` 加载本机 Lua。检索调用 `LeanLocalizationResolver.GetStoryText(string)`，用当前游戏语言读取 `Story/<key>`。演出入口 `LuaManager.GetStoryText` 还会设置已读颜色并写日志，检索不调用该入口。`GameOverController.Start` 按场景键查 `LibrarySystem.Dead`，用 `LibraryItemData.GetTitleKey/GetDescKey` 读标题和描述，另会记录解锁。检索只读夺命谱条目、原版脚本的 `ChangeScene("GameOver", id, next)` 和 `StoryMainUI.ShowPicture/ShowBigPicture` 资源键。本机夺命谱条目的 `LibraryItemData.Picture` 均为空。
+
+日期应用复用 `PlayerStatManagerData.SetGameTime/ResetActionCount/SetNewRound`。日期加地点先执行原版 `MissionManagerData.UpdateCheckMissions/HasAnyMissionTrigger`，进入自由场景且 `FreeManager.EnableHotKey` 就绪后，按 `PositionController._position` 找到地点并调用 `OnPositionClick()`。直达章节通过 `SetStoryScript/SetStartScript/LoadStory` 进入原版资源的正式脚本名，实际 `SetNextScript` 仍提供前后章关系。
+
+`StoryCharacterController.MoveOffset/MoveOffsetCoroutine` 将持有器作为当前 `State.position`。`PortraitController.SetupPortrait` 使用起始站位重新摆放持有器，`DoMoveTween` 移到目标站位。Host 对编辑器既有的人物移动 `PortraitController.Show(Table)` 调用保留持有器相对站位的纵向差，随后用 `LTDescr.setTo(Vector3)` 调整原版移动补间终点。
+
 ## 2026-11-16 开发工具界面与条件说明
 
 实时核对 `MissionCheckData`、`MissionData`、`ConditionResultItem`、`StatCompareItem`、`StatGroupVariable`、`StatValueReference`、`StatCompareType`、`LogicOperatorType` 与 `FlagData`。任务 `_desc` 为原始开发备注，没有本地化显示属性。条件显示按真实比较枚举转为数学符号，保留 AND/OR 分组；常数只从单元素组的 `_constant/_negative` 与 `_groupType` 读取，旗标采用其真实资源名称和 `FlagData.DevNote`，另保留变量组原名供对照。`StatValueReference.GetValue()` 可抽取随机值或执行条件，`StatGroupVariable.GetResult()` 会调用它们，因此界面不调用这些求值入口。多语言仅影响 Host 工具文案与显示投影，不改变 `I18n.StoryLocale`、任务键或脚本标识。

@@ -2,7 +2,7 @@
 
 MortalModHost 是 BepInEx 6 / Harmony 宿主，负责加载 `.lommod`、把编译后的 Lua 接入《活侠传》现有 Fungus/LuaManager 流程，并承载自定义媒体、战役入口、作品存档隔离和游戏原生视频生成。
 
-当前源码 Host 版本为 **1.6.2**。`addon/sandbox` 作品由 `ScenarioConfig/ScenarioEngine/ScenarioRuntime` 负责配置、纯调度与游戏适配；事件、跨事件任务和统一结算由独立事件配置管理，章节也可直接调整时间、属性、好感等状态。从 v1.3.4 起，编辑器、CLI 和 Host 使用相同的发行版本号；旧作品的最低兼容版本条件不变。完整契约见 [事件与任务](../../docs/chs/events_and_tasks.md)，版本更新见 [GitHub Releases](https://github.com/mohui666/lom_modkit/releases)。
+当前源码 Host 版本为 **1.6.3**。`addon/sandbox` 作品由 `ScenarioConfig/ScenarioEngine/ScenarioRuntime` 负责配置、纯调度与游戏适配；事件、跨事件任务和统一结算由独立事件配置管理，章节也可直接调整时间、属性、好感等状态。从 v1.3.4 起，编辑器、CLI 和 Host 使用相同的发行版本号；旧作品的最低兼容版本条件不变。完整契约见 [事件与任务](../../docs/chs/events_and_tasks.md)，版本更新见 [GitHub Releases](https://github.com/mohui666/lom_modkit/releases)。
 
 ## 接口原则
 
@@ -23,7 +23,7 @@ MortalModHost 是 BepInEx 6 / Harmony 宿主，负责加载 `.lommod`、把编�
 
 ## 游戏内开发工具
 
-Host 1.6.2 的 F8「MOD 工坊」提供原版事件目录、可读触发条件、前后任务参照及显式授权的日期／章节跳转。普通「原版＋MOD」进度和允许原版事件的隔离测试可使用；不重建早期历史或强制命中事件。工具语言由 `General.ToolsLanguage` 独立保存，空值跟随游戏，其他值为 `chs/cht/ja/ko`，不改变作品对白语言。操作见 [F8 工坊](../../docs/chs/software_usage.md#游戏内-mod-工坊与开发工具)与[开发跳转](../../docs/chs/events_and_tasks.md#游戏内开发者跳转)。
+Host 1.6.3 的 F8「MOD 工坊」通过本机资源检索原版对白、剧情和死亡 CG。普通「原版＋MOD」进度和允许原版事件的隔离测试可显式启用开发跳转，按选定日期进入章节或访问地点。工具语言由 `General.ToolsLanguage` 独立保存，空值跟随游戏，其他值为 `chs/cht/ja/ko`，不改变作品对白语言。操作见 [F8 工坊](../../docs/chs/software_usage.md#游戏内-mod-工坊与开发工具)与[开发跳转](../../docs/chs/events_and_tasks.md#游戏内开发者跳转)。
 
 决斗专用背景按原版 `CombatLevel.BackImage` 引用读取，接受目录中的 `combat:<Sprite.name>`；旧场景背景映射继续保留。同名决斗人物结合剧情立绘关联解析，临时关卡不继承原版事件、胜负或条件结果旗标。作者字段与最低版本见 [格式契约](../../docs/chs/mod_format.md)。
 

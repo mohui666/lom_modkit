@@ -5,6 +5,8 @@ using Fungus;
 using HarmonyLib;
 using Mortal.Story;
 using UnityEngine;
+using DataType = MoonSharp.Interpreter.DataType;
+using Table = MoonSharp.Interpreter.Table;
 
 namespace MortalModHost
 {
@@ -22,6 +24,13 @@ namespace MortalModHost
 
         private static MonoBehaviour _host;
         private static readonly Dictionary<Character, Actor> Actors = new Dictionary<Character, Actor>();
+        private static NamedMove _namedMove;
+
+        internal sealed class NamedMove
+        {
+            internal StoryCharacterController Character;
+            internal float Height;
+        }
 
         internal static void Init(MonoBehaviour host) { _host = host; }
 
@@ -71,13 +80,15 @@ namespace MortalModHost
             Actor actor = Get(character);
             StopMotion(actor);
             CharacterMovementRuntime.CancelStageMovement(character.State.holder);
+            float height = CarriedHeight(actor);
+            Vector3 lift = Vector3.up * height;
             actor.Slot = destination;
-            if (origin != null) character.State.holder.position = origin.position;
-            if (duration > 0f) actor.Motion = _host.StartCoroutine(MoveWorld(actor, destination, duration));
-            else { character.State.holder.position = destination.position; character.State.position = destination; }
+            if (origin != null) character.State.holder.position = origin.position + lift;
+            if (duration > 0f) actor.Motion = _host.StartCoroutine(MoveWorld(actor, destination, lift, duration));
+            else FinishMove(actor, destination, lift);
         }
 
-        private static IEnumerator MoveWorld(Actor actor, RectTransform destination, float duration)
+        private static IEnumerator MoveWorld(Actor actor, RectTransform destination, Vector3 lift, float duration)
         {
             RectTransform holder = actor.Character.State.holder;
             Vector3 start = holder.position;
@@ -85,11 +96,61 @@ namespace MortalModHost
             while (elapsed < duration && holder != null && destination != null)
             {
                 elapsed += Time.deltaTime;
-                holder.position = Vector3.Lerp(start, destination.position, Mathf.Clamp01(elapsed / duration));
+                holder.position = Vector3.Lerp(start, destination.position + lift, Mathf.Clamp01(elapsed / duration));
                 yield return null;
             }
-            if (holder != null && destination != null) { holder.position = destination.position; actor.Character.State.position = destination; }
+            if (holder != null && destination != null) FinishMove(actor, destination, lift);
             actor.Motion = null;
+        }
+
+        private static void FinishMove(Actor actor, RectTransform destination, Vector3 lift)
+        {
+            var state = actor.Character.State;
+            state.holder.position = destination.position + lift;
+            state.position = lift.y == 0f ? destination : state.holder;
+        }
+
+        private static float CarriedHeight(Actor actor)
+        {
+            var state = actor.Character.State;
+            // MoveOffset and absolute layout both mark the holder as the current position.
+            return state.holder != null && state.position == state.holder && actor.Slot != null
+                ? state.holder.position.y - actor.Slot.position.y : 0f;
+        }
+
+        internal static NamedMove BeginNamedMove(Table table)
+        {
+            NamedMove previous = _namedMove;
+            _namedMove = null;
+            // Released editors emit this movement-only stage.show call. An explicit
+            // show (including one at the same slot) still resets the layout position.
+            if (ModOverlay.CurrentPackage == null || table.Get("useDefaultSettings").Type != DataType.Boolean
+                || table.Get("useDefaultSettings").Boolean || table.Get("moveDuration").Type != DataType.Number
+                || table.Get("fromPosition").Type != DataType.String || table.Get("toPosition").Type != DataType.String
+                || !table.Get("portrait").IsNil() || !table.Get("facing").IsNil() || !table.Get("fadeDuration").IsNil()
+                || !table.Get("display").IsNil() || !table.Get("shiftIntoPlace").IsNil()) return previous;
+            var character = table.Get("character").ToObject<Character>() as StoryCharacterController;
+            Actor actor;
+            if (character == null || character.State == null || !character.State.onScreen
+                || !Actors.TryGetValue(character, out actor)) return previous;
+            CharacterShockRuntime.Forget(character.State.holder);
+            float height = CarriedHeight(actor);
+            if (height != 0f) _namedMove = new NamedMove { Character = character, Height = height };
+            return previous;
+        }
+
+        internal static void FinishNamedMove(NamedMove previous, bool completed)
+        {
+            NamedMove current = _namedMove;
+            _namedMove = previous;
+            if (completed && current != null) current.Character.State.position = current.Character.State.holder;
+        }
+
+        internal static void AdjustNamedTween(PortraitOptions options)
+        {
+            if (_namedMove == null || options.character != _namedMove.Character) return;
+            foreach (LTDescr tween in LeanTween.descriptions(options.character.State.holder.gameObject))
+                if (tween.type == TweenAction.MOVE) tween.setTo(tween.to + Vector3.up * _namedMove.Height);
         }
 
         private static Actor Get(StoryCharacterController character)
@@ -118,6 +179,9 @@ namespace MortalModHost
         {
             Actor actor;
             if (options.character != null && Actors.TryGetValue(options.character, out actor)) ApplyScale(actor);
+            if (_namedMove != null && options.character == _namedMove.Character
+                && options.fromPosition != options.character.State.holder)
+                options.character.State.holder.position += Vector3.up * _namedMove.Height;
         }
 
         internal static void BeforeOffset(StoryCharacterController character)
@@ -236,6 +300,25 @@ namespace MortalModHost
             }
             Actors.Clear();
         }
+    }
+
+    [HarmonyPatch(typeof(PortraitController), "Show", new[] { typeof(Table) })]
+    internal static class CharacterNamedMovePatch
+    {
+        private static void Prefix(Table optionsTable, out CharacterLayoutRuntime.NamedMove __state)
+        { __state = CharacterLayoutRuntime.BeginNamedMove(optionsTable); }
+
+        private static Exception Finalizer(Exception __exception, CharacterLayoutRuntime.NamedMove __state)
+        {
+            CharacterLayoutRuntime.FinishNamedMove(__state, __exception == null);
+            return __exception;
+        }
+    }
+
+    [HarmonyPatch(typeof(PortraitController), "DoMoveTween", new[] { typeof(PortraitOptions) })]
+    internal static class CharacterNamedMoveTweenPatch
+    {
+        private static void Postfix(PortraitOptions options) { CharacterLayoutRuntime.AdjustNamedTween(options); }
     }
 
     [HarmonyPatch(typeof(PortraitController), "SetupPortrait", new[] { typeof(PortraitOptions) })]

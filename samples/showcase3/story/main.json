@@ -253,11 +253,19 @@
       "type": "offset",
       "character": "player",
       "x": 12,
-      "y": -4,
+      "y": -90,
       "duration": 0.25,
       "absolute": true,
       "scale": 112.5,
-      "goto": "shock1"
+      "goto": "move_with_height"
+    },
+    {
+      "id": "move_with_height",
+      "type": "move",
+      "character": "player",
+      "from": "M",
+      "to": "RM1",
+      "duration": 0.7
     },
     {
       "id": "shock1",

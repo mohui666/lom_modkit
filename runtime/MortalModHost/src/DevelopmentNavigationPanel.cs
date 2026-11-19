@@ -20,7 +20,8 @@ namespace MortalModHost
         private static string _filterLocale;
         private static readonly Dictionary<DevelopmentEvent, string> SearchEntries = new Dictionary<DevelopmentEvent, string>();
         private static readonly string[] KindKeys = { "dev.all", "dev.main", "dev.side" };
-        private static readonly string[] PaneKeys = { "dev.node_details", "dev.jump_test", "dev.activity" };
+        private static readonly string[] PaneKeys = { "dev.node_details", "dev.story_search", "dev.jump_test", "dev.activity" };
+        private const int StorySearchPane = 1, JumpPane = 2, ActivityPane = 3;
 
         private static void ResetPanel()
         {
@@ -28,6 +29,7 @@ namespace MortalModHost
             _lastRound = null; _filterText = null; _detailHeight = 800;
             _measuredRows = null;
             SearchEntries.Clear(); _filterLocale = null;
+            ResetStorySearch();
         }
 
         internal static void RefreshPresentation()
@@ -235,13 +237,13 @@ namespace MortalModHost
         private static bool DrawDetails(Rect area, bool canJump)
         {
             GUI.Box(area, GUIContent.none, ModMenuTheme.Card);
-            float tab = (area.width - 40) / 3;
-            for (int i = 0; i < 3; i++)
+            float tab = (area.width - 28 - 6 * (PaneKeys.Length - 1)) / PaneKeys.Length;
+            for (int i = 0; i < PaneKeys.Length; i++)
                 if (GUI.Button(new Rect(area.x + 14 + i * (tab + 6), area.y + 12, tab, 34), I18n.MenuT(PaneKeys[i]),
                     _pane == i ? ModMenuTheme.SelectedRow : GUI.skin.button)) ChangePane(i);
             ModMenuTheme.RuleAt(area.x + 14, area.y + 58, area.width - 28);
-            bool jumpPane = _pane == 1;
-            string status = _pane == 2 && !_messageIsError ? "" : _message;
+            bool jumpPane = _pane == JumpPane;
+            string status = _pane == ActivityPane && !_messageIsError ? "" : _message;
             GUIStyle statusStyle = _messageIsError ? ModMenuTheme.Notice : ModMenuTheme.Muted;
             float statusHeight = status.Length == 0 ? 0 : ModMenuTheme.LabelHeight(status, statusStyle, area.width - 56) + 20;
             float footerHeight = (jumpPane ? 62 : 0) + statusHeight;
@@ -251,7 +253,8 @@ namespace MortalModHost
             float y = 0;
             bool started = false;
             if (_pane == 0) DrawNodeDetails(width, ref y);
-            else if (_pane == 1) DrawJump(width, ref y, canJump);
+            else if (jumpPane) DrawJump(width, ref y, canJump);
+            else if (_pane == StorySearchPane) DrawStorySearch(width, ref y);
             else DrawHistory(width, ref y);
             _detailHeight = y + 14;
             GUI.EndScrollView();
@@ -266,12 +269,16 @@ namespace MortalModHost
                 ModMenuTheme.RuleAt(area.x + 14, area.yMax - 63, area.width - 28);
                 bool previous = GUI.enabled;
                 int year, month;
-                bool valid = _jumpTab == 0 ? DraftDate(out year, out month) : VanillaStoryPatch.ValidTarget((_script ?? "").Trim());
+                bool dateValid = DraftDate(out year, out month);
+                bool valid = _jumpTab == 0 ? dateValid : VanillaStoryPatch.ValidTarget(_script.Trim()) && (!_syncChapterDate || dateValid);
+                PositionType place = _visitPlace ? _draftPlace : PositionType.無;
                 GUI.enabled = previous && canJump && valid;
                 if (GUI.Button(new Rect(area.x + 16, area.yMax - 52, area.width - 32, 40),
-                    I18n.MenuT(_jumpTab == 0 ? "dev.set_date" : "dev.goto_script"), ModMenuTheme.Primary))
+                    I18n.MenuT(_jumpTab == 0 ? (place == PositionType.無 ? "dev.set_date" : "dev.visit_on_date")
+                        : (_syncChapterDate ? "dev.goto_script_date" : "dev.goto_script")), ModMenuTheme.Primary))
                 {
-                    if (_jumpTab == 0) { DraftDate(out year, out month); started = Run(() => SetDate(year, month, _stage)); }
+                    if (_jumpTab == 0) started = Run(() => SetDateAndPlace(year, month, _stage, place));
+                    else if (_syncChapterDate) started = Run(() => GoToScriptAtDate(_script, year, month, _stage));
                     else started = Run(() => GoToScript(_script));
                 }
                 GUI.enabled = previous;
@@ -319,7 +326,7 @@ namespace MortalModHost
                 y += 24;
                 Paragraph(ref y, width, I18n.MenuT("dev.choose_node"), ModMenuTheme.Heading);
                 Paragraph(ref y, width, I18n.MenuT("dev.choose_help"), ModMenuTheme.Muted, 22);
-                if (GUI.Button(new Rect(0, y, width, 38), I18n.MenuT("dev.manual_jump"))) ChangePane(1);
+                if (GUI.Button(new Rect(0, y, width, 38), I18n.MenuT("dev.manual_jump"))) ChangePane(JumpPane);
                 y += 46; return;
             }
             Paragraph(ref y, width, Display(_selected.Title), ModMenuTheme.Heading);
@@ -330,9 +337,14 @@ namespace MortalModHost
                 _selected.Active ? ModMenuTheme.QuietChip : ModMenuTheme.ErrorChip);
             y += 39;
             if (GUI.Button(new Rect(0, y, (width - 8) / 2, 32), I18n.MenuT("dev.prepare_date"), ModMenuTheme.Link))
-            { if (UseEventDate()) { _jumpTab = 0; ChangePane(1); } }
+            {
+                UseEventDate();
+                _draftPlace = EventPlace(_selected);
+                _visitPlace = _draftPlace != PositionType.無;
+                _jumpTab = 0; ChangePane(JumpPane);
+            }
             if (GUI.Button(new Rect((width + 8) / 2, y, (width - 8) / 2, 32), I18n.MenuT("dev.prepare_script"), ModMenuTheme.Link))
-            { _script = _selected.Script; _jumpTab = 1; ChangePane(1); }
+            { PrepareChapter(_selected.Script, _selected); _jumpTab = 1; ChangePane(JumpPane); }
             y += 48;
             MetadataPair(ref y, width, I18n.MenuT("dev.time_range"), DisplayWhen(_selected), I18n.MenuT("dev.place"), Display(_selected.Place));
             MetadataPair(ref y, width, I18n.MenuT("dev.mission_key"), _selected.Series + " / " + _selected.Key, I18n.MenuT("dev.script"), _selected.Script);
@@ -375,13 +387,26 @@ namespace MortalModHost
             y += 6;
         }
 
-        private static bool UseEventDate()
+        private static bool SetEventDate(DevelopmentEvent row)
         {
             int year, month, stage;
-            if (_selected == null || !_selected.FromRound.HasValue
-                || !DevelopmentEventCatalog.TryDate(_selected.FromRound.Value, out year, out month, out stage))
-            { _message = I18n.MenuT("dev.no_exact_date"); _messageIsError = true; return false; }
-            SetDraftDate(year, month, stage); _message = ""; _messageIsError = false; return true;
+            if (row == null || !row.FromRound.HasValue
+                || !DevelopmentEventCatalog.TryDate(row.FromRound.Value, out year, out month, out stage)) return false;
+            SetDraftDate(year, month, stage);
+            return true;
+        }
+
+        private static void UseEventDate()
+        {
+            _messageIsError = !SetEventDate(_selected);
+            _message = _messageIsError ? I18n.MenuT("dev.no_exact_date") : "";
+        }
+
+        private static PositionType EventPlace(DevelopmentEvent row)
+        {
+            PositionType place;
+            return row != null && Enum.TryParse(row.Place, out place) && Enum.IsDefined(typeof(PositionType), place)
+                ? place : PositionType.無;
         }
 
         private static bool DraftDate(out int year, out int month)
@@ -402,51 +427,65 @@ namespace MortalModHost
             if (GUI.Button(new Rect(0, y, half, 36), I18n.MenuT("dev.date_section"), _jumpTab == 0 ? ModMenuTheme.SelectedRow : GUI.skin.button)) _jumpTab = 0;
             if (GUI.Button(new Rect(half + 8, y, half, 36), I18n.MenuT("dev.chapter_section"), _jumpTab == 1 ? ModMenuTheme.SelectedRow : GUI.skin.button)) _jumpTab = 1;
             y += 46;
-            bool previous = GUI.enabled;
-            if (_jumpTab == 0)
+            if (_jumpTab == 1)
             {
-                GUI.Label(new Rect(0, y, 74, 21), I18n.MenuT("dev.year"), ModMenuTheme.Caption);
-                GUI.Label(new Rect(90, y, 74, 21), I18n.MenuT("dev.month"), ModMenuTheme.Caption); y += 22;
-                _year = GUI.TextField(new Rect(0, y, 74, 38), _year, 3);
-                _month = GUI.TextField(new Rect(90, y, 74, 38), _month, 3);
-                GUI.Label(new Rect(182, y + 8, width - 182, 26), I18n.MenuT("dev.date_bounds"), ModMenuTheme.Single); y += 46;
-                float segment = (width - 12) / 3;
-                for (int i = 0; i < 3; i++)
-                    if (GUI.Button(new Rect(i * (segment + 6), y, segment, 34), I18n.MenuT(StageKeys[i]), _stage == i + 1 ? ModMenuTheme.SelectedRow : GUI.skin.button)) _stage = i + 1;
-                y += 42;
-                int year, month;
-                bool valid = DraftDate(out year, out month);
-                int round = valid ? DevelopmentEventCatalog.DateRound(year, month, _stage) : -1;
-                GUI.enabled = previous && valid && round > 0;
-                if (GUI.Button(new Rect(0, y, segment, 32), I18n.MenuT("dev.previous_period"), ModMenuTheme.Link)) MoveDraft(round - 1);
-                GUI.enabled = previous;
-                if (GUI.Button(new Rect(segment + 6, y, segment, 32), I18n.MenuT("dev.use_current"), ModMenuTheme.Link))
-                { var time = PlayerStatManagerData.Instance.GameTime; SetDraftDate(time.Year, time.Month, (int)time.Stage); }
-                GUI.enabled = previous && valid && round < 323;
-                if (GUI.Button(new Rect(2 * (segment + 6), y, segment, 32), I18n.MenuT("dev.next_period"), ModMenuTheme.Link)) MoveDraft(round + 1);
-                GUI.enabled = previous; y += 40;
+                Paragraph(ref y, width, I18n.MenuT("dev.script"), ModMenuTheme.Caption, 6);
+                string script = GUI.TextField(new Rect(0, y, width, 38), _script); y += 50;
+                if (script != _script) { _script = script; _syncChapterDate = false; }
                 if (_selected != null)
                 {
-                    if (GUI.Button(new Rect(0, y, width, 32), I18n.MenuT("dev.use_node_date"), ModMenuTheme.Link)) UseEventDate();
+                    if (GUI.Button(new Rect(0, y, width, 32), I18n.MenuT("dev.use_node_script"), ModMenuTheme.Link))
+                        PrepareChapter(_selected.Script, _selected);
                     y += 40;
                 }
-                // Re-evaluate after quick-date buttons have changed the draft.
-                valid = DraftDate(out year, out month);
-                Paragraph(ref y, width, I18n.MenuT(valid ? "dev.date_hint" : "dev.invalid_date"), valid ? ModMenuTheme.Caption : ModMenuTheme.Notice, 18);
+                _syncChapterDate = GUI.Toggle(new Rect(0, y, width, 30), _syncChapterDate, I18n.MenuT("dev.sync_chapter_date"));
+                y += 37;
+                if (_syncChapterDate) DrawDateFields(width, ref y);
+                Paragraph(ref y, width, I18n.MenuT("dev.script_hint"), ModMenuTheme.Caption, 20);
             }
             else
             {
-                Paragraph(ref y, width, I18n.MenuT("dev.script"), ModMenuTheme.Caption, 6);
-                _script = GUI.TextField(new Rect(0, y, width, 38), _script); y += 50;
-                if (_selected != null)
+                DrawDateFields(width, ref y);
+                var place = _draftPlace;
+                if (place != PositionType.無)
                 {
-                    if (GUI.Button(new Rect(0, y, width, 32), I18n.MenuT("dev.use_node_script"), ModMenuTheme.Link)) _script = _selected.Script;
-                    y += 45;
+                    _visitPlace = GUI.Toggle(new Rect(0, y, width, 30), _visitPlace, I18n.MenuT("dev.selected_place", Display(place.ToString())));
+                    y += 37;
                 }
-                Paragraph(ref y, width, I18n.MenuT("dev.script_hint"), ModMenuTheme.Caption, 20);
+                Paragraph(ref y, width, I18n.MenuT(_visitPlace && place != PositionType.無 ? "dev.visit_place_hint" : "dev.date_hint"), ModMenuTheme.Caption, 18);
             }
-            GUI.enabled = previous;
             if (!canJump) Paragraph(ref y, width, I18n.MenuT("dev.enable_hint"), ModMenuTheme.Notice);
+        }
+
+        private static void DrawDateFields(float width, ref float y)
+        {
+            bool previous = GUI.enabled;
+            GUI.Label(new Rect(0, y, 74, 21), I18n.MenuT("dev.year"), ModMenuTheme.Caption);
+            GUI.Label(new Rect(90, y, 74, 21), I18n.MenuT("dev.month"), ModMenuTheme.Caption); y += 22;
+            _year = GUI.TextField(new Rect(0, y, 74, 38), _year, 3);
+            _month = GUI.TextField(new Rect(90, y, 74, 38), _month, 3);
+            GUI.Label(new Rect(182, y + 8, width - 182, 26), I18n.MenuT("dev.date_bounds"), ModMenuTheme.Single); y += 46;
+            float segment = (width - 12) / 3;
+            for (int i = 0; i < 3; i++)
+                if (GUI.Button(new Rect(i * (segment + 6), y, segment, 34), I18n.MenuT(StageKeys[i]), _stage == i + 1 ? ModMenuTheme.SelectedRow : GUI.skin.button)) _stage = i + 1;
+            y += 42;
+            int year, month;
+            bool valid = DraftDate(out year, out month);
+            int round = valid ? DevelopmentEventCatalog.DateRound(year, month, _stage) : -1;
+            GUI.enabled = previous && valid && round > 0;
+            if (GUI.Button(new Rect(0, y, segment, 32), I18n.MenuT("dev.previous_period"), ModMenuTheme.Link)) MoveDraft(round - 1);
+            GUI.enabled = previous;
+            if (GUI.Button(new Rect(segment + 6, y, segment, 32), I18n.MenuT("dev.use_current"), ModMenuTheme.Link))
+            { var time = PlayerStatManagerData.Instance.GameTime; SetDraftDate(time.Year, time.Month, (int)time.Stage); }
+            GUI.enabled = previous && valid && round < 323;
+            if (GUI.Button(new Rect(2 * (segment + 6), y, segment, 32), I18n.MenuT("dev.next_period"), ModMenuTheme.Link)) MoveDraft(round + 1);
+            GUI.enabled = previous; y += 40;
+            if (_selected != null)
+            {
+                if (GUI.Button(new Rect(0, y, width, 32), I18n.MenuT("dev.use_node_date"), ModMenuTheme.Link)) UseEventDate();
+                y += 40;
+            }
+            if (!DraftDate(out year, out month)) Paragraph(ref y, width, I18n.MenuT("dev.invalid_date"), ModMenuTheme.Notice, 18);
         }
 
         private static void MoveDraft(int round)
@@ -458,15 +497,21 @@ namespace MortalModHost
             if (_history.Count == 0) { Paragraph(ref y, width, I18n.MenuT("dev.no_activity"), ModMenuTheme.Body); return; }
             foreach (var record in _history)
             {
-                string target = record.Script != null ? I18n.MenuT("dev.script_target", record.Script)
-                    : I18n.MenuT("dev.date_target", record.Year, record.Month, I18n.MenuT(StageKeys[record.Stage - 1]));
+                string target = record.Script != null ? I18n.MenuT("dev.script_target", record.Script) : "";
+                if (record.Year != 0)
+                    target += (target.Length == 0 ? "" : " · ") + I18n.MenuT("dev.date_target", record.Year, record.Month, I18n.MenuT(StageKeys[record.Stage - 1]));
+                if (record.Place != PositionType.無) target += " · " + Display(record.Place.ToString());
                 Paragraph(ref y, width, target, ModMenuTheme.Body, 5);
                 Paragraph(ref y, width, OutcomeText(record), record.Failed ? ModMenuTheme.Notice : ModMenuTheme.Caption, 8);
                 if (GUI.Button(new Rect(0, y, width, 30), I18n.MenuT("dev.fill_again"), ModMenuTheme.Link))
                 {
-                    if (record.Script != null) { _script = record.Script; _jumpTab = 1; }
-                    else { SetDraftDate(record.Year, record.Month, record.Stage); _jumpTab = 0; }
-                    ChangePane(1);
+                    _script = record.Script ?? _script;
+                    _jumpTab = record.Script == null ? 0 : 1;
+                    _syncChapterDate = record.Script != null && record.Year != 0;
+                    if (record.Year != 0) SetDraftDate(record.Year, record.Month, record.Stage);
+                    _draftPlace = record.Place;
+                    _visitPlace = _draftPlace != PositionType.無;
+                    ChangePane(JumpPane);
                 }
                 y += 46; ModMenuTheme.RuleAt(0, y, width); y += 18;
             }

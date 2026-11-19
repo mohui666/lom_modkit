@@ -453,6 +453,8 @@ pub fn build_playtest_prelude(story: &Value, target: &str) -> Vec<Value> {
                     json!({"type":"rotate","character":id,"angle":actor["rotation"],"duration":0}),
                 );
             }
+        } else if number(actor, "offset_x", 0.0) != 0.0 || number(actor, "offset_y", 0.0) != 0.0 {
+            nodes.push(json!({"type":"offset","character":id,"x":actor["offset_x"],"y":actor["offset_y"],"duration":0}));
         }
         if state["dimming_modes"][id]
             .as_str()
@@ -821,10 +823,9 @@ fn apply(s: &mut Value, n: &Value) {
                                 .unwrap_or_else(|| a["position"].clone())
                         };
                         a["position"] = n["to"].clone();
-                        // Named stage movement starts from its explicit slot,
-                        // just like the runtime stage.show call.
+                        // The named slots control horizontal travel. Carry the
+                        // preceding height adjustment along both endpoints.
                         a["offset_x"] = json!(0.0);
-                        a["offset_y"] = json!(0.0);
                     }
                     "face" => {
                         a["facing"] = n["facing"].clone();
@@ -1272,13 +1273,10 @@ fn animate_action(
         }
         "move" if old.is_object() => {
             let from = if cid.starts_with("user:") {
-                // CustomCharacterRuntime.Move starts a visible actor at
-                // its current location, including an earlier offset.
+                // A visible custom actor starts from its current x. Rendering
+                // applies the retained height to the whole interpolated path.
                 let base = position(positions, text(old, "position"));
-                (
-                    base.0 + number(old, "offset_x", 0.0) / 1920.0,
-                    base.1 - number(old, "offset_y", 0.0) / 1080.0,
-                )
+                (base.0 + number(old, "offset_x", 0.0) / 1920.0, base.1)
             } else {
                 position(
                     positions,
@@ -5575,7 +5573,7 @@ end
         }
     }
     #[test]
-    fn offscreen_offsets_survive_dialogue_and_reset_on_reentry_or_named_movement() {
+    fn reentry_resets_offsets_and_named_movement_preserves_the_new_height() {
         let positions: Value =
             serde_json::from_str(include_str!("../../../data/stage_positions.json")).unwrap();
         for actor in ["player", "user:demo.actor"] {
@@ -5605,13 +5603,13 @@ end
             for target in ["return", "move", "done"] {
                 let state = simulate(&story, target);
                 assert_eq!(state["actors"][actor]["offset_x"], 0.0, "{actor}/{target}");
-                assert_eq!(state["actors"][actor]["offset_y"], 0.0, "{actor}/{target}");
+                let height = if target == "return" { 0.0 } else { 60.0 };
+                assert_eq!(state["actors"][actor]["offset_y"], height, "{actor}/{target}");
             }
             let halfway = simulate_frame(&story, "move", 0.5, &positions);
             let mut from = position(&positions, "R1");
             if actor.starts_with("user:") {
                 from.0 += 170.0 / 1920.0;
-                from.1 -= 60.0 / 1080.0;
             }
             let to = position(&positions, "M");
             assert_eq!(halfway["actors"][actor]["preview_x"], (from.0 + to.0) / 2.0);
@@ -5620,6 +5618,10 @@ end
                 (from.1 + to.1) / 2.0
             );
             assert_eq!(halfway["actors"][actor]["offset_x"], 0.0);
+            assert_eq!(halfway["actors"][actor]["offset_y"], 60.0);
+            let prelude = build_playtest_prelude(&story, "done");
+            assert!(prelude.iter().any(|node| node["type"] == "offset"
+                && node["character"] == actor && node["x"] == 0.0 && node["y"] == 60.0));
         }
     }
     #[test]

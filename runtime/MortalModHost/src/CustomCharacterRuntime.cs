@@ -210,12 +210,15 @@ namespace MortalModHost
                 if (Log != null) Log.LogWarning("自定义角色找不到站位 " + to);
                 return false;
             }
-            actor.Slot = to;
             StopRoutine(ref actor.MotionRoutine);
+            var oldSlot = FindPosition(actor.Slot);
+            float height = oldSlot == null ? 0f : actor.HolderRect.position.y - oldSlot.position.y;
+            Vector3 lift = Vector3.up * height;
+            actor.Slot = to;
             if (_host != null && duration > 0f)
-                actor.MotionRoutine = _host.StartCoroutine(MoveTo(actor, dest, duration));
+                actor.MotionRoutine = _host.StartCoroutine(MoveTo(actor, dest, lift, duration));
             else
-                FitHolderToSprite(actor, dest);
+                FinishMove(actor, dest, lift);
             return true;
         }
 
@@ -813,12 +816,12 @@ namespace MortalModHost
             actor.Visible = false;
         }
 
-        private static IEnumerator MoveTo(Actor actor, RectTransform dest, float seconds)
+        private static IEnumerator MoveTo(Actor actor, RectTransform dest, Vector3 lift, float seconds)
         {
             if (actor.HolderRect == null || dest == null)
                 yield break;
             Vector3 start = actor.HolderRect.position;
-            Vector3 end = dest.position;
+            Vector3 end = dest.position + lift;
             float elapsed = 0f;
             while (elapsed < seconds && actor.HolderRect != null)
             {
@@ -826,10 +829,15 @@ namespace MortalModHost
                 actor.HolderRect.position = Vector3.Lerp(start, end, Mathf.Clamp01(elapsed / seconds));
                 yield return null;
             }
-            actor.HolderRect.position = dest.position;
-            FitHolderToSprite(actor);
+            FinishMove(actor, dest, lift);
             ApplyFacing(actor, actor.Facing);
             actor.MotionRoutine = null;
+        }
+
+        private static void FinishMove(Actor actor, RectTransform dest, Vector3 lift)
+        {
+            FitHolderToSprite(actor, dest);
+            actor.HolderRect.position = dest.position + lift;
         }
 
         private static IEnumerator OffsetTo(Actor actor, Vector2 target, float seconds)

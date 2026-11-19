@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using HarmonyLib;
 using Mortal.Core;
 using Mortal.Free;
 using Mortal.Story;
@@ -18,6 +19,8 @@ namespace MortalModHost
         private static string _year = "1", _month = "4", _script = "", _search = "", _message = "";
         private static bool _messageIsError;
         private static bool _draftReady;
+        private static bool _syncChapterDate, _visitPlace;
+        private static PositionType _draftPlace;
         private static int _stage = 1;
         private static Vector2 _scroll;
         private static List<Dictionary<string,object>> _rows;
@@ -28,11 +31,13 @@ namespace MortalModHost
         private static Vector2 _detailScroll;
         private static int _jumpTab;
         private static readonly string[] StageKeys = { "dev.early", "dev.middle", "dev.late" };
+        private static readonly System.Reflection.FieldInfo PositionField = AccessTools.Field(typeof(PositionController), "_position");
         private sealed class NavigationRecord
         {
             internal string Script, Scene, EnteredScript, Failure;
             internal int Year, Month, Stage;
-            internal bool Failed;
+            internal PositionType Place;
+            internal bool Failed, VisitedPlace;
         }
         private static readonly List<NavigationRecord> _history = new List<NavigationRecord>();
         private static NavigationRecord _pending;
@@ -48,7 +53,8 @@ namespace MortalModHost
             _selected = null;
             _script = _search = _message = "";
             _messageIsError = false;
-            _draftReady = false;
+            _draftReady = _syncChapterDate = _visitPlace = false;
+            _draftPlace = PositionType.無;
             _scroll = Vector2.zero;
             _detailScroll = Vector2.zero;
             _jumpTab = 0;
@@ -102,6 +108,13 @@ namespace MortalModHost
                 && Plugin.IsSceneReadyForModNavigation(scenes)
                 && (scenes.CurrentScene == "Free" || scenes.CurrentScene == "Story"))
             {
+                if (scenes.CurrentScene == "Free" && _pending.Place != PositionType.無)
+                {
+                    var free = FreeManager.Instance;
+                    if (free == null || !free.EnableHotKey || free.IsProcessing) return;
+                    if (!_pending.VisitedPlace && Run(() => VisitPendingPlace(_pending, free))) return;
+                    if (_pending.Failed) { _pending = null; return; }
+                }
                 _pending.Scene = scenes.CurrentScene;
                 _pending.EnteredScript = LuaManager.Instance == null ? "" : LuaManager.Instance.ScriptName;
                 _message = OutcomeText(_pending);
@@ -118,7 +131,7 @@ namespace MortalModHost
                 var free = FreeManager.Instance;
                 return HasContext && scenes != null && scenes.CurrentScene == "Free"
                     && Plugin.IsSceneReadyForModNavigation(scenes) && free != null
-                    && !free.IsProcessing && Time.timeScale > 0f && !VideoRenderRuntime.Busy;
+                    && !free.IsProcessing && _pending == null && Time.timeScale > 0f && !VideoRenderRuntime.Busy;
             }
         }
 
@@ -150,6 +163,9 @@ namespace MortalModHost
         }
 
         internal static void SetDate(int year, int month, int stage)
+        { SetDateAndPlace(year, month, stage, PositionType.無); }
+
+        internal static void SetDateAndPlace(int year, int month, int stage, PositionType place)
         {
             RequireEnabled();
             if (!DevelopmentNavigationPolicy.IsDate(year, month, stage))
@@ -158,11 +174,9 @@ namespace MortalModHost
             var missions = MissionManagerData.Instance;
             if (stat == null || missions == null)
                 throw new InvalidOperationException(I18n.MenuT("dev.require_free"));
-            ExecuteNavigation(new NavigationRecord { Year = year, Month = month, Stage = stage }, () =>
+            ExecuteNavigation(new NavigationRecord { Year = year, Month = month, Stage = stage, Place = place }, () =>
             {
-                stat.SetGameTime(year, month, (MonthStageType)stage);
-                stat.ResetActionCount();
-                stat.SetNewRound(true);
+                ApplyDate(stat, year, month, stage);
                 // Follow the original ChangeScene("Free") task check exactly once.
                 bool previous = ScenarioReturnPatch.ReturningToFree;
                 ScenarioReturnPatch.ReturningToFree = true;
@@ -177,19 +191,58 @@ namespace MortalModHost
             });
         }
 
-        internal static void GoToScript(string script)
+        private static void ApplyDate(PlayerStatManagerData stat, int year, int month, int stage)
+        {
+            stat.SetGameTime(year, month, (MonthStageType)stage);
+            stat.ResetActionCount();
+            stat.SetNewRound(true);
+        }
+
+        private static void VisitPendingPlace(NavigationRecord record, FreeManager free)
+        {
+            record.VisitedPlace = true;
+            try
+            {
+                foreach (var position in UnityEngine.Object.FindObjectsOfType<PositionController>())
+                {
+                    if (position.gameObject.scene != free.gameObject.scene || (PositionType)PositionField.GetValue(position) != record.Place) continue;
+                    position.OnPositionClick();
+                    if (free.IsProcessing) return;
+                    break;
+                }
+                throw new InvalidOperationException(I18n.MenuT("dev.place_unavailable", Display(record.Place.ToString())));
+            }
+            catch (Exception error)
+            {
+                record.Failed = true; record.Failure = error.Message;
+                throw;
+            }
+        }
+
+        internal static void GoToScript(string script) { StartChapter(script, 0, 0, 0); }
+
+        internal static void GoToScriptAtDate(string script, int year, int month, int stage)
+        {
+            if (!DevelopmentNavigationPolicy.IsDate(year, month, stage))
+                throw new ArgumentException(I18n.MenuT("dev.invalid_date"));
+            StartChapter(script, year, month, stage);
+        }
+
+        private static void StartChapter(string script, int year, int month, int stage)
         {
             RequireEnabled();
             script = (script ?? "").Trim();
-            if (!VanillaStoryPatch.ValidTarget(script)
-                || Resources.Load<TextAsset>("Story/ChineseTraditional/" + script) == null)
+            TextAsset chapter = VanillaStoryPatch.ValidTarget(script)
+                ? Resources.Load<TextAsset>("Story/ChineseTraditional/" + script) : null;
+            if (chapter == null)
                 throw new ArgumentException(I18n.MenuT("dev.invalid_script"));
             var stat = PlayerStatManagerData.Instance;
-            ExecuteNavigation(new NavigationRecord { Script = script }, () =>
+            ExecuteNavigation(new NavigationRecord { Script = chapter.name, Year = year, Month = month, Stage = stage }, () =>
             {
+                if (year != 0) ApplyDate(stat, year, month, stage);
                 StoryEntryRuntime.Clear();
-                stat.SetStoryScript(script);
-                stat.SetStartScript(script);
+                stat.SetStoryScript(chapter.name);
+                stat.SetStartScript(chapter.name);
                 SceneController.Instance.LoadStory();
             });
         }
@@ -212,6 +265,8 @@ namespace MortalModHost
         {
             if (record.Failed) return I18n.MenuT("dev.failed", DevelopmentEventText.Display(record.Failure, I18n.MenuLocale));
             if (record.Scene == "Free") return I18n.MenuT("dev.arrived_free");
+            if (record.Scene == "Story" && record.Place != PositionType.無 && !record.VisitedPlace)
+                return I18n.MenuT("dev.place_preempted", record.EnteredScript);
             if (record.Scene == "Story") return I18n.MenuT("dev.arrived_story", record.EnteredScript);
             return I18n.MenuT("dev.requested");
         }
@@ -219,9 +274,17 @@ namespace MortalModHost
         private static void Select(DevelopmentEvent row)
         {
             _selected = row;
-            _script = row.Script;
+            PrepareChapter(row.Script, row);
+            _draftPlace = EventPlace(row);
+            _visitPlace = false;
             _detailScroll = Vector2.zero;
             _pane = 0;
+        }
+
+        private static void PrepareChapter(string script, DevelopmentEvent row)
+        {
+            _script = script;
+            _syncChapterDate = SetEventDate(row);
         }
 
         private static bool Run(Action action)
