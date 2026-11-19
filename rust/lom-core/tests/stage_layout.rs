@@ -12,6 +12,46 @@ fn story(character: &str, offset: Value) -> Value {
 }
 
 #[test]
+fn initial_placement_runs_in_the_show_step_before_waiting_for_fade() {
+    for (character, show_call) in [
+        ("player", "stage.show{"),
+        ("user:demo.actor", "mod_char_show("),
+    ] {
+        let mut source = json!({"id":"main","start":"enter","nodes":[
+            {"id":"enter","type":"show","character":character,"position":"M",
+                "fadeDuration":0.4,"wait_for_completion":true},
+            {"id":"end1","type":"end"}
+        ]});
+        let original = codegen::compile_story(&source, None, None, None).unwrap();
+        assert!(!original.contains("mod_character_layout("));
+
+        source["nodes"][0]["initial_x"] = json!(-1920.5);
+        let lua = codegen::compile_story(&source, None, None, None).unwrap();
+        let offset = format!("mod_character_layout(\"{character}\", -1920.5, 0, -1, true, 0)");
+        assert!(lua.find(show_call).unwrap() < lua.find(&offset).unwrap());
+        assert!(
+            lua.find(&offset).unwrap()
+                < lua
+                    .find("wait(math.max(0.4, 0, stage.FadeDuration))")
+                    .unwrap()
+        );
+
+        if character == "player" {
+            let dir = tempfile::tempdir().unwrap();
+            let path = dir.path().join("initial-position.lommod");
+            let mut project = Project::new();
+            project.stories.insert("main".into(), source.clone());
+            project.export(&path).unwrap();
+            let reopened = Project::open(&path).unwrap();
+            assert_eq!(reopened.manifest["min_host_version"], "1.5.10");
+            assert_eq!(reopened.stories["main"]["nodes"][0]["initial_x"], -1920.5);
+        }
+        source["nodes"][0]["initial_y"] = json!(1e100);
+        assert!(validate::validate_story(&source).is_err());
+    }
+}
+
+#[test]
 fn layout_opt_in_keeps_legacy_lua_and_waits_for_layout_and_post_delay() {
     for character in ["player", "user:demo.actor"] {
         let mut offset = json!({"id":"layout","type":"offset","character":character,

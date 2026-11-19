@@ -430,6 +430,7 @@ impl Workspace {
             || app.asset_import_dialog.is_some()
             || app.video_dialog.is_some()
             || app.font_conversion_dialog.is_some()
+            || app.feedback_dialog.is_some()
             || app.pending_template.is_some()
             || !app.recovery_candidates.is_empty()
     }

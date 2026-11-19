@@ -348,7 +348,7 @@ fn every_task_page_can_be_read_without_modifying_the_project() {
     }
 }
 #[test]
-fn visible_help_button_and_f1_open_the_guide_without_changing_the_project() {
+fn help_menu_and_f1_open_help_and_feedback_without_changing_the_project() {
     let mut app = app();
     let before = snapshot(&app.project);
     let ctx = egui::Context::default();
@@ -371,28 +371,10 @@ fn visible_help_button_and_f1_open_the_guide_without_changing_the_project() {
         )
     };
     let output = draw(&mut app, vec![]);
-    let help = output
-        .platform_output
-        .accesskit_update
-        .unwrap()
-        .nodes
-        .into_iter()
-        .find_map(|(id, node)| {
-            (node.role() == egui::accesskit::Role::Button
-                && node.label() == Some(crate::i18n::key("menu.help_item").as_str()))
-            .then_some(id)
-        })
-        .expect("Help must be directly visible on the toolbar");
-    let output = draw(
-        &mut app,
-        vec![egui::Event::AccessKitActionRequest(
-            egui::accesskit::ActionRequest {
-                action: egui::accesskit::Action::Click,
-                target: help,
-                data: None,
-            },
-        )],
-    );
+    let help = click_named_option(&output, &crate::i18n::key("menu.help_item"));
+    let output = draw(&mut app, vec![help]);
+    let guide = click_named_option(&output, &crate::i18n::key("help.guide_tab"));
+    let output = draw(&mut app, vec![guide]);
     assert!(app.tools_panel.dialog_open());
     let text = output
         .platform_output
@@ -427,6 +409,15 @@ fn visible_help_button_and_f1_open_the_guide_without_changing_the_project() {
         vec![key_event(egui::Key::F1, egui::Modifiers::NONE)],
     );
     assert!(app.tools_panel.dialog_open());
+    let output = draw(
+        &mut app,
+        vec![key_event(egui::Key::Escape, egui::Modifiers::NONE)],
+    );
+    let help = click_named_option(&output, &crate::i18n::key("menu.help_item"));
+    let output = draw(&mut app, vec![help]);
+    let report = click_named_option(&output, &crate::i18n::key("feedback.title"));
+    draw(&mut app, vec![report]);
+    assert!(app.feedback_dialog.is_some());
     assert!(snapshot(&app.project) == before);
     assert!(!app.dirty());
 }

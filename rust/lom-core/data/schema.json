@@ -83,6 +83,8 @@
       },
       "optional": {
         "scale": "num",
+        "initial_x": "num",
+        "initial_y": "num",
         "portrait": "str",
         "appearance": "str",
         "facing": "facing",

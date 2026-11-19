@@ -49,6 +49,12 @@ impl App {
         })
     }
     pub(super) fn dialogs(&mut self, ctx: &egui::Context) {
+        if let Some(dialog) = &mut self.feedback_dialog {
+            if dialog.show(ctx) {
+                self.feedback_dialog = None;
+            }
+            return;
+        }
         if self.tools_panel.dialog_open() {
             return;
         }
@@ -56,6 +62,7 @@ impl App {
         if let Some(message) = self.error.clone() {
             let mut close = false;
             let mut locate = false;
+            let mut report = false;
             let mut issue_location = None;
             let destination = crate::error_location::resolve(&message, &self.project);
             egui::Modal::new(egui::Id::new("operation-error"))
@@ -102,6 +109,7 @@ impl App {
                         });
                     ui.add_space(16.0);
                     shell::dialog_buttons(ui, |ui| {
+                        report = ui.button(crate::i18n::key("feedback.title")).clicked();
                         if self.error_issues.is_empty()
                             && destination != crate::error_location::Destination::Current
                         {
@@ -114,6 +122,10 @@ impl App {
                             .clicked();
                     });
                 });
+            if report {
+                self.open_feedback(Some(&message));
+                return;
+            }
             if close || escape_pressed || locate || issue_location.is_some() {
                 self.error = None;
                 self.error_issues.clear();

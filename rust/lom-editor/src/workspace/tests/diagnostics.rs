@@ -43,6 +43,52 @@ fn error_dialog_shows_an_action_and_preserves_raw_diagnostics() {
         assert!(output.platform_output.commands.is_empty());
     }
 }
+
+#[test]
+fn feedback_from_error_previews_only_structured_diagnostics() {
+    let mut app = app();
+    let error =
+        "无法保存 C:/private-project/story/private-chapter.json: Permission denied (os error 5)";
+    app.error = Some(error.into());
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    ctx.style_mut(|style| style.animation_time = 0.0);
+    let mut render = |events| {
+        ctx.run(
+            egui::RawInput {
+                events,
+                ..Default::default()
+            },
+            |ctx| {
+                app.dialogs(ctx);
+            },
+        )
+    };
+    let output = render(vec![]);
+    render(vec![click_named_option(
+        &output,
+        &crate::i18n::key("feedback.title"),
+    )]);
+    let output = render(vec![]);
+    let output = render(vec![click_named_option(
+        &output,
+        &crate::i18n::key("feedback.details"),
+    )]);
+    let text = output
+        .platform_output
+        .accesskit_update
+        .unwrap()
+        .nodes
+        .iter()
+        .filter_map(|(_, node)| node.label().or_else(|| node.value()))
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(text.contains("editor.error.ops_permission"), "{text}");
+    assert!(text.contains(r#""os_error": 5"#), "{text}");
+    assert!(!text.contains("private-project"), "{text}");
+    assert_eq!(app.error.as_deref(), Some(error));
+}
+
 #[test]
 fn lua_copy_and_export_recompile_instead_of_treating_error_prose_as_a_script() {
     for valid in [true, false] {

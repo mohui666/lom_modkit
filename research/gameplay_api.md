@@ -8,6 +8,8 @@
 
 `StoryCharacterController.MoveOffset/MoveOffsetCoroutine` 将持有器作为当前 `State.position`。`PortraitController.SetupPortrait` 使用起始站位重新摆放持有器，`DoMoveTween` 移到目标站位。Host 对编辑器既有的人物移动 `PortraitController.Show(Table)` 调用保留持有器相对站位的纵向差，随后用 `LTDescr.setTo(Vector3)` 调整原版移动补间终点。
 
+人物登场偏移继续使用现有布局入口。同一次 Lua 步骤中，`PortraitController.Show(Table)` 同步设定站位并令 `State.onScreen=true`。紧接的 `mod_character_layout` 以站位为基准直接设置该实例的 `holder.anchoredPosition`，保留淡入。`DoMoveTween(PortraitOptions)` 在时长为零时也会创建位移补间，因此使用具备位移取消逻辑的 Host 1.5.10 或更新版本。
+
 ## 2026-11-16 开发工具界面与条件说明
 
 实时核对 `MissionCheckData`、`MissionData`、`ConditionResultItem`、`StatCompareItem`、`StatGroupVariable`、`StatValueReference`、`StatCompareType`、`LogicOperatorType` 与 `FlagData`。任务 `_desc` 为原始开发备注，没有本地化显示属性。条件显示按真实比较枚举转为数学符号，保留 AND/OR 分组；常数只从单元素组的 `_constant/_negative` 与 `_groupType` 读取，旗标采用其真实资源名称和 `FlagData.DevNote`，另保留变量组原名供对照。`StatValueReference.GetValue()` 可抽取随机值或执行条件，`StatGroupVariable.GetResult()` 会调用它们，因此界面不调用这些求值入口。多语言仅影响 Host 工具文案与显示投影，不改变 `I18n.StoryLocale`、任务键或脚本标识。
@@ -51,6 +53,10 @@
 本次补漏沿实时 `ItemDatabase.Books/Miscs/Special` 持有的 `ItemDataCollection.Get(id).Image` 核对，补入 138 个无 `pic_` 别名的物品图标引用，并补列 `book_0000`。共享 Sprite 的物品共用预览 PNG。游戏只读解析 139 个 `item:` 图标引用均成功；另有 6 条原版物品记录本来没有图片，不生成虚构图标。实时 `StoryParticleDataCollection.GetData` 与 `StoryEffectsController.SetupEffect` 确认原版 124 个特效键，28 项漏列已补入；Addressables 项按 `StoryParticleData.UseAddressable/Addressable` 加载，124 项均检查到根 ParticleSystem。
 
 当前 `UnityEngine.ImageConversion.LoadImage(Texture2D, byte[], bool markNonReadable)` 的第三参数可释放 CPU 端像素副本。仅作者自有立绘、事件图使用 `true`，不改官方 Texture/Sprite；渲染和 Sprite.Create 已在游戏压测中执行。事件图只缓存最近一张作者图片，隐藏保留、切换作者图片或清舞台/会话时释放，避免同图反复解码。
+
+## 2026-11-19 月会议题旗标
+
+实时复核 `FlagData.GetNameKey/ResetData` 与 `StatModifyManager.SetFlag(string,int)`，读取当前安装的 12 个 `Meeting_Option_*` 旗标、月会议题文本和直接写入位置。原版旗标的默认值均为 0，关联剧情用 `SetFlag(id, 1)` 记录开发完成、事件触发或议题选择。飞石帮的反攻、送礼道歉和拜访共用同一个旗标。编辑器目录按实际用途显示名称及 0／1 提示。
 
 ## 2026-11-13 补齐原版注册旗标目录
 

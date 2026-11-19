@@ -600,7 +600,20 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
                 out.push(call("characters.Focus", &[c.clone()]));
             }
             if ctx.character_layout && !ctx.character_scaling {
-                out.push(call("mod_character_layout_reset", &[c]));
+                out.push(call("mod_character_layout_reset", &[c.clone()]));
+            }
+            if has(node, "initial_x") || has(node, "initial_y") {
+                out.push(call(
+                    "mod_character_layout",
+                    &[
+                        c,
+                        n(node, "initial_x", json!(0)),
+                        n(node, "initial_y", json!(0)),
+                        "-1".into(),
+                        "true".into(),
+                        "0".into(),
+                    ],
+                ));
             }
             if !ctx.mood {
                 out.push("\tmod_hide_mood()".into());

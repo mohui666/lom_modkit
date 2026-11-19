@@ -2,7 +2,7 @@
 
 当前工具端由 Rust 编译器、核心库与 egui 编辑器组成；C# `MortalModHost` 保留游戏接入。日常编辑见 [软件使用](software_usage.md)，构建和 CLI 见 [Rust 工具端](rust.md)，验证层次见 [测试矩阵](test_matrix.md)。旧 Python／Qt／PyInstaller 入口已经退役，不作为本手册操作入口。
 
-当前版本为 1.6.3，版本变更见 [GitHub Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.3)，验证入口见 [测试矩阵](test_matrix.md)。仓库不保留独立的版本 notes。
+当前版本为 1.6.4，版本变更见 [GitHub Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.4)，验证入口见 [测试矩阵](test_matrix.md)。仓库不保留独立的版本 notes。
 
 ## 编辑器入口与设置
 
@@ -19,6 +19,19 @@
 成功状态与错误状态分别处理，不能根据“是否有未保存修改”决定是否展示错误。已知校验样例应得到对应处理办法，不能仅以隐藏技术词或落入通用反馈提示算通过；无法识别的错误仍保留通用反馈与完整诊断。复制、导出脚本须以实际编译结果决定是否允许输出，不依赖提示文字前缀。
 
 文件、下载、组件安装及后台任务的提示集中在 `error_operations.rs`，仍由统一组件调用。此类错误不应因诊断里出现章节文件名而跳到剧情设置；只有能处理该问题的位置才展示定位入口。报告中的失败状态和空错误字段应分别统计，不能把离线断言失败计作完成，也不能把空错误字段计作失败。
+
+## 一键反馈队列
+
+编辑器默认向 `https://toolbox.mahui.site/api/v1/feedback` 提交反馈。构建测试版本时可用环境变量 `LOM_FEEDBACK_URL` 指定另一个 HTTPS 地址。服务器将 `POST /api/v1/feedback` 转发到私有网络上的 `tools/feedback_server.py`，通过 `--database <持久化路径> serve` 启动收件服务。默认监听端口为 `8892`。SQLite 文件应放在服务账户的私有数据目录，进程更新时继续使用同一个文件。
+
+通过 SSH 登录反馈服务器后，在服务部署目录里用 `inbox` 命令查看和处理反馈。待处理、处理中和已解决分别对应 `open`、`in_progress` 和 `resolved`。
+
+```sh
+./inbox list --status open
+./inbox show '#42'
+./inbox status 42 in_progress
+./inbox status 42 resolved
+```
 
 ## 保存、撤销与恢复
 

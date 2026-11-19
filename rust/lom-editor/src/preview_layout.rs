@@ -207,6 +207,19 @@ fn apply_inner(story: &mut Value, selected: usize, change: &Change) -> Result<us
             return Ok(selected);
         }
         let action = child.map_or(&nodes[parent], |child| &nodes[parent]["actions"][child]);
+        if parent == selected && action["type"] == "show" {
+            let action = if let Some(child) = child {
+                &mut story["nodes"][parent]["actions"][child]
+            } else {
+                &mut story["nodes"][parent]
+            };
+            action["initial_x"] = json!(change.x);
+            action["initial_y"] = json!(change.y);
+            if change.scale != 100.0 || action.get("scale").is_some() {
+                action["scale"] = json!(change.scale);
+            }
+            return Ok(selected);
+        }
         if parent == selected && action["type"] == "offset" && action["absolute"] == true {
             let action = if let Some(child) = child {
                 &mut story["nodes"][parent]["actions"][child]
@@ -472,31 +485,48 @@ mod tests {
     }
 
     #[test]
-    fn parallel_show_inserts_after_and_updates_the_selected_offset() {
+    fn dragging_at_show_writes_the_initial_position_and_keeps_the_selection() {
+        let mut source = story(json!([
+            {"id":"show","type":"show","character":"player","position":"M","fadeDuration":0.4},
+            {"id":"end","type":"end"}
+        ]));
+        assert_eq!(apply(&mut source, 0, &character(-42.5)).unwrap(), 0);
+        assert_eq!(source["nodes"].as_array().unwrap().len(), 2);
+        assert_eq!(source["nodes"][0]["initial_x"], -42.5);
+        assert_eq!(source["nodes"][0]["initial_y"], 60.0);
+        assert_eq!(source["nodes"][0]["fadeDuration"], 0.4);
+        let shown = crate::preview::simulate(&source, "show");
+        assert_eq!(shown["actors"]["player"]["offset_x"], -42.5);
+        assert_eq!(shown["actors"]["player"]["layout_scale"], 175.5);
+        let prelude = crate::preview::build_playtest_prelude(&source, "end");
+        let restored = prelude
+            .iter()
+            .find(|node| node["type"] == "offset")
+            .unwrap();
+        assert_eq!(restored["x"], -42.5);
+        assert_eq!(restored["y"], 60.0);
+    }
+
+    #[test]
+    fn dragging_at_a_parallel_show_updates_only_that_show_action() {
         let mut source = story(json!([
             {"id":"parallel1","type":"parallel","goto":"end","actions":[
-                {"type":"show","character":"player","position":"L1"},
+                {"type":"show","character":"player","position":"L1","wait_after":0.5},
                 {"type":"show","character":"girl1","position":"R1"}]},
             {"id":"skipped","type":"say","text":"跳过"},
             {"id":"end","type":"end"}
         ]));
+        let original = source.clone();
         let selected = apply(&mut source, 0, &character(120.0)).unwrap();
-        assert_eq!(selected, 1);
-        assert_eq!(source["nodes"][0]["goto"], "offset1");
-        assert_eq!(source["nodes"][1]["goto"], "end");
-        source["nodes"][1]["wait_after"] = json!(0.5);
-        source["nodes"][1]["duration"] = json!(1.25);
-        source["nodes"][1]["absolute"] = json!(false);
+        assert_eq!(selected, 0);
+        assert_eq!(source["nodes"].as_array().unwrap().len(), 3);
+        assert_eq!(source["nodes"][0]["goto"], "end");
+        assert_eq!(source["nodes"][0]["actions"][0]["initial_x"], 120.0);
+        assert_eq!(source["nodes"][0]["actions"][0]["wait_after"], 0.5);
         assert_eq!(
-            apply(&mut source, selected, &character(250.0)).unwrap(),
-            selected
+            source["nodes"][0]["actions"][1],
+            original["nodes"][0]["actions"][1]
         );
-        assert_eq!(source["nodes"].as_array().unwrap().len(), 4);
-        assert_eq!(source["nodes"][1]["wait_after"], 0.5);
-        assert_eq!(source["nodes"][1]["duration"], 1.25);
-        assert_eq!(source["nodes"][1]["absolute"], true);
-        assert_eq!(source["nodes"][1]["x"], 250.0);
-        assert_eq!(source["nodes"][0]["actions"][1]["character"], "girl1");
     }
 
     #[test]

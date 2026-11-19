@@ -44,6 +44,7 @@ impl App {
             || self.asset_import_dialog.is_some()
             || self.video_dialog.is_some()
             || self.font_conversion_dialog.is_some()
+            || self.feedback_dialog.is_some()
             || self.settings_open
             || self.updater.open
             || self.tools_panel.dialog_open()
@@ -480,13 +481,19 @@ impl App {
                             ui.close();
                         }
                     });
-                    if ui
-                        .button(crate::i18n::key("menu.help_item"))
-                        .on_hover_text("F1")
-                        .clicked()
-                    {
-                        self.tools_panel.open_help();
-                    }
+                    ui.menu_button(crate::i18n::key("menu.help_item"), |ui| {
+                        if ui
+                            .add(egui::Button::new(crate::i18n::key("help.guide_tab")).shortcut_text("F1"))
+                            .clicked()
+                        {
+                            ui.close();
+                            self.tools_panel.open_help();
+                        }
+                        if ui.button(crate::i18n::key("feedback.title")).clicked() {
+                            ui.close();
+                            self.open_feedback(None);
+                        }
+                    });
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui.add_enabled(cfg!(windows), egui::Button::new(crate::i18n::key("video.title")))
                             .on_hover_text(crate::i18n::key("video.hint")).clicked() {

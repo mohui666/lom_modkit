@@ -4,7 +4,7 @@
 
 **所有组件（编辑器 / 编译器 / 运行时插件）以本文档为准。** 改动需同步更新本文档。
 
-1.6.3 继续使用 **package_format=3 / story_schema=2 / content_schema=1**。F8 剧情检索和开发跳转属于 Host 工具，人物移动继续使用已有字段和 Lua 调用。临时试玩请求的 format 与包格式是两套协议。版本变化见 [GitHub Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.3)，仓库不保留版本 notes。
+1.6.4 继续使用 **package_format=3 / story_schema=2 / content_schema=1**。人物登场可设置初始横向和纵向偏移。临时试玩请求的 format 与包格式是两套协议。[GitHub Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.4)
 
 2026-10-24 工作区扩展：Host ≥1.1.3 支持 `play_mode=addon/sandbox` 与独立的 `scenario.json`。事件、任务和结果动作使用[事件与任务配置](events_and_tasks.md)契约，旧作品继续兼容。
 
@@ -189,7 +189,7 @@ Host 从包内 Story 构建来源缓存，每次加载作品后首次进入该�
 | `background` | `action`(`set`/`show`/`replace`/`fadein`/`fadeout`/`clear`)；显示类必填 `image`(`user:` 图片)，可选 `fade`(默认0.5) | 使用当前包 `assets/user/image/` 的图片覆盖为舞台背景。`set/clear` 立即执行；其余动作按 `fade` 淡入/淡出并等待。换章、`goto_scene`、官方 `scene`、场景切换与热重载都会清理，不修改原版 View 资源 |
 | `custom_cg` | `action`(`show`/`hide`)；show 必填 `image`(`user:` 图片)；可选 `fade`(默认0.5)、`scale`(正数百分比，默认100)、`x/y`(-100~100，默认0) | 在人物层前显示全屏 CG，保持图片比例；`scale` 为自动适配后的百分比，1.4.3 起无 10～300 范围限制，支持小数。`x` 正向右、`y` 正向上。show 替换上一张，hide 淡出并销毁；换章、换场景、换包自动清理 |
 | `overlay` | 必填 `action`(`show`/`hide`) 与 `slot`；show 必填 `image`；可选 `position`(九宫格)、`scale`(正数百分比)、`x/y`(-100~100，默认0)、`opacity`(0~100)、`layer`(`back`/`front`)、`fade` | 多槽位前景/道具/插图/遮罩；同槽 show 替换、hide 独立清理。前后层相对人物分离，F5 可恢复，换章/换场景/换包统一清理。1.4.3 起 scale 无 10～300 限制。1.4.4 起 x/y 在九宫格的 ±32% 舞台锚点上叠加舞台宽高百分比，右/上为正，保持图片比例 |
-| `show` | `character`, `position`；可选 `portrait`(默认normal), `facing`(默认right), `fadeDuration`(0), `moveDuration`(0), `appearance` | 加载并显示人物。`appearance` 仅用于 `player`，值为 `game`/`original`/`beautified`，需要 Host ≥1.1.2；省略时保留原有加载行为。详见[赵活外观](free_mode_portraits.md#照镜子后的赵活)。story.mood 为 false 时末尾（Focus 后）追加 `mod_hide_mood()` |
+| `show` | `character`, `position`；可选 `portrait`(默认normal), `facing`(默认right), `fadeDuration`(0), `moveDuration`(0), `appearance`, `initial_x`, `initial_y` | 加载并显示人物。初始偏移以站位为基准，正值向右、向上，单轴省略时为 0，需要 Host ≥1.5.10。`appearance` 仅用于 `player`，值为 `game`/`original`/`beautified`，需要 Host ≥1.1.2。story.mood 为 false 时追加 `mod_hide_mood()`。[赵活外观](free_mode_portraits.md#照镜子后的赵活) |
 | `portrait` | `character`, `portrait`；可选 `fade_out`（默认0.5）、`fade_in`（默认1.5）、`brighten`（布尔值，默认不改变明暗）、`wait_after` | 独立人物换表情，不显示对白。人物必须已登场；先淡出旧表情、换图、再淡入，等待两段完成。时长为非负秒数，0立即完成。保留站位、朝向、偏移和旋转。`brighten=true` 在新表情淡入前通过 `mod_char_dim_mode(character,false,"until_dialogue")` 点亮人物，下一句对白恢复自动明暗；省略或 false 保持旧明暗行为。支持官方和用户人物，也可放进同时执行组。基础换表情需 Host ≥1.3.6；变亮选项需 Host ≥1.5.1，导出时自动提升最低版本 |
 | `mood` | `enabled`（bool 必填）；可选 `character`, `icon`, `offset_x`, `offset_y`, `wait_after` | 不指定人物时控制全场自动气泡（Host ≥1.3.6）。指定已登场的人物时，`enabled=true` 按 `icon` 独立显示气泡，不改变立绘；false 仅隐藏该人物。`icon` 默认 `auto`（恢复跟随表情），可选 `shock/silent/angry2/nervous1/laugh1/shy/nervous3/nervous4/nervous2`。单人设置独立于自动开关，离场、换章或关闭全场时清除；压暗时隐藏，解除压暗后恢复。`wait_after` 为设置气泡后追加的非负停留秒数，默认 0；连续气泡步骤可据此编排转换。原版人物需 Host ≥1.4.1，自定义人物需 Host ≥1.4.2 |
 | `move` | `character`, `from`, `to`；可选 `duration`(默认1) | 移动并 `wait(duration)`。Host 1.6.3 起延续人物已有的纵向偏移，重新登场时重置 |
