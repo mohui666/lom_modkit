@@ -1306,6 +1306,13 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
                     && (node.get("x").is_some() || node.get("y").is_some())
         })
     });
+    // Host 1.5.10 cancels the pending native move before a same-frame layout change.
+    let initial_character_placement = stories.values().any(|story| {
+        crate::parallel::story_actions(story).any(|(_, node)| {
+            node["type"] == "show"
+                && (node.get("initial_x").is_some() || node.get("initial_y").is_some())
+        })
+    });
     let effect_controls = stories.values().any(|story| {
         crate::parallel::story_actions(story).any(|(_, node)| {
             node["type"] == "effect"
@@ -1501,6 +1508,7 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
         || character_titles
         || new_portrait_layout
         || free_image_scale
+        || initial_character_placement
         || stage_layout
         || effect_controls
         || portrait_calibration
@@ -1519,7 +1527,7 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
             ([1, 5, 12], "1.5.12")
         } else if martial_talents {
             ([1, 5, 11], "1.5.11")
-        } else if story_entry || filter_controls || custom_affinity {
+        } else if story_entry || filter_controls || custom_affinity || initial_character_placement {
             ([1, 5, 10], "1.5.10")
         } else if extended_big_picture {
             ([1, 5, 9], "1.5.9")

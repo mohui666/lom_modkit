@@ -127,6 +127,7 @@ foreach ($Folder in @("runtime", "asset-extractor", "audio-decoder", "video-enco
     [IO.Directory]::CreateDirectory((Join-Path $ComponentDirectory $Folder)) | Out-Null
 }
 Copy-Item -LiteralPath (Join-Path $NativeOutput "lomc.exe") -Destination (Join-Path $ComponentDirectory "lomc.exe")
+Copy-Item -LiteralPath (Join-Path $NativeOutput "lom-install.exe") -Destination (Join-Path $ComponentDirectory "lom-install.exe")
 Copy-Item -LiteralPath (Join-Path $NativeOutput "lom-asset-extractor.exe") -Destination (Join-Path $ComponentDirectory "asset-extractor\lom-asset-extractor.exe")
 & (Join-Path $ComponentDirectory "asset-extractor\lom-asset-extractor.exe") --self-check
 if ($LASTEXITCODE -ne 0) { throw "Native preview extractor self-check failed" }
@@ -208,7 +209,7 @@ try {
 Copy-Item -LiteralPath (Join-Path $NativeOutput "lom-editor.exe") -Destination (Join-Path $BundleDirectory "lom-editor.exe")
 # Remove only obsolete product components from an existing default build output.
 $OutPrefix = [IO.Path]::GetFullPath((Join-Path $RepositoryRoot "out")).TrimEnd('\') + '\'
-foreach ($Relative in @("asset-extractor", "audio-decoder", "runtime", "assets", "lomc.exe")) {
+foreach ($Relative in @("asset-extractor", "audio-decoder", "runtime", "assets", "lomc.exe", "lom-install.exe")) {
     $LegacyPath = [IO.Path]::GetFullPath((Join-Path $BundleDirectory $Relative))
     if (Test-Path -LiteralPath $LegacyPath) {
         if (-not $LegacyPath.StartsWith($OutPrefix, [StringComparison]::OrdinalIgnoreCase)) { throw "Choose an empty bundle directory outside out/: $LegacyPath" }

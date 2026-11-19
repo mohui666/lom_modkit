@@ -224,11 +224,24 @@ fn details(ui: &mut Ui, data: &Value, id: &str) {
             i18n::key("game_flags.temporary"),
         );
     }
+    let referenced_use = row["description_source"] == "event_database";
     if !text(row, "description").is_empty() {
         ui.small(prose(text(row, "description")));
-        ui.weak(i18n::key("game_flags.note_source"));
+        if !referenced_use {
+            ui.weak(i18n::key(if row["description_source"] == "story" {
+                "game_flags.story_source"
+            } else {
+                "game_flags.note_source"
+            }));
+        }
     } else {
         ui.weak(i18n::key("game_flags.unknown_detail"));
+    }
+    if referenced_use || row["values_source"] == "event_database" {
+        ui.hyperlink_to(
+            i18n::key("game_flags.event_database"),
+            format!("https://mortal.eraser.moe/zh-cn/flag/{id}"),
+        );
     }
     if let Some(scripts) = row["scripts"]
         .as_array()
@@ -427,6 +440,34 @@ mod tests {
         assert_eq!(kongtong["id"], "M20011");
         assert!(advanced(row(data, "A00001").unwrap()));
         assert!(!advanced(kongtong));
+
+        let meeting = row(data, "Meeting_Option_101_01").unwrap();
+        assert_eq!(label(meeting), "已开发杀人扑满");
+        assert!(matches(meeting, "杀人机关扑满"));
+        assert!(matches(meeting, "殺人撲滿 meeting_option_101_01"));
+        assert!(!advanced(meeting));
+        assert_eq!(meeting["default"], 0);
+        assert_eq!(
+            meeting["values"],
+            json!([{"value":0,"name":"否"},{"value":1,"name":"是"}])
+        );
+
+        let facility = row(data, "Facility_001").unwrap();
+        assert_eq!(label(facility), "外堡等级");
+        assert!(facility["values"].is_null());
+        assert!(!advanced(facility));
+
+        let gate = row(data, "P_Alchemy_01").unwrap();
+        assert!(matches(gate, "炼丹房 p_alchemy_01"));
+        assert_eq!(
+            gate["values"],
+            json!([{"value":0,"name":"開放"},{"value":1,"name":"關閉"}])
+        );
+
+        let reused = row(data, "A10001").unwrap();
+        assert!(matches(reused, "江陵 对练"));
+        assert!(advanced(reused));
+        assert!(reused["values"].is_null());
     }
 
     #[test]

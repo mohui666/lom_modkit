@@ -1184,6 +1184,9 @@ fn extra(n: &Value, ntype: &str, catalog: &Value, check_effect_names: bool) -> R
             if has(n, "scale") {
                 crate::content::positive_scale(&n["scale"], "scale")?;
             }
+            let limit = f64::from(f32::MAX);
+            range(n, "initial_x", -limit, limit)?;
+            range(n, "initial_y", -limit, limit)?;
         }
         "portrait" => {
             ensure!(nonblank(&n["character"]), "换表情的 character 不能为空");

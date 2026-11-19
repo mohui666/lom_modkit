@@ -2,9 +2,9 @@
 
 用可视化步骤制作《活侠传》MOD，支持多章节、人物演出、分支、事件任务和自定义素材，也支持 Python 批量制作。
 
-**当前版本：1.6.3 · Windows x64 · 只需一个 exe**
+**当前版本：1.6.4 · Windows x64 · 只需一个 exe**
 
-[下载编辑器](https://github.com/mohui666/lom_modkit/releases/download/v1.6.3/lom-editor.exe) · [更新内容](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.3) · [全部文档](docs/README.md)
+[下载编辑器](https://github.com/mohui666/lom_modkit/releases/download/v1.6.4/lom-editor.exe) · [更新内容](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.4) · [全部文档](docs/README.md)
 
 游戏内 F8「MOD 工坊」可以按关键词搜原版对白与关联剧情，定位死亡 CG。开发跳转可将日期和章节或地点一起设置。人物移动会保留前一步设置的纵向偏移。
 
@@ -19,7 +19,7 @@
 
 可通过“检查更新 → 更新并重启”升级，也可退出编辑器后手动替换 exe。已有作品、素材和存档身份保留。
 
-升级后先退出游戏，在「游戏与 MOD」点击「重新配置游戏环境」同步 Host 1.6.3，再重启游戏。
+升级后先退出游戏，在「游戏与 MOD」点击「重新配置游戏环境」同步 Host 1.6.4，再重启游戏。
 
 | 要做什么 | 从这里开始 |
 | --- | --- |

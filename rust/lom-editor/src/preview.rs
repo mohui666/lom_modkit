@@ -766,8 +766,21 @@ fn apply(s: &mut Value, n: &Value) {
         "show" => {
             if !cid.is_empty() {
                 let dimmed = s["dimming"].get(cid).cloned().unwrap_or(json!(false));
-                s["actors"][cid] = json!({"position":n.get("position").cloned().unwrap_or(json!("M")),"portrait":n.get("portrait").cloned().unwrap_or(json!("normal")),"facing":n.get("facing").cloned().unwrap_or(json!("right")),"appearance":n["appearance"],"layout_scale":n.get("scale").cloned().unwrap_or(json!(100)),"offset_x":0.0,"offset_y":0.0,"rotation":0.0,"dimmed":dimmed});
+                s["actors"][cid] = json!({
+                    "position": n.get("position").cloned().unwrap_or(json!("M")),
+                    "portrait": n.get("portrait").cloned().unwrap_or(json!("normal")),
+                    "facing": n.get("facing").cloned().unwrap_or(json!("right")),
+                    "appearance": n["appearance"],
+                    "layout_scale": n.get("scale").cloned().unwrap_or(json!(100)),
+                    "offset_x": number(n, "initial_x", 0.0),
+                    "offset_y": number(n, "initial_y", 0.0),
+                    "rotation": 0.0,
+                    "dimmed": dimmed
+                });
                 s["actors"][cid]["holder_slot"] = s["actors"][cid]["position"].clone();
+                if n.get("initial_x").is_some() || n.get("initial_y").is_some() {
+                    s["actors"][cid]["layout_active"] = json!(true);
+                }
             }
         }
         "hide_all" => {

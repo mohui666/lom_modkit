@@ -46,6 +46,7 @@ fn dictionaries() -> &'static [Value; 4] {
             include_str!("../data/i18n/viewer.i18n.json"),
             include_str!("../data/i18n/presentation.i18n.json"),
             include_str!("../data/i18n/video.json"),
+            include_str!("../data/i18n/feedback.json"),
         ] {
             let messages: Value = serde_json::from_str(source).expect("feature UI translations");
             for (key, translations) in messages.as_object().expect("message dictionary") {

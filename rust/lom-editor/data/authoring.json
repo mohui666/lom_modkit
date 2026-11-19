@@ -1262,6 +1262,8 @@
           "position",
           false
         ],
+        ["initial_x", "登场横向偏移（像素）", "float", true],
+        ["initial_y", "登场纵向偏移（像素）", "float", true],
         [
           "portrait",
           "表情",

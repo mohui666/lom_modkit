@@ -36,6 +36,36 @@ class GameFlagCatalogTests(unittest.TestCase):
         self.assertEqual(row["name"], "旗標暫存1")
         self.assertNotIn("values", row)
 
+    def test_confirmed_meeting_flags_are_named_without_overriding_official_notes(self):
+        flag = {"id": "Meeting_Option_101_01"}
+        row = enrich(flag, "", 0, None, ["meeting_option_101_01"])
+        self.assertEqual(row["name"], "已開發殺人撲滿")
+        self.assertEqual(row["description_source"], "story")
+        self.assertEqual(row["default"], 0)
+        self.assertEqual(row["values"], [{"value": 0, "name": "否"}, {"value": 1, "name": "是"}])
+        self.assertEqual(row["scripts"], ["meeting_option_101_01"])
+        official = enrich(flag, "原版用途\n1：完成", 0, "原版名稱", [])
+        self.assertEqual(official["name"], "原版名稱")
+        self.assertNotIn("description_source", official)
+        self.assertEqual(official["values"], [{"value": 1, "name": "完成"}])
+
+    def test_event_database_metadata_survives_refresh(self):
+        previous = {
+            "id": "P_Alchemy_01",
+            "name": "煉丹房開放狀態",
+            "description": "管控煉丹房的入口。",
+            "description_source": "event_database",
+            "values": [{"value": 0, "name": "開放"}, {"value": 1, "name": "關閉"}],
+            "values_source": "event_database",
+        }
+        saved = enrich(previous, "", 0, None, ["ch0_2"])
+        self.assertEqual(saved, {**previous, "default": 0, "scripts": ["ch0_2"]})
+        official = enrich(previous, "原版用途\n0：開放\n1：封鎖", 0, "遊戲名稱", [])
+        self.assertEqual(official["name"], "遊戲名稱")
+        self.assertEqual(official["values"][1]["name"], "封鎖")
+        self.assertNotIn("description_source", official)
+        self.assertNotIn("values_source", official)
+
     def test_references_are_direct_calls_from_original_chapters_only(self):
         class Text:
             type = SimpleNamespace(name="TextAsset")

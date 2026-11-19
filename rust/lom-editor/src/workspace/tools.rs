@@ -252,6 +252,57 @@ impl App {
             }
         }
     }
+    pub(super) fn open_feedback(&mut self, error: Option<&str>) {
+        use lom_core::{game_tools, release};
+
+        let game = self.tools_panel.game_directory();
+        let game = (!game.as_os_str().is_empty()).then_some(game.as_path());
+        let host_version = game.and_then(|root| {
+            game_tools::host_file_version(&game_tools::plugin_dir(root).join("MortalModHost.dll"))
+                .ok()
+        });
+        let game_build = release::detect_game_version(game)
+            .strip_prefix("Steam build ")
+            .and_then(|value| value.parse().ok());
+        let page = match self.section() {
+            Section::Story => "story",
+            Section::Materials => "materials",
+            Section::Game => "game",
+            Section::Release => "release",
+        };
+        let project_mode = match self.project.manifest["play_mode"].as_str() {
+            Some("addon") => Some("addon"),
+            Some("sandbox") => Some("sandbox"),
+            _ => None,
+        };
+        let step_type = (self.center == Center::Node)
+            .then(|| self.project.stories.get(&self.current))
+            .flatten()
+            .and_then(|story| story["nodes"][self.selected]["type"].as_str())
+            .filter(|kind| self.catalog.schema["NODE_SCHEMAS"].get(*kind).is_some())
+            .map(str::to_owned);
+        let error_kind = error
+            .map(|value| crate::error_ui::operation_key(value).unwrap_or("common.error.generic"));
+        let os_error = error.and_then(|value| {
+            value.split("os error ").skip(1).find_map(|tail| {
+                let end = tail.find(|c: char| !c.is_ascii_digit()).unwrap_or(tail.len());
+                tail[..end].parse().ok()
+            })
+        });
+        self.feedback_dialog = Some(crate::feedback::Dialog::new(crate::feedback::Context {
+            editor_version: env!("CARGO_PKG_VERSION"),
+            host_version,
+            game_build,
+            os: std::env::consts::OS,
+            architecture: std::env::consts::ARCH,
+            locale: crate::i18n::locale(),
+            page,
+            project_mode,
+            step_type,
+            error_kind,
+            os_error,
+        }));
+    }
     pub(super) fn choose_preview_library(&mut self) {
         let Some(path) = crate::file_dialog::at(Some(&self.preview.library))
             .set_title(tr(

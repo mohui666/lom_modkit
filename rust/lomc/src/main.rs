@@ -16,7 +16,7 @@ fn run() -> Result<i32> {
     }
     if args.is_empty() || args.iter().any(|s| s == "--help" || s == "-h") {
         println!(concat!("lomc ", env!("CARGO_PKG_VERSION"), " — Rust 活侠传剧情工具\n\n用法: lomc <check|build|compile|pack|inspect|new-story> <路径> [-o 输出] [--json] [--locale chs|cht|ja|ko]\n水印: lomc detect-watermark <图片> [--json]\n      lomc detect-watermark-video <视频> [--ffmpeg 路径] [--interval 秒] [--max-frames 数量] [--json]\n\ncheck 校验剧情；build/compile 生成 Lua；pack 生成 v3 .lommod；inspect 验证完整性与源码/Lua一致性。\n扩展: analyze/test/statistics/preflight <项目> [--profile editing|release]\n      release <项目> -o <输出目录>\n      migrate <JSON> [--kind story|manifest|content]\n      content-inspect/content-import <.lomcontent> [--library 目录]\n      author <请求.json> [-o 输出.json]\n      edit <story.json> --operations <操作数组.json> [-o 输出.json]"));
-        println!("游玩包: play-bundle <项目> -o <输出.zip> --runtime-dir <宿主目录> --loader-x86 <加载器.zip> --loader-x64 <加载器.zip>\n        install-play-bundle <解压目录> [--game <游戏目录>]");
+        println!("游玩包: play-bundle <项目> -o <输出.zip 或 .exe> --runtime-dir <宿主目录> --loader-x86 <加载器.zip> --loader-x64 <加载器.zip>\n        install-play-bundle <解压目录或安装.exe> [--game <游戏目录>]");
         println!("对象创作: schema <nodes|catalog|forms|defaults|project> [-o JSON] [--summary]\n          schema catalog [--filter 关键词]\n          sdk -o <Python接口目录>\n          project <工程请求.json> -o <编辑器工程目录>\n          project-read <工程或包> [-o JSON] [--summary]\n          export <工程或包> -o <.lommod>\n          texts <章节.json> [-o JSON] [--summary]\n--summary 配合 -o 只在标准输出显示简短摘要，文件仍保存完整内容。\n单文件编辑器: lom-editor.exe --cli <以上命令>");
         return Ok(0);
     }
@@ -188,14 +188,21 @@ fn run() -> Result<i32> {
             let runtime = runtime_dir.context("完整游玩包需要 --runtime-dir 目录")?;
             let version =
                 lom_core::game_tools::host_file_version(&runtime.join("MortalModHost.dll"))?;
-            serde_json::to_value(lom_core::release::build_play_bundle(
-                &project,
-                &output.context("完整游玩包需要 -o 输出 ZIP")?,
-                &runtime,
-                &env::current_exe()?,
-                &loader_archives,
-                &version,
-            )?)?
+            let output = output.context("完整游玩包需要 -o 输出文件")?;
+            let cli = env::current_exe()?;
+            let single_file = output.extension().is_some_and(|ext| ext.eq_ignore_ascii_case("exe"));
+            let result = if single_file {
+                anyhow::ensure!(cfg!(windows), "一键安装包请在 Windows 导出");
+                lom_core::release::build_play_installer(
+                    &project, &output, &runtime, &cli.with_file_name("lom-install.exe"),
+                    &loader_archives, &version,
+                )?
+            } else {
+                lom_core::release::build_play_bundle(
+                    &project, &output, &runtime, &cli, &loader_archives, &version,
+                )?
+            };
+            serde_json::to_value(result)?
         }
         "author" => {
             let request = load_json(&path)?;

@@ -715,12 +715,15 @@ impl App {
         }
     }
     pub(super) fn export_play_bundle(&mut self) {
+        self.export_player_package(crate::play_bundle::Format::Zip);
+    }
+    pub(super) fn export_player_package(&mut self, format: crate::play_bundle::Format) {
         if self.apply_pending_drafts() && self.check_before_run_or_export() {
             self.flush();
             let directory = self.export_dialog_directory().map(Path::to_path_buf);
             if let Some(path) = self
                 .tools_panel
-                .export_play_bundle_in(&self.project, directory.as_deref())
+                .export_play_bundle_in(&self.project, directory.as_deref(), format)
             {
                 self.remember_export_directory(&path);
             }

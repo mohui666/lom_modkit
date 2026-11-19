@@ -20,6 +20,20 @@ FLAG_CALL = re.compile(
     r"\s*\(\s*['\"]([^'\"]+)['\"]"
 )
 FRIENDLY_TITLES = {"M20008": "留學去向", "M20011": "崆峒所選門派"}
+MEETING_FLAG_USES = {
+    "Meeting_Option_101_01": ("已開發殺人撲滿", "完成唐門月會的殺人機關撲滿開發時設為 1。"),
+    "Meeting_Option_102_01": ("已開發變重石鎖", "完成唐門月會的變重石鎖開發時設為 1。"),
+    "Meeting_Option_103_01": ("已開發機關馬桶", "完成唐門月會的機關馬桶開發時設為 1。"),
+    "Meeting_Option_104_01": ("已開發唐門牙粉", "完成唐門月會的牙粉開發時設為 1。"),
+    "Meeting_Option_105_01": ("已開發偷油婆藥", "完成唐門月會的偷油婆株連三族藥開發時設為 1。"),
+    "Meeting_Option_106_01": ("已開發殺人毛筆", "完成唐門月會的殺人毛筆開發時設為 1。"),
+    "Meeting_Option_501_01": ("已觸發四師兄的遠行", "進入四師兄遠行的劇情分支時設為 1。"),
+    "Meeting_Option_701_01": ("已選議題：狂劍客出沒", "選擇唐門月會的狂劍客出沒議題時設為 1。"),
+    "Meeting_Option_702_01": ("已選議題：話說我被通緝了", "選擇唐門月會的通緝議題時設為 1。"),
+    "Meeting_Option_703_01": ("已選飛石幫議題", "唐門月會的反攻、送禮道歉與拜訪飛石幫選項共用此旗標。"),
+    "Meeting_Option_704_01": ("已選議題：特訓段考", "選擇唐門月會的特訓段考議題時設為 1。"),
+    "Meeting_Option_705_01": ("已選議題：崆峒那些事兒", "選擇唐門月會的崆峒那些事兒議題時設為 1。"),
+}
 
 
 def value_options(note):
@@ -61,19 +75,37 @@ def direct_references(entries):
     return {flag: sorted(scripts) for flag, scripts in refs.items()}
 
 
-def enrich(row, note, default, official_name, scripts):
-    row = {"id": row["id"]}
+def enrich(previous, note, default, official_name, scripts):
+    row = {"id": previous["id"]}
     note = note.replace("\r\n", "\n").replace("\r", "\n").strip()
     title = note.splitlines()[0].strip() if note else row["id"]
+    story_use = MEETING_FLAG_USES.get(row["id"]) if not note else None
+    referenced_use = (
+        not note and not story_use and previous.get("description_source") == "event_database"
+    )
+    if story_use:
+        title, note = story_use
+    elif referenced_use:
+        title, note = previous["name"], previous["description"]
     row["name"] = official_name or FRIENDLY_TITLES.get(row["id"], title)
     row["default"] = default
     if note:
         row["description"] = note
-        choices = value_options(note)
-        if choices:
+        if story_use:
+            row["description_source"] = "story"
+            row["values"] = [{"value": 0, "name": "否"}, {"value": 1, "name": "是"}]
+        elif referenced_use:
+            row["description_source"] = "event_database"
+        elif choices := value_options(note):
             row["values"] = choices
-        if any(word in note for word in ("暫存", "暂存", "重複使用", "重复使用")):
+        if (
+            referenced_use and previous.get("temporary")
+            or any(word in note for word in ("暫存", "暂存", "重複使用", "重复使用"))
+        ):
             row["temporary"] = True
+    if "values" not in row and previous.get("values_source") == "event_database":
+        row["values"] = previous["values"]
+        row["values_source"] = "event_database"
     if scripts:
         row["scripts"] = scripts
     return row
@@ -150,7 +182,7 @@ def refresh(game, output=ROOT / "data/editor_data.json"):
     references = direct_references(entries)
     official = _load_prefixed_kv(CSV_STAT, RAW_FLAG, "Flag/Name")
     document["game_flags"] = [
-        enrich({"id": flag}, *flags[flag], official.get(flag), references.get(flag, []))
+        enrich(rows.get(flag, {"id": flag}), *flags[flag], official.get(flag), references.get(flag, []))
         for flag in sorted(flags)
     ]
     output.write_text(json.dumps(document, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
