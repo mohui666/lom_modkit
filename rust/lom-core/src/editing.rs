@@ -27,7 +27,13 @@ pub struct SearchHit {
     pub value: String,
     pub preview: String,
 }
-fn hit(category: &str, story: &str, node: Option<&str>, field: &str, value: &str) -> SearchHit {
+pub(crate) fn hit(
+    category: &str,
+    story: &str,
+    node: Option<&str>,
+    field: &str,
+    value: &str,
+) -> SearchHit {
     SearchHit {
         category: category.into(),
         story_id: story.into(),

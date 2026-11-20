@@ -2,7 +2,7 @@
 
 当前工具端由 Rust 编译器、核心库与 egui 编辑器组成；C# `MortalModHost` 保留游戏接入。日常编辑见 [软件使用](software_usage.md)，构建和 CLI 见 [Rust 工具端](rust.md)，验证层次见 [测试矩阵](test_matrix.md)。旧 Python／Qt／PyInstaller 入口已经退役，不作为本手册操作入口。
 
-当前版本为 1.6.4，版本变更见 [GitHub Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.4)，验证入口见 [测试矩阵](test_matrix.md)。仓库不保留独立的版本 notes。
+当前版本为 1.6.5，版本变更见 [GitHub Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.5)，验证入口见 [测试矩阵](test_matrix.md)。仓库不保留独立的版本 notes。
 
 ## 编辑器入口与设置
 
@@ -130,6 +130,10 @@ Windows 发布入口为 `scripts/build-windows.ps1`。准备同版本的 `Mortal
 构建脚本不读取版本 notes。发布标题使用 `<版本>：<一句话概括>`；正文包含简短概述、连续编号的用户可见更新及必要升级说明，不写验证或已知限制栏目。技术验证和实际边界留在测试矩阵与相关技术文档。通过被 Git 忽略的临时文件准备正文，创建／更新 GitHub Release 后移除临时正文。
 
 - 发布附件只提供 `lom-editor.exe`，skill、接口文档和示例通过 `--cli sdk` 导出。1.5.0 更新器只选择 exe，从 GitHub 正式发布信息读取版本、说明、文件大小与 SHA256，下载并校验后，使用新版 exe 自身作为安装助手，等待旧进程退出再替换。CLI 与 Host 仅存在于内置组件中。
+
+更新器优先尝试 `https://toolbox.mahui.site/downloads/lom-modkit`。构建时可通过 `LOM_RELEASE_MIRROR` 指定其他 HTTPS 下载根地址。同步正式发布的附件到 `<下载根地址>/v<版本>/lom-editor.exe`，并用 GitHub Release 的大小和 SHA256 核对远端文件。更新器以 GitHub 发布信息确定版本。国内源连接、传输或校验失败时，会自动重新下载该版本的 GitHub 附件。
+
+下载站可导入 [Caddy 路由片段](../../tools/release_mirror.caddy)，向 `lom_modkit_downloads` 传入发布文件目录。目录内的 `v<版本>/lom-editor.exe` 按版本保留，缺少指定附件时跳转到 GitHub 的同版本。完成附件同步与校验后再更新 `latest.json`。
 
 1.4.19 起可通过内置更新升级，也可退出编辑器后替换 exe；作品和素材格式继续兼容。GitHub 自动生成的源码归档不是用户需要下载的程序附件。
 

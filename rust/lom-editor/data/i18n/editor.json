@@ -467,6 +467,120 @@
     "ja": "自動保存に失敗しました。変更はエディタに保持されています。保存先を確認するか別名で保存してください。\n{path}\n{error}",
     "ko": "자동 저장에 실패했습니다. 변경 내용은 편집기에 유지됩니다. 저장 위치를 확인하거나 다른 이름으로 저장하세요.\n{path}\n{error}"
   },
+  "editor.checkpoints.keep": {
+    "chs": "每个工程保留的自动保存检查点",
+    "cht": "每個專案保留的自動儲存檢查點",
+    "ja": "プロジェクトごとの自動保存チェックポイント数",
+    "ko": "프로젝트별 자동 저장 체크포인트 보관 수"
+  },
+  "editor.checkpoints.hint": {
+    "chs": "自动保存成功后保留最近的版本。设为 0 时停止创建检查点。",
+    "cht": "自動儲存成功後保留最近的版本。設為 0 時停止建立檢查點。",
+    "ja": "自動保存に成功した最新の版を残します。0 にするとチェックポイントの作成を停止します。",
+    "ko": "자동 저장에 성공한 최근 버전을 보관합니다. 0이면 체크포인트를 만들지 않습니다."
+  },
+  "editor.checkpoints.unsaved": {
+    "chs": "手动保存工程后可创建检查点。",
+    "cht": "手動儲存專案後可建立檢查點。",
+    "ja": "プロジェクトを手動で保存すると、チェックポイントを作成できます。",
+    "ko": "프로젝트를 수동으로 저장한 뒤 체크포인트를 만들 수 있습니다."
+  },
+  "editor.checkpoints.current": {
+    "chs": "当前工程有 {count} 个检查点",
+    "cht": "目前專案有 {count} 個檢查點",
+    "ja": "このプロジェクトのチェックポイント {count} 件",
+    "ko": "현재 프로젝트 체크포인트 {count}개"
+  },
+  "editor.checkpoints.history": {
+    "chs": "查看检查点",
+    "cht": "查看檢查點",
+    "ja": "チェックポイントを表示",
+    "ko": "체크포인트 보기"
+  },
+  "editor.checkpoints.entry": {
+    "chs": "检查点 {index} · {age}",
+    "cht": "檢查點 {index} · {age}",
+    "ja": "チェックポイント {index} · {age}",
+    "ko": "체크포인트 {index} · {age}"
+  },
+  "editor.checkpoints.just_saved": {
+    "chs": "刚保存",
+    "cht": "剛儲存",
+    "ja": "保存直後",
+    "ko": "방금 저장됨"
+  },
+  "editor.checkpoints.minutes_ago": {
+    "chs": "{count} 分钟前",
+    "cht": "{count} 分鐘前",
+    "ja": "{count} 分前",
+    "ko": "{count}분 전"
+  },
+  "editor.checkpoints.hours_ago": {
+    "chs": "{count} 小时前",
+    "cht": "{count} 小時前",
+    "ja": "{count} 時間前",
+    "ko": "{count}시간 전"
+  },
+  "editor.checkpoints.days_ago": {
+    "chs": "{count} 天前",
+    "cht": "{count} 天前",
+    "ja": "{count} 日前",
+    "ko": "{count}일 전"
+  },
+  "editor.checkpoints.clear": {
+    "chs": "清除当前工程的检查点",
+    "cht": "清除目前專案的檢查點",
+    "ja": "このプロジェクトのチェックポイントを消去",
+    "ko": "현재 프로젝트 체크포인트 지우기"
+  },
+  "editor.checkpoints.cleared": {
+    "chs": "已清除当前工程的 {count} 个检查点",
+    "cht": "已清除目前專案的 {count} 個檢查點",
+    "ja": "このプロジェクトのチェックポイントを {count} 件消去しました",
+    "ko": "현재 프로젝트의 체크포인트 {count}개를 지웠습니다."
+  },
+  "editor.checkpoints.clear_failed": {
+    "chs": "清除检查点失败。\n{error}",
+    "cht": "清除檢查點失敗。\n{error}",
+    "ja": "チェックポイントの消去に失敗しました。\n{error}",
+    "ko": "체크포인트를 지우지 못했습니다.\n{error}"
+  },
+  "editor.checkpoints.write_failed": {
+    "chs": "工程已自动保存。更新检查点失败。\n{error}",
+    "cht": "專案已自動儲存。更新檢查點失敗。\n{error}",
+    "ja": "プロジェクトは自動保存されました。チェックポイントの更新に失敗しました。\n{error}",
+    "ko": "프로젝트를 자동 저장했습니다. 체크포인트를 갱신하지 못했습니다.\n{error}"
+  },
+  "editor.checkpoints.open_copy": {
+    "chs": "打开为副本",
+    "cht": "開啟為副本",
+    "ja": "コピーとして開く",
+    "ko": "사본으로 열기"
+  },
+  "editor.checkpoints.opened": {
+    "chs": "已在副本中打开检查点，可另存为工程。",
+    "cht": "已在副本中開啟檢查點，可另存為專案。",
+    "ja": "チェックポイントをコピーとして開きました。別のプロジェクトとして保存できます。",
+    "ko": "체크포인트를 사본으로 열었습니다. 프로젝트로 따로 저장할 수 있습니다."
+  },
+  "editor.checkpoints.open_failed": {
+    "chs": "无法打开检查点",
+    "cht": "無法開啟檢查點",
+    "ja": "チェックポイントを開けません",
+    "ko": "체크포인트를 열 수 없습니다."
+  },
+  "editor.checkpoints.restore": {
+    "chs": "恢复到当前工程",
+    "cht": "恢復至目前專案",
+    "ja": "現在のプロジェクトに復元",
+    "ko": "현재 프로젝트로 복원"
+  },
+  "editor.checkpoints.restored": {
+    "chs": "已恢复检查点。可撤销，保存后写回工程。",
+    "cht": "已恢復檢查點。可復原，儲存後寫回專案。",
+    "ja": "チェックポイントを復元しました。元に戻せます。保存するとプロジェクトに反映されます。",
+    "ko": "체크포인트를 복원했습니다. 실행 취소할 수 있으며 저장하면 프로젝트에 반영됩니다."
+  },
   "editor.patch.title": {
     "chs": "原版剧情补丁",
     "cht": "原版劇情補丁",

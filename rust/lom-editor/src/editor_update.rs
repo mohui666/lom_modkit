@@ -1,4 +1,4 @@
-//! Manual GitHub release checks and an in-place Windows bundle update.
+//! GitHub release checks and an in-place Windows bundle update.
 use anyhow::{ensure, Context, Result};
 use eframe::egui;
 use serde_json::{json, Value};
@@ -19,6 +19,11 @@ use std::{
 
 const RELEASES: &str = "https://github.com/mohui666/lom_modkit/releases";
 const LATEST: &str = "https://api.github.com/repos/mohui666/lom_modkit/releases/latest";
+const RELEASE_MIRROR: &str = match option_env!("LOM_RELEASE_MIRROR") {
+    Some(url) => url,
+    None => "https://toolbox.mahui.site/downloads/lom-modkit",
+};
+const MIRROR_TIMEOUT: Duration = Duration::from_secs(12);
 const MAX_DOWNLOAD: u64 = 128 * 1024 * 1024;
 use lom_core::editor_update::validate_install;
 use lom_core::editor_update::{owned_file, PROGRAM_FILES};
@@ -47,6 +52,7 @@ struct FileProgress {
     size: u64,
     received: Arc<AtomicU64>,
     verified: AtomicBool,
+    github_fallback: AtomicBool,
 }
 
 struct UpdateProgress {
@@ -65,6 +71,7 @@ impl UpdateProgress {
                     size: file.size,
                     received: Arc::new(AtomicU64::new(0)),
                     verified: AtomicBool::new(false),
+                    github_fallback: AtomicBool::new(false),
                 })
                 .collect(),
             started: Instant::now(),
@@ -268,33 +275,98 @@ fn verify_file(path: &Path, file: &Download) -> Result<()> {
     Ok(())
 }
 
-fn prepare(release: &Release, cancel: &AtomicBool, progress: &UpdateProgress) -> Result<Prepared> {
+fn mirror_asset_url(base: &str, version: &str) -> Option<String> {
+    let base = reqwest::Url::parse(base.trim()).ok()?;
+    if base.scheme() != "https"
+        || !base.username().is_empty()
+        || base.password().is_some()
+        || base.query().is_some()
+        || base.fragment().is_some()
+    {
+        return None;
+    }
+    Some(format!(
+        "{}/v{version}/lom-editor.exe",
+        base.as_str().trim_end_matches('/')
+    ))
+}
+
+fn download_release_file(
+    file: &Download,
+    destination: &Path,
+    mirror_url: Option<&str>,
+    cancel: &AtomicBool,
+    progress: &FileProgress,
+) -> Result<()> {
+    let fetch = |url: &str, path: &Path, timeout| {
+        crate::http_download::download_update(
+            url,
+            path,
+            file.size,
+            MAX_DOWNLOAD,
+            cancel,
+            &progress.received,
+            timeout,
+        )?;
+        verify_file(path, file)
+    };
+    let github = || {
+        fetch(
+            &file.url,
+            destination,
+            crate::http_download::REQUEST_TIMEOUT,
+        )
+    };
+    if let Some(url) = mirror_url {
+        let candidate = destination.with_extension("mirror-download");
+        match fetch(url, &candidate, MIRROR_TIMEOUT) {
+            Ok(()) => {
+                fs::rename(candidate, destination)?;
+                return Ok(());
+            }
+            Err(error) => {
+                ensure!(!cancel.load(Ordering::Relaxed), "下载已取消");
+                progress.received.store(0, Ordering::Relaxed);
+                progress.github_fallback.store(true, Ordering::Relaxed);
+                return github().with_context(|| {
+                    format!("国内源失败，GitHub 回退未完成。\n国内源：{error:#}")
+                });
+            }
+        }
+    }
+    github()
+}
+
+fn prepare(
+    release: &Release,
+    cancel: &AtomicBool,
+    progress: &UpdateProgress,
+    mirror_base: Option<&str>,
+) -> Result<Prepared> {
     ensure!(
         release.can_update(),
         "此发布缺少可直接更新的程序附件或校验信息"
     );
     let workspace = lom_core::workdir::create()?;
+    let mirror_url = if release.self_installing {
+        mirror_base.and_then(|base| mirror_asset_url(base, &release.version))
+    } else {
+        None
+    };
     let first_error = std::sync::Mutex::new(None);
     thread::scope(|scope| {
         let mut workers = Vec::new();
         for (file, progress) in release.files.iter().zip(&progress.files) {
             let workspace = workspace.path();
+            let mirror_url = mirror_url.as_deref();
             let first_error = &first_error;
             workers.push(scope.spawn(move || {
                 let result = (|| -> Result<()> {
                     ensure!(owned_file(&file.path), "拒绝下载非程序文件：{}", file.path);
                     let destination = workspace.join("bundle").join(&file.path);
                     fs::create_dir_all(destination.parent().context("无效更新路径")?)?;
-                    crate::http_download::download_update(
-                        &file.url,
-                        &destination,
-                        file.size,
-                        MAX_DOWNLOAD,
-                        cancel,
-                        &progress.received,
-                    )
-                    .with_context(|| format!("下载更新文件失败：{}", file.path))?;
-                    verify_file(&destination, file)?;
+                    download_release_file(file, &destination, mirror_url, cancel, progress)
+                        .with_context(|| format!("下载更新文件失败：{}", file.path))?;
                     progress.verified.store(true, Ordering::Relaxed);
                     Ok(())
                 })();
@@ -450,7 +522,7 @@ impl Updater {
         let cancel = self.cancel.clone();
         self.worker = Some(thread::spawn(move || {
             let _ = tx.send(
-                prepare(&release, &cancel, &progress)
+                prepare(&release, &cancel, &progress, Some(RELEASE_MIRROR))
                     .map(Job::Prepared)
                     .map_err(|e| crate::error_ui::capture(e)),
             );
@@ -566,6 +638,13 @@ impl Updater {
                 byte_size(file.size as f64),
                 key(status)
             ));
+        }
+        if progress
+            .files
+            .iter()
+            .any(|file| file.github_fallback.load(Ordering::Relaxed))
+        {
+            ui.small(key("common.update.github_fallback"));
         }
         if downloaded < total
             && now.duration_since(self.last_activity.unwrap_or(progress.started))
@@ -834,6 +913,7 @@ mod tests {
             &release,
             &AtomicBool::new(false),
             &UpdateProgress::new(&release),
+            None,
         )
         .unwrap();
         server.join().unwrap();
@@ -844,6 +924,97 @@ mod tests {
             b"new program bytes"
         );
         assert!(!prepared.workspace.path().join("bundle/lomc.exe").exists());
+    }
+
+    #[test]
+    fn verified_mirror_is_preferred_and_any_failed_mirror_uses_the_same_github_asset() {
+        use std::{
+            io::{BufRead, BufReader, Write},
+            net::TcpListener,
+        };
+        let root = "https://toolbox.mahui.site/downloads/lom-modkit/";
+        assert_eq!(
+            mirror_asset_url(root, "1.6.4").as_deref(),
+            Some("https://toolbox.mahui.site/downloads/lom-modkit/v1.6.4/lom-editor.exe")
+        );
+        let payload = b"new program bytes";
+        for (status, body, fallback) in [
+            ("200 OK", payload.as_slice(), false),
+            ("404 Not Found", b"".as_slice(), true),
+            ("200 OK", b"bad program bytes".as_slice(), true),
+        ] {
+            let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+            listener.set_nonblocking(true).unwrap();
+            let origin = format!("http://{}", listener.local_addr().unwrap());
+            let server = thread::spawn(move || {
+                let replies = [
+                    ("/mirror/v1.6.4/lom-editor.exe", status, body),
+                    (
+                        "/github/v1.6.4/lom-editor.exe",
+                        "200 OK",
+                        payload.as_slice(),
+                    ),
+                ];
+                for (path, status, body) in replies.into_iter().take(if fallback { 2 } else { 1 }) {
+                    let deadline = Instant::now() + Duration::from_secs(5);
+                    let mut client = loop {
+                        match listener.accept() {
+                            Ok((client, _)) => break client,
+                            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                                assert!(Instant::now() < deadline, "没有访问 {path}");
+                                thread::sleep(Duration::from_millis(10));
+                            }
+                            Err(error) => panic!("{error}"),
+                        }
+                    };
+                    client
+                        .set_read_timeout(Some(Duration::from_secs(5)))
+                        .unwrap();
+                    let mut reader = BufReader::new(&mut client);
+                    let mut line = String::new();
+                    reader.read_line(&mut line).unwrap();
+                    assert_eq!(line.split_whitespace().nth(1), Some(path));
+                    loop {
+                        line.clear();
+                        assert!(reader.read_line(&mut line).unwrap() > 0);
+                        if line == "\r\n" {
+                            break;
+                        }
+                    }
+                    write!(
+                        client,
+                        "HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                        body.len()
+                    )
+                    .unwrap();
+                    client.write_all(body).unwrap();
+                }
+            });
+            let mut release = parse_release(&single_release()).unwrap();
+            release.files[0].url = format!("{origin}/github/v1.6.4/lom-editor.exe");
+            let progress = UpdateProgress::new(&release);
+            let temp = tempfile::tempdir().unwrap();
+            let destination = temp.path().join("lom-editor.exe");
+            let mirror = format!("{origin}/mirror/v1.6.4/lom-editor.exe");
+            download_release_file(
+                &release.files[0],
+                &destination,
+                Some(&mirror),
+                &AtomicBool::new(false),
+                &progress.files[0],
+            )
+            .unwrap();
+            server.join().unwrap();
+            assert_eq!(fs::read(destination).unwrap(), payload);
+            assert_eq!(
+                progress.files[0].received.load(Ordering::Relaxed),
+                payload.len() as u64
+            );
+            assert_eq!(
+                progress.files[0].github_fallback.load(Ordering::Relaxed),
+                fallback
+            );
+        }
     }
 
     #[test]
@@ -977,7 +1148,7 @@ mod tests {
                 file.url = format!("http://{address}/{}", file.path);
             }
             let progress = UpdateProgress::new(&release);
-            let prepared = prepare(&release, &AtomicBool::new(false), &progress).unwrap();
+            let prepared = prepare(&release, &AtomicBool::new(false), &progress, None).unwrap();
             server.join().unwrap();
             assert!(progress
                 .files
@@ -1322,7 +1493,11 @@ mod tests {
         assert!(release.self_installing && release.can_update());
         let temp = lom_core::workdir::create().unwrap();
         if release.can_update() {
-            let prepared = prepare(&release, &cancel, &UpdateProgress::new(&release)).unwrap();
+            let progress = UpdateProgress::new(&release);
+            let prepared = prepare(&release, &cancel, &progress, Some(RELEASE_MIRROR)).unwrap();
+            if progress.files[0].github_fallback.load(Ordering::Relaxed) {
+                println!("GitHub fallback verified for v{}", release.version);
+            }
             assert_eq!(prepared.files.len(), 1);
             #[cfg(windows)]
             if release.embedded_components {
