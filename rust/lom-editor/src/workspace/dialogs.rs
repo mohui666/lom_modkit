@@ -222,7 +222,9 @@ impl App {
             let mut startup_changed = false;
             let mut auto_save = self.auto_save_project;
             let mut auto_save_seconds = self.auto_save_seconds;
+            let mut auto_save_checkpoints = self.auto_save_checkpoints;
             let mut auto_save_changed = false;
+            let mut checkpoint_action = None;
             let mut choose_library = false;
             let mut extract_library = false;
             let mut resolution_changed = false;
@@ -268,6 +270,16 @@ impl App {
                                 });
                             });
                             ui.small(crate::i18n::key("editor.autosave.hint"));
+                            ui.add_space(12.0);
+                            ui.horizontal_wrapped(|ui| {
+                                ui.label(crate::i18n::key("editor.checkpoints.keep"));
+                                auto_save_changed |= ui.add(
+                                    egui::DragValue::new(&mut auto_save_checkpoints)
+                                        .range(0..=checkpoints::MAX_COUNT),
+                                ).changed();
+                            });
+                            ui.small(crate::i18n::key("editor.checkpoints.hint"));
+                            checkpoint_action = self.checkpoint_controls(ui);
                         }
                         1 => {
                             ui.strong(crate::i18n::key("editor.workspace.preview_library"));
@@ -304,7 +316,7 @@ impl App {
             }
             if auto_save_changed {
                 self.settings_error = self
-                    .set_auto_save(auto_save, auto_save_seconds, &prefs)
+                    .set_auto_save(auto_save, auto_save_seconds, auto_save_checkpoints, &prefs)
                     .err()
                     .map(|error| crate::error_ui::capture(error));
             }
@@ -338,6 +350,21 @@ impl App {
             if extract_library {
                 self.settings_open = false;
                 self.tools_panel.start_extraction();
+            }
+            match checkpoint_action {
+                Some(checkpoints::Action::Clear) => self.clear_checkpoints(),
+                Some(checkpoints::Action::Open(path)) => {
+                    self.settings_open = false;
+                    self.request(Pending::OpenCheckpoint(path), ctx);
+                }
+                Some(checkpoints::Action::Restore(path)) => {
+                    self.settings_open = false;
+                    self.restore_checkpoint(&path);
+                }
+                None => {}
+            }
+            if !self.settings_open {
+                self.checkpoint_entries = None;
             }
             return;
         }

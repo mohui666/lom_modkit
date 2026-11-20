@@ -226,7 +226,9 @@ fn project_autosave_writes_directory_json_and_package_without_a_dialog() {
         let mut app = app();
         app.install(Project::open(&target).unwrap());
         app.recovery_dir = dir.path().join("recovery");
+        app.checkpoint_base = dir.path().join("checkpoints");
         app.auto_save_project = true;
+        app.auto_save_checkpoints = 1;
         app.project.stories.get_mut("main").unwrap()["nodes"][0]["text"] =
             json!("自动保存的新进度");
         app.track();
@@ -239,6 +241,12 @@ fn project_autosave_writes_directory_json_and_package_without_a_dialog() {
         assert_eq!(
             Project::open(&target).unwrap().stories["main"]["nodes"][0]["text"],
             "自动保存的新进度"
+        );
+        let checkpoints = checkpoints::list(&app.checkpoint_base, &target).unwrap();
+        assert_eq!(checkpoints.len(), 1, "{layout}");
+        assert_eq!(
+            Project::open(&checkpoints[0].path).unwrap().stories,
+            app.project.stories
         );
         assert!(app.status.contains(&target.display().to_string()));
     }
@@ -327,14 +335,98 @@ fn project_autosave_preferences_preserve_other_settings_and_project() {
     let mut app = app();
     let before = snapshot(&app.project);
     assert_eq!(app.auto_save_seconds, 300);
-    app.set_auto_save(true, 60, &path).unwrap();
+    app.set_auto_save(true, 60, 4, &path).unwrap();
     let prefs = lom_core::load_json(&path).unwrap();
     assert_eq!(prefs["auto_save_project"], true);
     assert_eq!(prefs["auto_save_seconds"], 60);
+    assert_eq!(prefs["auto_save_checkpoints"], 4);
+    assert_eq!(app.auto_save_checkpoints, 4);
     assert_eq!(prefs["custom"], "keep");
     assert_eq!(prefs["ui_locale"], "chs");
-    assert!(app.set_auto_save(true, 0, &path).is_err());
+    assert!(app.set_auto_save(true, 0, 4, &path).is_err());
+    assert!(app
+        .set_auto_save(true, 60, checkpoints::MAX_COUNT + 1, &path)
+        .is_err());
     assert!(snapshot(&app.project) == before);
+}
+
+#[test]
+fn automatic_checkpoints_rotate_restore_and_clear_only_the_current_project() {
+    let temp = tempfile::tempdir().unwrap();
+    let source = temp.path().join("project");
+    let other = temp.path().join("another-project");
+    let base = temp.path().join("checkpoints");
+    let asset = "assets/revision.bin";
+    let mut editor = app();
+    editor.checkpoint_base = base.clone();
+    editor.auto_save_project = true;
+    editor.auto_save_checkpoints = 2;
+    editor.recovery_dir = temp.path().join("recovery");
+    assert!(editor.save_at(&source, false));
+    finish_saves(&mut editor);
+    assert!(checkpoints::list(&base, &source).unwrap().is_empty());
+
+    for revision in 1..=3 {
+        editor.project.stories.get_mut("main").unwrap()["nodes"][0]["text"] =
+            json!(format!("版本 {revision}"));
+        editor.project.assets.insert(asset.into(), vec![revision]);
+        editor.asset_dirty = true;
+        editor.track();
+        editor.last_auto_save = Instant::now() - Duration::from_secs(301);
+        editor.autosave();
+        finish_saves(&mut editor);
+        assert!(editor.error.is_none());
+    }
+    let items = checkpoints::list(&base, &source).unwrap();
+    assert_eq!(items.len(), 2);
+    assert_eq!(
+        Project::open(&items[0].path).unwrap().assets[asset],
+        vec![3]
+    );
+    assert_eq!(
+        Project::open(&items[1].path).unwrap().assets[asset],
+        vec![2]
+    );
+
+    // Opening a copy is detached from both the original and the history.
+    let mut copy = app();
+    copy.perform(
+        Pending::OpenCheckpoint(items[1].path.clone()),
+        &egui::Context::default(),
+    );
+    assert!(copy.project.source.is_none());
+    assert_eq!(copy.story()["nodes"][0]["text"], "版本 2");
+
+    let source_before = editor.project.source.clone();
+    editor.restore_checkpoint(&items[1].path);
+    assert_eq!(editor.project.source, source_before);
+    assert_eq!(editor.story()["nodes"][0]["text"], "版本 2");
+    assert_eq!(editor.project.assets[asset], vec![2]);
+    assert!(editor.dirty());
+    assert_eq!(Project::open(&source).unwrap().assets[asset], vec![3]);
+    editor.undo();
+    assert_eq!(editor.story()["nodes"][0]["text"], "版本 3");
+    editor.redo();
+    assert!(editor.save_at(&source, false));
+    finish_saves(&mut editor);
+    assert_eq!(Project::open(&source).unwrap().assets[asset], vec![2]);
+    assert_eq!(checkpoints::list(&base, &source).unwrap().len(), 2);
+
+    let mut another = Project::new();
+    another.save_to(&other).unwrap();
+    checkpoints::write(&base, &other, &mut another, 2).unwrap();
+    let manual = items[0].path.parent().unwrap().join("manual.txt");
+    std::fs::write(&manual, "保留").unwrap();
+    std::fs::create_dir_all(&editor.recovery_dir).unwrap();
+    let recovery = editor.recovery_dir.join("session.json");
+    std::fs::write(&recovery, "{}").unwrap();
+    editor.clear_checkpoints();
+    finish_saves(&mut editor);
+    assert!(checkpoints::list(&base, &source).unwrap().is_empty());
+    assert_eq!(checkpoints::list(&base, &other).unwrap().len(), 1);
+    assert_eq!(Project::open(&source).unwrap().assets[asset], vec![2]);
+    assert!(manual.is_file());
+    assert!(recovery.is_file());
 }
 
 #[test]

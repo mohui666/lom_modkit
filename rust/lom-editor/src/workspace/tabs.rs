@@ -372,7 +372,11 @@ impl Workspace {
         let theme = old.theme;
         let shell = old.shell.clone();
         let usability = old.usability.clone();
-        let auto_save = (old.auto_save_project, old.auto_save_seconds);
+        let auto_save = (
+            old.auto_save_project,
+            old.auto_save_seconds,
+            old.auto_save_checkpoints,
+        );
         let legacy_rotation = old.preview.legacy_character_rotation;
         let preview_resolution = old.preview.resolution;
         let startup = old.check_updates_on_startup;
@@ -393,7 +397,11 @@ impl Workspace {
         next.theme = theme;
         next.shell = shell;
         next.usability = usability;
-        (next.auto_save_project, next.auto_save_seconds) = auto_save;
+        (
+            next.auto_save_project,
+            next.auto_save_seconds,
+            next.auto_save_checkpoints,
+        ) = auto_save;
         next.preview.legacy_character_rotation = legacy_rotation;
         next.preview.resolution = preview_resolution;
         next.check_updates_on_startup = startup;
@@ -717,9 +725,11 @@ impl eframe::App for Workspace {
         self.tabs[self.active].app.menu_toolbar(ctx);
         self.strip(ctx);
         self.tabs[self.active].app.section_toolbar(ctx);
+        let checkpoint_limit = self.tabs[self.active].app.auto_save_checkpoints;
         for index in 0..self.tabs.len() {
             if index != self.active {
                 let app = &mut self.tabs[index].app;
+                app.auto_save_checkpoints = checkpoint_limit;
                 app.tools_panel.poll(ctx);
                 app.poll_background_save(ctx);
                 app.autosave();

@@ -1,6 +1,6 @@
 use crate::i18n::tr;
 use eframe::egui;
-use lom_core::{content_edit, editing, project::Project};
+use lom_core::{content_edit, project::Project};
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
 #[path = "content_alignment.rs"]
@@ -57,6 +57,68 @@ pub struct ContentPanel {
     alignment_textures: BTreeMap<String, (egui::TextureHandle, [u32; 2])>,
 }
 impl ContentPanel {
+    fn is_extension(&self) -> bool {
+        self.draft["type"] == "character"
+            && self.draft["extends"]
+                .as_str()
+                .is_some_and(|id| !id.trim().is_empty())
+    }
+
+    fn replace_file(&mut self, path: &std::path::Path) -> anyhow::Result<()> {
+        let bytes = std::fs::read(path)?;
+        let ext = path
+            .extension()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_ascii_lowercase();
+        let name = format!("{}.{ext}", uuid_name());
+        let audio = self.draft["type"] == "audio";
+        let limit = if audio {
+            20 * 1024 * 1024
+        } else {
+            8 * 1024 * 1024
+        };
+        anyhow::ensure!(
+            !bytes.is_empty() && bytes.len() <= limit,
+            "素材为空或超过大小限制"
+        );
+        if !audio {
+            image::load_from_memory(&bytes)?;
+        }
+        if self.draft["type"] == "character" {
+            match self.slot {
+                0 => {
+                    self.draft["files"]["main"] = json!(name);
+                    if !self.is_extension() {
+                        self.draft["portraits"]["normal"] = json!(name);
+                    }
+                }
+                1 => {
+                    lom_core::content::validate_portrait_id(&self.portrait)?;
+                    self.draft["portraits"][&self.portrait] = json!(name);
+                }
+                2 => {
+                    anyhow::ensure!(self.draft["intro"].is_object(), "请先添加介绍卡");
+                    self.draft["intro"]["image"] = json!(name);
+                }
+                7 => self.draft["avatar"] = json!(name),
+                i => {
+                    self.draft[[
+                        "combat_idle",
+                        "combat_attack",
+                        "combat_hurt",
+                        "combat_defence",
+                    ][i - 3]] = json!(name)
+                }
+            }
+        } else {
+            self.draft["files"]["main"] = json!(name);
+        }
+        self.files.insert(name, bytes);
+        self.preview = None;
+        Ok(())
+    }
+
     fn add_portraits(&mut self, paths: &[std::path::PathBuf]) -> anyhow::Result<usize> {
         anyhow::ensure!(self.draft["type"] == "character", "仅人物素材支持新增表情");
         let mut draft = self.draft.clone();
@@ -339,6 +401,8 @@ impl ContentPanel {
                 self.draft = values;
             }
         });
+        let extension = self.is_extension();
+        let mut remove_portrait = false;
         if kind != "talent" {
             ui.add_space(4.0);
             let slots = if kind == "character" {
@@ -355,11 +419,16 @@ impl ContentPanel {
             } else {
                 vec!["主文件"]
             };
+            let slot_label = |index: usize, label: &str| match (extension, index) {
+                (true, 0) => crate::i18n::key("workspace.content.extension_main"),
+                (_, 1) => crate::i18n::key("workspace.content.portrait_slot"),
+                _ => tr(label),
+            };
             self.slot = self.slot.min(slots.len() - 1);
             egui::ComboBox::from_id_salt("content-file-slot")
                 .selected_text(format!(
                     "{}{}",
-                    tr(slots[self.slot]),
+                    slot_label(self.slot, slots[self.slot]),
                     if self.slot == 0 { " *" } else { "" }
                 ))
                 .show_ui(ui, |ui| {
@@ -367,10 +436,13 @@ impl ContentPanel {
                         ui.selectable_value(
                             &mut self.slot,
                             i,
-                            format!("{}{}", tr(label), if i == 0 { " *" } else { "" }),
+                            format!("{}{}", slot_label(i, label), if i == 0 { " *" } else { "" }),
                         );
                     }
                 });
+            if extension && self.slot == 0 {
+                ui.small(crate::i18n::key("workspace.content.extension_main_hint"));
+            }
             if kind == "character" && self.slot == 7 {
                 ui.small(tr("好感提示使用此头像；未指定时使用默认立绘。人物好感保存在当前作品的独立存档中。"));
                 if self.draft["avatar"].is_string()
@@ -409,6 +481,12 @@ impl ContentPanel {
                     ui.text_edit_singleline(&mut self.portrait);
                 });
                 ui.small(crate::i18n::key("workspace.content.portrait_hint"));
+                if extension && self.draft["portraits"].get(&self.portrait).is_some() {
+                    remove_portrait = ui
+                        .button(crate::i18n::key("workspace.content.remove_portrait"))
+                        .on_hover_text(crate::i18n::key("workspace.content.remove_portrait_hint"))
+                        .clicked();
+                }
             }
             if kind == "character" && ui.button(tr("新增表情立绘…")).clicked() {
                 let paths = match crate::file_dialog::asset_files(
@@ -467,74 +545,31 @@ impl ContentPanel {
                     }
                 };
                 if let Some(path) = path {
-                    let result = (|| -> anyhow::Result<()> {
-                        let bytes = std::fs::read(&path)?;
-                        let ext = path
-                            .extension()
-                            .and_then(|s| s.to_str())
-                            .unwrap_or("")
-                            .to_ascii_lowercase();
-                        let name = format!("{}.{ext}", uuid_name());
-                        let limit = if kind == "audio" {
-                            20 * 1024 * 1024
-                        } else {
-                            8 * 1024 * 1024
-                        };
-                        anyhow::ensure!(
-                            !bytes.is_empty() && bytes.len() <= limit,
-                            "素材为空或超过大小限制"
-                        );
-                        if kind != "audio" {
-                            image::load_from_memory(&bytes)?;
-                        }
-                        if kind == "character" {
-                            match self.slot {
-                                0 => {
-                                    self.draft["files"]["main"] = json!(name);
-                                    self.draft["portraits"]["normal"] = json!(name);
-                                }
-                                1 => {
-                                    lom_core::content::validate_portrait_id(&self.portrait)?;
-                                    self.draft["portraits"][&self.portrait] = json!(name);
-                                }
-                                2 => {
-                                    anyhow::ensure!(
-                                        self.draft["intro"].is_object(),
-                                        "请先添加介绍卡"
-                                    );
-                                    self.draft["intro"]["image"] = json!(name);
-                                }
-                                7 => self.draft["avatar"] = json!(name),
-                                i => {
-                                    self.draft[[
-                                        "combat_idle",
-                                        "combat_attack",
-                                        "combat_hurt",
-                                        "combat_defence",
-                                    ][i - 3]] = json!(name)
-                                }
-                            }
-                        } else {
-                            self.draft["files"]["main"] = json!(name);
-                        }
-                        self.files.insert(name, bytes);
-                        self.preview = None;
-                        Ok(())
-                    })();
-                    self.set_message(result.map(|_| String::new()));
+                    let result = self.replace_file(&path).map(|_| String::new());
+                    self.set_message(result);
                 }
             }
         }
-        if kind == "character" {
+        if kind == "character" && (!extension || self.slot == 1) {
             self.alignment_controls(ui, project, key);
         }
         // Keep in-progress typing intact (including spaces). Leaving the input,
         // choosing a file, switching resources, or saving commits the draft.
-        if !self.alignment_dragging && (!ui.ctx().wants_keyboard_input() || !self.files.is_empty())
+        if !self.alignment_dragging
+            && (remove_portrait || !ui.ctx().wants_keyboard_input() || !self.files.is_empty())
         {
             match self.apply_pending(project) {
                 Ok(applied) => changed |= applied,
                 Err(error) => self.set_message(Err(error.context("修改尚未完成"))),
+            }
+        }
+        if remove_portrait && !self.has_pending() {
+            match content_edit::remove_extension_portrait(project, key, &self.portrait) {
+                Ok(()) => {
+                    self.reset();
+                    return true;
+                }
+                Err(error) => self.set_message(Err(error)),
             }
         }
         ui.horizontal_wrapped(|ui| {
@@ -551,13 +586,7 @@ impl ContentPanel {
                 }
             }
         });
-        let refs = editing::references(
-            &project.stories,
-            &project.manifest,
-            "content",
-            &symbol,
-            None,
-        );
+        let refs = content_edit::story_references(project, &self.draft);
         ui.collapsing(
             crate::i18n::message(
                 "workspace.content.references",
@@ -566,10 +595,11 @@ impl ContentPanel {
             |ui| {
                 for r in refs {
                     ui.label(format!(
-                        "{}/{} · {}",
+                        "{}/{} · {} · {}",
                         r.story_id,
                         r.node_id.unwrap_or_default(),
-                        r.field
+                        r.field,
+                        r.value
                     ));
                 }
             },
@@ -1431,6 +1461,41 @@ mod tests {
         panel.set_message(Ok(success.into()));
         assert!(read(&panel).contains(success));
         assert!(!panel.message_is_error);
+    }
+
+    #[test]
+    fn replacing_an_extension_main_image_leaves_its_portrait_slots_alone() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("cover.png");
+        let png = include_bytes!(
+            "../../../samples/showcase3/assets/user/character/showcase.xia_extra/tired.png"
+        );
+        std::fs::write(&path, png).unwrap();
+        let mut panel = ContentPanel::default();
+        panel.draft = json!({"type":"character","extends":"player",
+            "files":{"main":"tired.png"},"portraits":{"tired":"tired.png"}});
+        let original = panel.draft["portraits"].clone();
+        panel.replace_file(&path).unwrap();
+        let cover = panel.draft["files"]["main"].as_str().unwrap();
+        assert_ne!(cover, "tired.png");
+        assert_eq!(panel.files[cover], png);
+        assert_eq!(panel.draft["portraits"], original);
+
+        panel.slot = 1;
+        panel.portrait = "normal".into();
+        panel.replace_file(&path).unwrap();
+        let overridden = panel.draft["portraits"].clone();
+        assert!(overridden["normal"].is_string());
+        panel.slot = 0;
+        panel.replace_file(&path).unwrap();
+        assert_eq!(panel.draft["portraits"], overridden);
+
+        panel.draft.as_object_mut().unwrap().remove("extends");
+        panel.replace_file(&path).unwrap();
+        assert_eq!(
+            panel.draft["portraits"]["normal"],
+            panel.draft["files"]["main"]
+        );
     }
 
     #[test]

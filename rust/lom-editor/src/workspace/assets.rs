@@ -4,6 +4,22 @@ use super::*;
 mod image_transfer;
 
 impl App {
+    pub(super) fn repair_legacy_portrait_overrides(&mut self) {
+        match lom_core::content_edit::repair_legacy_main_portrait_overrides(&mut self.project) {
+            Ok(0) => {}
+            Ok(count) => {
+                self.asset_dirty = true;
+                self.track();
+                self.flush();
+                self.status = crate::i18n::message(
+                    "workspace.content.repaired_legacy_portraits",
+                    &[("count", count.to_string())],
+                );
+            }
+            Err(error) => self.error = Some(crate::error_ui::capture(error)),
+        }
+    }
+
     pub(super) fn assets(&mut self, ui: &mut egui::Ui) {
         ui.strong(tr("作品素材"));
         ui.add_space(4.0);

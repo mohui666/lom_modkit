@@ -45,6 +45,9 @@
       "type": "portrait",
       "character": "special825",
       "portrait": "normal",
+      "_editor": {
+        "note": "替换夏灵犀的「扩展主图」后，本步仍使用原版 normal。打开旧版误覆盖的工程时，本步会自动恢复原版立绘。主动设置的同名覆盖可在「指定表情」中移除。"
+      },
       "fade_out": 0.2,
       "fade_in": 0.2
     },

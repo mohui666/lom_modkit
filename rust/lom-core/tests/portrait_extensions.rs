@@ -123,6 +123,85 @@ fn extensions_do_not_relax_validation_for_other_people_or_undefined_expressions(
 }
 
 #[test]
+fn released_164_override_can_be_removed_without_editing_the_story() {
+    // Packaged by the compiler embedded in the published 1.6.4 editor.
+    let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/released-1.6.4-portrait-override.lommod");
+    let original_file = std::fs::read(&fixture).unwrap();
+    let key = "assets/user/character/demo.player_extra/content.json";
+    let mut project = Project::open(&fixture).unwrap();
+    let original = project.clone();
+    let meta: Value = serde_json::from_slice(&project.assets[key]).unwrap();
+    assert_eq!(meta["files"]["main"], meta["portraits"]["normal"]);
+
+    let refs = content_edit::story_references(&project, &meta);
+    assert_eq!(
+        refs.iter()
+            .map(|r| (
+                r.node_id.as_deref().unwrap(),
+                r.field.as_str(),
+                r.value.as_str()
+            ))
+            .collect::<Vec<_>>(),
+        [
+            ("entrance", "portrait", "normal"),
+            ("dialogue", "portrait", "normal"),
+            ("expressions", "actions[1].portrait", "tired"),
+        ]
+    );
+    for error in [
+        content_edit::remove(&mut project, key).unwrap_err(),
+        content_edit::remove_extension_portrait(&mut project, key, "tired").unwrap_err(),
+    ] {
+        assert!(error
+            .to_string()
+            .contains("\"expressions\"(actions[1].portrait)"));
+    }
+    assert_eq!(project, original);
+
+    // Once the new expression is no longer needed, the entire extension can be
+    // deleted even while all three steps still use the overridden normal.
+    let mut whole = original.clone();
+    whole.stories.get_mut("main").unwrap()["nodes"][2]["actions"][1]["portrait"] = json!("normal");
+    let stories = whole.stories.clone();
+    content_edit::remove(&mut whole, key).unwrap();
+    assert!(whole.assets.is_empty());
+    assert_eq!(whole.stories, stories);
+    validate::validate_story(&whole.stories["main"]).unwrap();
+
+    content_edit::remove_extension_portrait(&mut project, key, "normal").unwrap();
+    assert_eq!(project.stories, original.stories);
+    let restored: Value = serde_json::from_slice(&project.assets[key]).unwrap();
+    assert_eq!(restored["portraits"], json!({"tired":"tired.png"}));
+    assert_eq!(restored["files"]["main"], "tired.png");
+    assert!(restored.get("portrait_reference").is_none());
+    assert!(restored["portrait_layouts"].get("normal").is_none());
+    assert_eq!(
+        restored["portrait_layouts"]["tired"],
+        meta["portrait_layouts"]["tired"]
+    );
+    let old_image = meta["portraits"]["normal"].as_str().unwrap();
+    assert!(!project.assets.contains_key(&format!(
+        "assets/user/character/demo.player_extra/{old_image}"
+    )));
+
+    let temp = tempfile::tempdir().unwrap();
+    let source = temp.path().join("source");
+    let output = temp.path().join("restored.lommod");
+    project.save_to(&source).unwrap();
+    let saved = Project::open(&source).unwrap();
+    saved.export(&output).unwrap();
+    let result = Project::open(&output).unwrap();
+    assert_eq!(result.stories, original.stories);
+    assert_eq!(result.assets, saved.assets);
+    assert_eq!(
+        package::inspect_package(&output).unwrap()["source_lua_match"],
+        true
+    );
+    assert_eq!(std::fs::read(&fixture).unwrap(), original_file);
+}
+
+#[test]
 fn scales_preserve_small_large_and_fractional_values_and_reject_invalid_input() {
     for scale in [0.01, 25.5, 280.5, 2500.0] {
         let mut meta: Value = serde_json::from_slice(

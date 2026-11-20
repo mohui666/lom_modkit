@@ -1,0 +1,26 @@
+(lom_modkit_downloads) {
+    handle_path /downloads/lom-modkit/* {
+        root * {args[0]}
+
+        @lom_release {
+            method GET HEAD
+            path_regexp lom_release ^/(v[0-9]+\.[0-9]+\.[0-9]+)/lom-editor\.exe$
+        }
+        handle @lom_release {
+            @lom_local file
+            handle @lom_local {
+                header Content-Disposition "attachment; filename=lom-editor.exe"
+                file_server
+            }
+            handle {
+                redir https://github.com/mohui666/lom_modkit/releases/download/{re.lom_release.1}/lom-editor.exe 302
+            }
+        }
+
+        handle /latest.json {
+            header Cache-Control "no-cache"
+            file_server
+        }
+        respond 404
+    }
+}

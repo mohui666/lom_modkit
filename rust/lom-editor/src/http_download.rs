@@ -13,9 +13,10 @@ use std::{
 
 const RANGE_THRESHOLD: u64 = 4 * 1024 * 1024;
 const RANGE_PARTS: u64 = 4;
+pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(180);
 
 pub fn download(url: &str, destination: &Path, limit: u64, cancel: &AtomicBool) -> Result<()> {
-    run(url, destination, limit, None, cancel, None)
+    run(url, destination, limit, None, cancel, None, REQUEST_TIMEOUT)
 }
 
 pub fn download_update(
@@ -25,6 +26,7 @@ pub fn download_update(
     limit: u64,
     cancel: &AtomicBool,
     received: &Arc<AtomicU64>,
+    timeout: Duration,
 ) -> Result<()> {
     ensure!(size > 0 && size <= limit, "更新文件大小超出限制");
     run(
@@ -34,6 +36,7 @@ pub fn download_update(
         Some(size),
         cancel,
         Some(received.clone()),
+        timeout,
     )
 }
 
@@ -172,6 +175,7 @@ fn run(
     size: Option<u64>,
     cancel: &AtomicBool,
     received: Option<Arc<AtomicU64>>,
+    timeout: Duration,
 ) -> Result<()> {
     ensure!(!cancel.load(Ordering::Relaxed), "下载已取消");
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -189,8 +193,8 @@ fn run(
             result = async {
                 let client = reqwest::Client::builder()
                     .user_agent("lom-modkit-native-updater")
-                    .connect_timeout(Duration::from_secs(180))
-                    .read_timeout(Duration::from_secs(180))
+                    .connect_timeout(timeout)
+                    .read_timeout(timeout)
                     .build()?;
                 receive(client, url, destination, limit, size, received).await
             } => result,
@@ -328,6 +332,7 @@ mod tests {
                 size,
                 &AtomicBool::new(false),
                 &received,
+                REQUEST_TIMEOUT,
             );
             server.join().unwrap();
             if mode == "wrong-range" {
@@ -362,7 +367,15 @@ mod tests {
         let received = Arc::new(AtomicU64::new(0));
         let counter = received.clone();
         let worker = thread::spawn(move || {
-            download_update(&url, &output, 8, 8, &AtomicBool::new(false), &counter)
+            download_update(
+                &url,
+                &output,
+                8,
+                8,
+                &AtomicBool::new(false),
+                &counter,
+                REQUEST_TIMEOUT,
+            )
         });
         let deadline = Instant::now() + Duration::from_secs(3);
         while received.load(Ordering::Relaxed) == 0 {
@@ -401,6 +414,7 @@ mod tests {
                 size,
                 &stop,
                 &Arc::new(AtomicU64::new(0)),
+                REQUEST_TIMEOUT,
             )
         });
         let mut connections = Vec::new();

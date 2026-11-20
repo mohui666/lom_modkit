@@ -69,6 +69,221 @@ pub fn update(
     project.assets = assets;
     Ok(())
 }
+
+pub fn story_references(project: &Project, metadata: &Value) -> Vec<editing::SearchHit> {
+    let symbol = format!("user:{}", metadata["id"].as_str().unwrap_or(""));
+    let mut refs = editing::references(
+        &project.stories,
+        &project.manifest,
+        "content",
+        &symbol,
+        None,
+    );
+    refs.extend(extension_portrait_references(project, metadata, false));
+    refs
+}
+
+fn extension_target(metadata: &Value) -> Option<&str> {
+    metadata["extends"]
+        .as_str()
+        .map(str::trim)
+        .filter(|id| !id.is_empty())
+}
+
+fn official_portraits(character: &str) -> &[Value] {
+    crate::validate::editor_data()["characters"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find(|row| row["id"] == character)
+        .and_then(|row| row["portraits"].as_array())
+        .map(Vec::as_slice)
+        .unwrap_or_default()
+}
+
+fn extension_portrait_references(
+    project: &Project,
+    metadata: &Value,
+    required_only: bool,
+) -> Vec<editing::SearchHit> {
+    let Some(character) = extension_target(metadata) else {
+        return Vec::new();
+    };
+    let official = official_portraits(character);
+    let symbol = format!("user:{}", metadata["id"].as_str().unwrap_or(""));
+    let mut refs = Vec::new();
+    for (story_id, story) in &project.stories {
+        for parent in story["nodes"].as_array().into_iter().flatten() {
+            for (index, node) in crate::parallel::actions(parent).iter().enumerate() {
+                let official_actor = node["character"] == character;
+                // References by user: ID are already in the ordinary content list.
+                if !(official_actor || required_only && node["character"] == symbol)
+                    || !matches!(node["type"].as_str(), Some("show" | "say" | "portrait"))
+                {
+                    continue;
+                }
+                let explicit = node["portrait"].as_str();
+                let portrait = explicit.unwrap_or("normal");
+                if metadata["portraits"].get(portrait).is_none() {
+                    continue;
+                }
+                if explicit.is_none()
+                    && node["type"] == "say"
+                    && matches!(
+                        node["mode"].as_str(),
+                        Some("narrative" | "center" | "offscreen")
+                    )
+                {
+                    continue;
+                }
+                // An omitted portrait can use the game's default again. An explicit
+                // portrait must still exist in the base catalog to pass validation.
+                if required_only
+                    && official_actor
+                    && (explicit.is_none() || official.iter().any(|p| p == portrait))
+                {
+                    continue;
+                }
+                let field = if parent["type"] == "parallel" {
+                    format!("actions[{index}].portrait")
+                } else {
+                    "portrait".into()
+                };
+                refs.push(editing::hit(
+                    "portrait",
+                    story_id,
+                    parent["id"].as_str(),
+                    &field,
+                    portrait,
+                ));
+            }
+        }
+    }
+    refs
+}
+
+fn ensure_portraits_removable(
+    project: &Project,
+    metadata: &Value,
+    portrait: Option<&str>,
+) -> Result<()> {
+    if let Some(hit) = extension_portrait_references(project, metadata, true)
+        .into_iter()
+        .find(|hit| portrait.is_none_or(|id| hit.value == id))
+    {
+        anyhow::bail!(
+            "story/{}.json: 节点 \"{}\"({}) 仍使用扩展表情 {}，请先为该步骤选择其他表情",
+            hit.story_id,
+            hit.node_id.as_deref().unwrap_or("?"),
+            hit.field,
+            hit.value
+        );
+    }
+    Ok(())
+}
+
+fn clear_portrait_alignment(fields: &mut serde_json::Map<String, Value>, portrait: &str) {
+    if fields
+        .get("portrait_reference")
+        .is_some_and(|value| value == portrait)
+    {
+        fields.remove("portrait_reference");
+    }
+    if let Some(layouts) = fields
+        .get_mut("portrait_layouts")
+        .and_then(Value::as_object_mut)
+    {
+        layouts.remove(portrait);
+        if layouts.is_empty() {
+            fields.remove("portrait_layouts");
+        }
+    }
+}
+
+pub fn remove_extension_portrait(project: &mut Project, key: &str, portrait: &str) -> Result<()> {
+    let mut meta: Value = serde_json::from_slice(project.assets.get(key).context("内容不存在")?)?;
+    ensure!(
+        extension_target(&meta).is_some(),
+        "仅支持移除原版人物的扩展表情"
+    );
+    ensure_portraits_removable(project, &meta, Some(portrait))?;
+    let portraits = meta["portraits"].as_object_mut().context("缺少扩展表情")?;
+    let filename = portraits
+        .remove(portrait)
+        .and_then(|file| file.as_str().map(str::to_owned))
+        .context("找不到要移除的扩展表情")?;
+    let Some(next_main) = portraits.values().next().cloned() else {
+        return remove(project, key);
+    };
+    if meta["files"]["main"] == filename {
+        meta["files"]["main"] = next_main;
+    }
+    clear_portrait_alignment(meta.as_object_mut().unwrap(), portrait);
+    let prefix = key.strip_suffix("content.json").context("内容路径无效")?;
+    update(project, key, &meta, &BTreeMap::new())?;
+    if !content::listed_content_files(&meta).contains(&filename) {
+        project.assets.remove(&format!("{prefix}{filename}"));
+    }
+    Ok(())
+}
+
+fn is_editor_replacement_filename(filename: &str) -> bool {
+    let Some((stem, extension)) = filename.rsplit_once('.') else {
+        return false;
+    };
+    matches!(extension, "png" | "jpg" | "jpeg")
+        && stem
+            .strip_prefix("asset_")
+            .and_then(|s| s.split_once('_'))
+            .is_some_and(|(process, time)| {
+                !process.is_empty()
+                    && !time.is_empty()
+                    && process.bytes().all(|b| b.is_ascii_digit())
+                    && time.bytes().all(|b| b.is_ascii_digit())
+            })
+}
+
+/// Correct the legacy main-slot write without changing imported image bytes.
+/// Apply this as an undoable editor edit after the original project has loaded.
+pub fn repair_legacy_main_portrait_overrides(project: &mut Project) -> Result<usize> {
+    let mut repaired = BTreeMap::new();
+    for (key, bytes) in &project.assets {
+        if !key.starts_with("assets/user/character/") || !key.ends_with("/content.json") {
+            continue;
+        }
+        let Ok(mut meta) = serde_json::from_slice::<Value>(bytes) else {
+            continue;
+        };
+        let Some(character) = extension_target(&meta) else {
+            continue;
+        };
+        let Some(portraits) = meta["portraits"].as_object() else {
+            continue;
+        };
+        let Some(normal) = portraits.get("normal").and_then(Value::as_str) else {
+            continue;
+        };
+        // Main-slot replacements generated one filename for both fields.
+        // Explicit portrait-slot replacements generate a separate filename.
+        if portraits.len() < 2
+            || meta["files"]["main"] != normal
+            || !is_editor_replacement_filename(normal)
+            || !official_portraits(character).iter().any(|p| p == "normal")
+            || extension_portrait_references(project, &meta, true)
+                .iter()
+                .any(|r| r.value == "normal")
+        {
+            continue;
+        }
+        meta["portraits"].as_object_mut().unwrap().remove("normal");
+        clear_portrait_alignment(meta.as_object_mut().unwrap(), "normal");
+        repaired.insert(key.clone(), stable_json(&meta)?);
+    }
+    let count = repaired.len();
+    project.assets.extend(repaired);
+    Ok(count)
+}
+
 pub fn remove(project: &mut Project, key: &str) -> Result<()> {
     let meta: Value = serde_json::from_slice(project.assets.get(key).context("内容不存在")?)?;
     let symbol = format!("user:{}", meta["id"].as_str().context("缺少内容 ID")?);
@@ -84,22 +299,7 @@ pub fn remove(project: &mut Project, key: &str) -> Result<()> {
         "仍有 {} 处剧情引用，请先解除引用",
         refs.len()
     );
-    if let Some(target) = meta["extends"].as_str() {
-        ensure!(
-            !project
-                .stories
-                .values()
-                .any(|s| crate::parallel::story_actions(s).any(|(_, node)| {
-                    node["character"] == target
-                        && ["show", "say", "portrait"]
-                            .contains(&node["type"].as_str().unwrap_or(""))
-                        && meta["portraits"]
-                            .get(node["portrait"].as_str().unwrap_or("normal"))
-                            .is_some()
-                })),
-            "剧情仍在使用该原版人物的扩展表情，请先解除引用"
-        );
-    }
+    ensure_portraits_removable(project, &meta, None)?;
     if let Some(config) = &project.scenario {
         ensure!(
             !content::scenario_gameplay_nodes(config)

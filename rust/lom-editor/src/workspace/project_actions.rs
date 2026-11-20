@@ -493,6 +493,19 @@ impl App {
                 Err(error) => self.error = Some(crate::error_ui::capture(error)),
             },
             Pending::Recover(path) => self.recover(&path),
+            Pending::OpenCheckpoint(path) => match Project::open(&path) {
+                Ok(mut project) => {
+                    project.source = None;
+                    self.install(project);
+                    self.document_dirty = true;
+                    self.status = crate::i18n::key("editor.checkpoints.opened");
+                }
+                Err(error) => {
+                    self.error = Some(crate::error_ui::capture(
+                        error.context(crate::i18n::key("editor.checkpoints.open_failed")),
+                    ))
+                }
+            },
             Pending::Open(path) => {
                 if let Some(source) = self.resolve_project_source(&path) {
                     match Project::open(&source) {
@@ -598,6 +611,7 @@ impl App {
         self.reset_save_project();
         self.clear_recovery();
         self.project = p;
+        self.checkpoint_entries = None;
         self.document_revision = self.document_revision.wrapping_add(1);
         self.last_auto_save = Instant::now();
         self.center = Center::Node;
@@ -666,6 +680,7 @@ impl App {
         {
             self.status = notice.to_owned();
         }
+        self.repair_legacy_portrait_overrides();
     }
     pub(super) fn save(&mut self, as_new: bool) -> bool {
         if !self.apply_pending_drafts() {

@@ -6,6 +6,7 @@ fn app() -> App {
     app.recovery_candidates.clear();
     app.auto_save_project = false;
     app.auto_save_seconds = 300;
+    app.auto_save_checkpoints = 0;
     app
 }
 

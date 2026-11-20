@@ -43,11 +43,18 @@ enum TaskKind {
         revision: u64,
         pending_content: bool,
     },
+    ClearCheckpoints,
 }
 
 enum Completion {
-    Save(Result<ProjectMetadata, String>),
+    Save(Result<SavedProject, String>),
     Recovery(recovery::WrittenRecovery),
+    ClearCheckpoints(Result<usize, String>),
+}
+
+struct SavedProject {
+    metadata: ProjectMetadata,
+    checkpoint_error: Option<String>,
 }
 
 pub(super) struct ProjectMetadata {
@@ -199,12 +206,18 @@ impl App {
         let baseline = self.saved.clone();
         let metadata = ProjectMetadata::capture(&self.project);
         let path = request.path.clone();
+        let checkpoint_limit = if request.automatic {
+            self.auto_save_checkpoints
+        } else {
+            0
+        };
+        let checkpoint_base = self.checkpoint_base.clone();
         let repaint = self.background_save.repaint.clone();
         let (send, result) = mpsc::channel();
         let worker = std::thread::Builder::new()
             .name("project-save".into())
             .spawn(move || {
-                let result = (|| -> anyhow::Result<ProjectMetadata> {
+                let result = (|| -> anyhow::Result<SavedProject> {
                     let mut project = project_from_snapshot(&worker_snapshot, metadata);
                     crate::persistence::save_project(
                         &mut project,
@@ -213,7 +226,15 @@ impl App {
                         &baseline.stories,
                         &baseline.paths,
                     )?;
-                    Ok(ProjectMetadata::capture(&project))
+                    let metadata = ProjectMetadata::capture(&project);
+                    let checkpoint_error =
+                        checkpoints::write(&checkpoint_base, &path, &mut project, checkpoint_limit)
+                            .err()
+                            .map(crate::error_ui::capture);
+                    Ok(SavedProject {
+                        metadata,
+                        checkpoint_error,
+                    })
                 })()
                 .map_err(crate::error_ui::capture);
                 // The reconstructed document and byte buffers are dropped on
@@ -241,6 +262,37 @@ impl App {
                 self.error = Some(format!("无法启动保存；修改仍保留在编辑器中。\n{error}"));
                 false
             }
+        }
+    }
+
+    pub(super) fn clear_checkpoints(&mut self) {
+        let Some(source) = self.project.source.clone() else {
+            return;
+        };
+        if self.saving() {
+            return;
+        }
+        let base = self.checkpoint_base.clone();
+        let repaint = self.background_save.repaint.clone();
+        let (send, result) = mpsc::channel();
+        match std::thread::Builder::new()
+            .name("clear-checkpoints".into())
+            .spawn(move || {
+                let result = checkpoints::clear(&base, &source).map_err(crate::error_ui::capture);
+                let _ = send.send(Completion::ClearCheckpoints(result));
+                if let Some(ctx) = repaint {
+                    ctx.request_repaint();
+                }
+            }) {
+            Ok(_) => {
+                self.background_save.active = Some(Task {
+                    generation: self.background_save.project_generation,
+                    kind: TaskKind::ClearCheckpoints,
+                    result,
+                });
+                self.settings_error = None;
+            }
+            Err(error) => self.settings_error = Some(format!("无法启动检查点清除。{error}")),
         }
     }
 
@@ -296,7 +348,10 @@ impl App {
                         _ => Err("后台保存任务中断；修改仍保留在编辑器中。".into()),
                     };
                     match result {
-                        Ok(metadata) => {
+                        Ok(SavedProject {
+                            metadata,
+                            checkpoint_error,
+                        }) => {
                             // Track edits made after the worker's snapshot before
                             // applying path metadata. Never replace live content.
                             self.track();
@@ -308,6 +363,7 @@ impl App {
                                 }
                             }
                             self.project.source = metadata.source;
+                            self.checkpoint_entries = None;
                             self.project.has_manifest = metadata.has_manifest;
                             self.last.paths = self.project.paths.clone();
                             snapshot.paths = metadata.paths;
@@ -339,6 +395,12 @@ impl App {
                             };
                             if self.dirty() {
                                 self.status.push_str("；后续修改尚未保存");
+                            }
+                            if let Some(error) = checkpoint_error {
+                                self.error = Some(crate::i18n::message(
+                                    "editor.checkpoints.write_failed",
+                                    &[("error", crate::error_ui::text(&error))],
+                                ));
                             }
                         }
                         Err(error) => {
@@ -378,6 +440,32 @@ impl App {
                     }
                     _ => self.status = "自动恢复副本写入失败。后台任务中断。".into(),
                 },
+                TaskKind::ClearCheckpoints => {
+                    self.checkpoint_entries = None;
+                    let result = match result {
+                        Some(Completion::ClearCheckpoints(result)) => result,
+                        _ => Err("后台任务中断".into()),
+                    };
+                    match result {
+                        Ok(count) => {
+                            self.status = crate::i18n::message(
+                                "editor.checkpoints.cleared",
+                                &[("count", count.to_string())],
+                            )
+                        }
+                        Err(error) => {
+                            let error = crate::i18n::message(
+                                "editor.checkpoints.clear_failed",
+                                &[("error", crate::error_ui::text(&error))],
+                            );
+                            if self.settings_open {
+                                self.settings_error = Some(error);
+                            } else {
+                                self.error = Some(error);
+                            }
+                        }
+                    }
+                }
             }
         }
         if std::mem::take(&mut self.background_save.clear_recovery) {

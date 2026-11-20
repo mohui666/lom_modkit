@@ -2,6 +2,7 @@
 mod assets;
 mod background_save;
 mod chapter_navigation;
+mod checkpoints;
 mod clipboard;
 mod dialogs;
 mod editor_shortcuts;
@@ -67,6 +68,7 @@ enum Pending {
     OpenVanillaBookmark(lom_core::story_bookmarks::Bookmark),
     Template(String),
     Recover(PathBuf),
+    OpenCheckpoint(PathBuf),
     Open(PathBuf),
     EditorUpdate,
     InstallEditorUpdate,
@@ -234,7 +236,10 @@ struct App {
     check_updates_on_startup: bool,
     auto_save_project: bool,
     auto_save_seconds: u64,
+    auto_save_checkpoints: usize,
     last_auto_save: Instant,
+    checkpoint_base: PathBuf,
+    checkpoint_entries: Option<Result<Vec<checkpoints::Entry>, String>>,
     settings_error: Option<String>,
     settings_comma_down: bool,
     dialog_ime: bool,
@@ -641,7 +646,7 @@ impl App {
             &prefs,
             (!cfg!(test)).then(|| user_root().join("rust/preferences.json")),
         );
-        Self {
+        let mut app = Self {
             project: p,
             catalog,
             preview,
@@ -697,7 +702,14 @@ impl App {
                 .as_u64()
                 .filter(|seconds| [30, 60, 300, 600].contains(seconds))
                 .unwrap_or(300),
+            auto_save_checkpoints: prefs["auto_save_checkpoints"]
+                .as_u64()
+                .and_then(|count| usize::try_from(count).ok())
+                .filter(|count| *count <= checkpoints::MAX_COUNT)
+                .unwrap_or(0),
             last_auto_save: Instant::now(),
+            checkpoint_base: user_root().join("rust/checkpoints"),
+            checkpoint_entries: None,
             settings_error: None,
             settings_comma_down: false,
             dialog_ime: false,
@@ -742,7 +754,9 @@ impl App {
             preview_sound: cfg!(windows),
             preview_buffering: None,
             updater: Default::default(),
-        }
+        };
+        app.repair_legacy_portrait_overrides();
+        app
     }
 }
 

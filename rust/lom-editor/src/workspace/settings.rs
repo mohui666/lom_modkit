@@ -64,9 +64,14 @@ impl App {
         &mut self,
         enabled: bool,
         seconds: u64,
+        checkpoints: usize,
         path: &Path,
     ) -> anyhow::Result<()> {
         anyhow::ensure!([30, 60, 300, 600].contains(&seconds), "自动保存间隔无效");
+        anyhow::ensure!(
+            checkpoints <= super::checkpoints::MAX_COUNT,
+            "自动检查点数量无效"
+        );
         let mut prefs = if path.exists() {
             lom_core::load_json(path)?
         } else {
@@ -75,9 +80,11 @@ impl App {
         anyhow::ensure!(prefs.is_object(), "个人设置格式无效，未修改自动保存设置");
         prefs["auto_save_project"] = json!(enabled);
         prefs["auto_save_seconds"] = json!(seconds);
+        prefs["auto_save_checkpoints"] = json!(checkpoints);
         lom_core::project::atomic_write(path, &lom_core::stable_json(&prefs)?)?;
         self.auto_save_project = enabled;
         self.auto_save_seconds = seconds;
+        self.auto_save_checkpoints = checkpoints;
         self.last_auto_save = Instant::now();
         Ok(())
     }

@@ -1,6 +1,81 @@
 use super::*;
 
 #[test]
+fn opening_a_released_portrait_override_repairs_it_and_preserves_explicit_overrides() {
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../lom-core/tests/fixtures/released-1.6.4-portrait-override.lommod");
+    let original_bytes = std::fs::read(&fixture).unwrap();
+    let original = Project::open(&fixture).unwrap();
+    let key = "assets/user/character/demo.player_extra/content.json";
+    let meta: Value = serde_json::from_slice(&original.assets[key]).unwrap();
+    let mut app = App::from_context(&egui::Context::default(), Some(fixture.clone()), None);
+    let repaired: Value = serde_json::from_slice(&app.project.assets[key]).unwrap();
+    assert_eq!(repaired["portraits"], json!({"tired":"tired.png"}));
+    assert_eq!(repaired["files"], meta["files"]);
+    assert_eq!(
+        repaired["portrait_layouts"]["tired"],
+        meta["portrait_layouts"]["tired"]
+    );
+    assert_eq!(app.project.stories, original.stories);
+    assert!(app.dirty());
+
+    app.undo();
+    assert_eq!(app.project.assets, original.assets);
+    assert!(!app.dirty());
+    app.redo();
+    let expected_assets = app.project.assets.clone();
+    assert_eq!(
+        expected_assets[key],
+        lom_core::stable_json(&repaired).unwrap()
+    );
+
+    let temp = tempfile::tempdir().unwrap();
+    let saved = temp.path().join("saved");
+    let exported = temp.path().join("restored.lommod");
+    app.project.save_to(&saved).unwrap();
+    app.install(open_project(&saved).unwrap());
+    assert_eq!(app.project.assets, expected_assets);
+    assert!(!app.dirty());
+    app.project.export(&exported).unwrap();
+    let result = Project::open(&exported).unwrap();
+    let result_meta: Value = serde_json::from_slice(&result.assets[key]).unwrap();
+    assert_eq!(result_meta["portraits"], repaired["portraits"]);
+    assert_eq!(result.stories, original.stories);
+    assert_eq!(std::fs::read(&fixture).unwrap(), original_bytes);
+
+    // The normal slot and main use different files after an explicit replacement.
+    let mut explicit = original.clone();
+    let mut explicit_meta = meta.clone();
+    explicit_meta["files"]["main"] = json!("tired.png");
+    explicit
+        .assets
+        .insert(key.into(), lom_core::stable_json(&explicit_meta).unwrap());
+    app.install(explicit.clone());
+    assert_eq!(app.project.assets, explicit.assets);
+    assert!(!app.dirty());
+
+    // File names from explicit imports (normal.png) predate both slot writes.
+    let mut named_import = original.clone();
+    let mut imported_meta = meta.clone();
+    imported_meta["files"]["main"] = json!("normal.png");
+    imported_meta["portraits"]["normal"] = json!("normal.png");
+    named_import.assets.insert(
+        "assets/user/character/demo.player_extra/normal.png".into(),
+        original.assets[&format!(
+            "assets/user/character/demo.player_extra/{}",
+            meta["portraits"]["normal"].as_str().unwrap()
+        )]
+            .clone(),
+    );
+    named_import
+        .assets
+        .insert(key.into(), lom_core::stable_json(&imported_meta).unwrap());
+    app.install(named_import.clone());
+    assert_eq!(app.project.assets, named_import.assets);
+    assert!(!app.dirty());
+}
+
+#[test]
 fn copying_all_project_images_keeps_layout_variants_parallel_groups_and_one_undo() {
     let temp = tempfile::tempdir().unwrap();
     let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
