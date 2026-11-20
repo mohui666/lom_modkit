@@ -407,27 +407,28 @@ impl ContentPanel {
             ui.add_space(4.0);
             let slots = if kind == "character" {
                 vec![
-                    if extension {
-                        crate::i18n::key("workspace.content.extension_main")
-                    } else {
-                        tr("默认立绘")
-                    },
-                    tr("指定表情"),
-                    tr("介绍卡图片"),
-                    tr("战斗待机"),
-                    tr("战斗攻击"),
-                    tr("战斗受伤"),
-                    tr("战斗防御"),
-                    tr("好感度头像"),
+                    "默认立绘",
+                    "指定表情",
+                    "介绍卡图片",
+                    "战斗待机",
+                    "战斗攻击",
+                    "战斗受伤",
+                    "战斗防御",
+                    "好感度头像",
                 ]
             } else {
-                vec![tr("主文件")]
+                vec!["主文件"]
+            };
+            let slot_label = |index: usize, label: &str| match (extension, index) {
+                (true, 0) => crate::i18n::key("workspace.content.extension_main"),
+                (_, 1) => crate::i18n::key("workspace.content.portrait_slot"),
+                _ => tr(label),
             };
             self.slot = self.slot.min(slots.len() - 1);
             egui::ComboBox::from_id_salt("content-file-slot")
                 .selected_text(format!(
                     "{}{}",
-                    slots[self.slot],
+                    slot_label(self.slot, slots[self.slot]),
                     if self.slot == 0 { " *" } else { "" }
                 ))
                 .show_ui(ui, |ui| {
@@ -435,7 +436,7 @@ impl ContentPanel {
                         ui.selectable_value(
                             &mut self.slot,
                             i,
-                            format!("{}{}", label, if i == 0 { " *" } else { "" }),
+                            format!("{}{}", slot_label(i, label), if i == 0 { " *" } else { "" }),
                         );
                     }
                 });

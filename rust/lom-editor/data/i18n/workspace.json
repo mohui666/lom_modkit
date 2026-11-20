@@ -179,6 +179,12 @@
     "ja": "拡張素材のメイン画像",
     "ko": "확장 소재 대표 이미지"
   },
+  "workspace.content.portrait_slot": {
+    "chs": "指定表情",
+    "cht": "指定表情",
+    "ja": "指定表情",
+    "ko": "지정 표정"
+  },
   "workspace.content.extension_main_hint": {
     "chs": "主图用于素材预览。选择「指定表情」可替换或移除剧情立绘。",
     "cht": "主圖用於素材預覽。選擇「指定表情」可替換或移除劇情立繪。",
