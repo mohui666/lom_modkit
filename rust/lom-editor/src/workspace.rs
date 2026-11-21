@@ -8,6 +8,7 @@ mod dialogs;
 mod editor_shortcuts;
 mod font_conversion;
 mod history;
+mod live_compile;
 mod navigation;
 mod original_content;
 mod preview_panel;
@@ -227,6 +228,7 @@ struct App {
     usability: usability::Preferences,
     error_issues: Vec<lom_core::release::PreflightIssue>,
     needs_compile: bool,
+    live_compile: Option<live_compile::Task>,
     chapter_dialog: Option<ChapterDialog>,
     delete_chapter_dialog: Option<DeleteChapterDialog>,
     rename_dialog: Option<RenameDialog>,
@@ -690,6 +692,7 @@ impl App {
             usability: usability::Preferences::load(&prefs),
             error_issues: vec![],
             needs_compile: true,
+            live_compile: None,
             chapter_dialog: None,
             delete_chapter_dialog: None,
             rename_dialog: None,
@@ -864,15 +867,13 @@ impl eframe::App for App {
             }
         }
         self.shortcuts(ctx);
-        if self.needs_compile
-            && (self.frame == 1 || self.last_edit.elapsed() > Duration::from_millis(400))
-        {
-            self.compile();
-        }
         if self.frame == 1 && self.screenshot.is_none() {
             self.remember_source();
         }
         self.sync_preview_selection();
+        if self.auto && !self.preview_waiting_branch && !preview::animation_window_active(ctx) {
+            self.toggle_preview();
+        }
         let preview_index = self.selected;
         if !self.tick_preview_audio() {
             self.advance_preview();
@@ -960,6 +961,7 @@ impl eframe::App for App {
             self.go_to_problem(ctx, crate::error_location::resolve(&message, &self.project));
         }
         self.autosave();
+        self.update_live_compile(ctx);
         self.shell.set_title(
             ctx,
             format!(

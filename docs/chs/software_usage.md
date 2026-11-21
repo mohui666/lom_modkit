@@ -1,6 +1,6 @@
 # 软件使用
 
-本文对应 1.6.5 原生编辑器。顶栏「帮助 → 使用指南」和 `F1` 都可打开帮助窗口。左侧选择主题，右侧阅读正文，也可搜索关键词或切换「步骤查询」。点击表单标题旁的「说明」可直接查看对应操作。[Windows 快速开始](windows_quick_start.md) · [1.6.5 Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.5) · [作品格式](mod_format.md)
+本文对应 1.6.6 原生编辑器。顶栏「帮助 → 使用指南」和 `F1` 都可打开帮助窗口。左侧选择主题，右侧阅读正文，也可搜索关键词或切换「步骤查询」。点击表单标题旁的「说明」可直接查看对应操作。[Windows 快速开始](windows_quick_start.md) · [1.6.6 Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.6) · [作品格式](mod_format.md)
 改决斗/战役实现前先读 [反编译接口](decompiled_api.md)。
 
 ## 基本流程

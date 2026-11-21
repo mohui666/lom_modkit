@@ -75,16 +75,21 @@ impl ProjectMetadata {
     }
 }
 
+impl Snapshot {
+    pub(super) fn materialize_stories(&self) -> lom_core::project::Stories {
+        self.stories
+            .iter()
+            .map(|(id, story)| (id.clone(), story.to_value()))
+            .collect::<BTreeMap<_, _>>()
+            .into()
+    }
+}
+
 pub(super) fn project_from_snapshot(snapshot: &Snapshot, metadata: ProjectMetadata) -> Project {
     Project {
         manifest: snapshot.manifest.clone(),
         scenario: snapshot.scenario.clone(),
-        stories: snapshot
-            .stories
-            .iter()
-            .map(|(id, story)| (id.clone(), story.to_value()))
-            .collect::<BTreeMap<_, _>>()
-            .into(),
+        stories: snapshot.materialize_stories(),
         assets: snapshot.assets.as_ref().clone(),
         source: metadata.source,
         paths: metadata.paths,

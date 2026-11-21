@@ -744,48 +744,4 @@ impl App {
             }
         }
     }
-    pub(super) fn compile(&mut self) {
-        if let Some(story) = self.project.stories.get_mut(&self.current) {
-            lom_core::native_flow::refresh_branch_labels(story);
-        }
-        self.catalog.data["project_flags"] = json!(self
-            .project
-            .stories
-            .values()
-            .flat_map(|s| s["nodes"].as_array().into_iter().flatten())
-            .filter(|n| n["type"] == "flag")
-            .filter_map(|n| n["flag"].as_str())
-            .collect::<BTreeSet<_>>());
-        if self.preflight_tracked {
-            self.refresh_full_problems();
-        } else {
-            self.diagnostics.clear();
-            for (id, s) in &self.project.stories {
-                self.diagnostics
-                    .extend(lom_core::release::compiler_issues_with_catalog(
-                        id,
-                        s,
-                        &self.catalog.data,
-                    ));
-                for (node, character) in lom_core::release::find_stage_issues(s) {
-                    self.diagnostics.push(lom_core::release::PreflightIssue {
-                        severity: "warning".into(),
-                        code: "stage_missing".into(),
-                        story_id: id.clone(),
-                        node_id: node,
-                        message: crate::i18n::message(
-                            "usability.problems.stage_missing",
-                            &[("character", character)],
-                        ),
-                        fixable: false,
-                    });
-                }
-            }
-        }
-        match compile_with_assets(&self.project, &self.story()) {
-            Ok(lua) => self.lua = lua,
-            Err(e) => self.lua = crate::error_ui::text(&crate::error_ui::capture(e)),
-        };
-        self.needs_compile = false;
-    }
 }

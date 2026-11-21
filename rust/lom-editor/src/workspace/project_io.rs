@@ -140,8 +140,16 @@ pub(super) fn open_project(path: &Path) -> anyhow::Result<Project> {
 #[path = "project_io_tests.rs"]
 mod tests;
 pub(super) fn compile_with_assets(project: &Project, story: &Value) -> anyhow::Result<String> {
+    compile_lua(story, &project.manifest, &project.assets)
+}
+
+pub(super) fn compile_lua(
+    story: &Value,
+    manifest: &Value,
+    assets: &BTreeMap<String, Vec<u8>>,
+) -> anyhow::Result<String> {
     let root = lom_core::workdir::create()?;
-    for (name, bytes) in &project.assets {
+    for (name, bytes) in assets {
         lom_core::package::canonical_archive_name(name)?;
         anyhow::ensure!(name.starts_with("assets/"), "项目素材必须位于 assets/");
         let path = root.path().join(name);
@@ -150,5 +158,5 @@ pub(super) fn compile_with_assets(project: &Project, story: &Value) -> anyhow::R
         }
         std::fs::write(path, bytes)?;
     }
-    lom_core::codegen::compile_story(story, Some(&project.manifest), None, Some(root.path()))
+    lom_core::codegen::compile_story(story, Some(manifest), None, Some(root.path()))
 }

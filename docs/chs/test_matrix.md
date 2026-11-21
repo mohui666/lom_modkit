@@ -1,6 +1,6 @@
 # 测试入口与验证边界
 
-本版变化见 [1.6.5 GitHub Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.5)。仓库不保存版本 notes；测试事实和未覆盖范围记录在本页，发布正文不设置验证或已知限制栏目。
+本版变化见 [1.6.6 GitHub Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.6)。仓库不保存版本 notes；测试事实和未覆盖范围记录在本页，发布正文不设置验证或已知限制栏目。
 
 ## 1.6.2 发布验证记录
 

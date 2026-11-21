@@ -40,6 +40,10 @@ mod viewer;
 #[path = "preview/viewport.rs"]
 mod viewport;
 
+pub(crate) fn animation_window_active(ctx: &egui::Context) -> bool {
+    ctx.input(|input| input.focused && input.viewport().minimized != Some(true))
+}
+
 pub fn edges(story: &Value) -> Vec<(String, String, String)> {
     let mut out = Vec::new();
     for (index, node) in story["nodes"].as_array().into_iter().flatten().enumerate() {
@@ -2272,7 +2276,9 @@ impl Preview {
             .find(|frame| number(frame, "time", 0.0) > time)
             .map(|frame| number(frame, "time", 0.0));
         let next_time = next_frame.or_else(|| loop_start.map(|_| duration));
-        if let Some(next_time) = next_time.filter(|_| elapsed < duration || loop_start.is_some()) {
+        if let Some(next_time) = next_time.filter(|_| {
+            (elapsed < duration || loop_start.is_some()) && animation_window_active(ctx)
+        }) {
             ctx.request_repaint_after(std::time::Duration::from_secs_f64(
                 (next_time - time).max(0.001),
             ));
@@ -2365,7 +2371,7 @@ impl Preview {
         self.camera_filter = filters::Settings::from_state(&state);
         let has_effects = self.simulation.as_ref().unwrap().has_effects;
         if has_effects {
-            self.effect_clock.sync(p, story, target, now);
+            self.effect_clock.sync(p, story, target, now, revision);
         }
         let effect_library = self.effect_library.clone();
         let effect_cycle = effects::cycle(node, effect_library.as_deref());
@@ -4724,7 +4730,7 @@ mod tests {
                 });
                 preview
                     .effect_clock
-                    .sync(&Project::new(), &json!({"id":"main"}), "rain", 5.0);
+                    .sync(&Project::new(), &json!({"id":"main"}), "rain", 5.0, None);
             } else {
                 preview.set_effect_library(&directory).unwrap();
             }

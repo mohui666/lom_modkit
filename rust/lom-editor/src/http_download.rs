@@ -11,8 +11,9 @@ use std::{
     time::Duration,
 };
 
-const RANGE_THRESHOLD: u64 = 4 * 1024 * 1024;
-const RANGE_PARTS: u64 = 4;
+const MIN_RANGE_SIZE: u64 = 1024 * 1024;
+const RANGE_THRESHOLD: u64 = 4 * MIN_RANGE_SIZE;
+const MAX_RANGE_PARTS: u64 = 24;
 pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(180);
 
 pub fn download(url: &str, destination: &Path, limit: u64, cancel: &AtomicBool) -> Result<()> {
@@ -81,6 +82,10 @@ fn check_range(response: &reqwest::Response, start: u64, end: u64, size: u64) ->
     Ok(())
 }
 
+fn range_parts(size: u64) -> u64 {
+    (size / MIN_RANGE_SIZE).min(MAX_RANGE_PARTS)
+}
+
 async fn receive(
     client: reqwest::Client,
     url: &str,
@@ -91,7 +96,8 @@ async fn receive(
 ) -> Result<()> {
     let segmented = size.filter(|size| *size >= RANGE_THRESHOLD);
     let mut request = client.get(url);
-    let part_size = segmented.map(|size| size.div_ceil(RANGE_PARTS));
+    let ranges = segmented.map_or(1, range_parts);
+    let part_size = segmented.map(|size| size.div_ceil(ranges));
     if let Some(part_size) = part_size {
         request = request.header(reqwest::header::RANGE, format!("bytes=0-{}", part_size - 1));
     }
@@ -117,7 +123,7 @@ async fn receive(
                 );
                 Ok::<(), anyhow::Error>(())
             });
-            for index in 1..RANGE_PARTS {
+            for index in 1..ranges {
                 let client = client.clone();
                 let url = url.to_string();
                 let destination = destination.to_path_buf();
@@ -255,8 +261,8 @@ mod tests {
     }
 
     #[test]
-    fn large_updates_download_four_ranges_concurrently_and_reject_wrong_ranges() {
-        let size = RANGE_THRESHOLD + 13;
+    fn large_updates_download_ranges_concurrently_and_reject_wrong_ranges() {
+        let size = MAX_RANGE_PARTS * MIN_RANGE_SIZE + 13;
         let payload: Vec<u8> = (0..size).map(|index| (index % 251) as u8).collect();
         for mode in ["ranges", "ignore-range", "wrong-range"] {
             let listener = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -265,7 +271,7 @@ mod tests {
             let data = payload.clone();
             let server = thread::spawn(move || {
                 let (mut first, range) = request(&listener);
-                let part_size = size.div_ceil(RANGE_PARTS);
+                let part_size = size.div_ceil(MAX_RANGE_PARTS);
                 assert_eq!(
                     range.as_deref(),
                     Some(format!("bytes=0-{}", part_size - 1).as_str())
@@ -290,7 +296,7 @@ mod tests {
                 }
                 // Hold the first body until all other ranges have been requested.
                 let mut connections = vec![(first, 0, part_size - 1)];
-                for _ in 1..RANGE_PARTS {
+                for _ in 1..MAX_RANGE_PARTS {
                     let (connection, range) = request(&listener);
                     let range = range.unwrap();
                     let (start, end) = range
@@ -315,7 +321,7 @@ mod tests {
                         .unwrap();
                 }
                 requested.sort();
-                assert_eq!(requested.len(), RANGE_PARTS as usize);
+                assert_eq!(requested.len(), MAX_RANGE_PARTS as usize);
                 assert_eq!(requested.first().unwrap().0, 0);
                 assert_eq!(requested.last().unwrap().1, size - 1);
                 for pair in requested.windows(2) {
@@ -397,7 +403,7 @@ mod tests {
     #[test]
     fn cancellation_closes_every_range_and_releases_the_output_file() {
         use std::{io::Read, sync::Arc};
-        let size = RANGE_THRESHOLD + 13;
+        let size = MAX_RANGE_PARTS * MIN_RANGE_SIZE + 13;
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         listener.set_nonblocking(true).unwrap();
         let url = format!("http://{}/update.exe", listener.local_addr().unwrap());
@@ -418,7 +424,7 @@ mod tests {
             )
         });
         let mut connections = Vec::new();
-        for _ in 0..RANGE_PARTS {
+        for _ in 0..range_parts(size) {
             let (mut connection, range) = request(&listener);
             let range = range.unwrap();
             let bounds = range.strip_prefix("bytes=").unwrap();
