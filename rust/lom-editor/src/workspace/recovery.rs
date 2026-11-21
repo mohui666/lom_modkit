@@ -63,8 +63,8 @@ impl App {
     }
     pub(super) fn idle_repaint_delay(&self) -> Duration {
         let mut delay = self.idle_save_delay();
-        if self.needs_compile {
-            delay = delay.min(Duration::from_millis(400).saturating_sub(self.last_edit.elapsed()));
+        if self.needs_compile && self.live_compile.is_none() {
+            delay = delay.min(live_compile::DEBOUNCE.saturating_sub(self.last_edit.elapsed()));
         }
         if self.pending_history.is_some() {
             delay = delay.min(Duration::from_millis(650).saturating_sub(self.last_edit.elapsed()));

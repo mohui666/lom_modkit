@@ -375,6 +375,7 @@ impl App {
                             )
                             .clicked()
                         {
+                            self.needs_compile |= view == View::Lua && !selected;
                             self.preview.cancel_layout_drag();
                             self.view = view;
                         }

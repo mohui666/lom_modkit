@@ -1,6 +1,48 @@
 use super::*;
 
 #[test]
+fn live_check_drops_a_stale_result_and_generates_lua_only_when_visible() {
+    let mut app = app();
+    let ctx = egui::Context::default();
+    let node = &mut app.project.stories.get_mut("main").unwrap()["nodes"][0];
+    *node = json!({"id":"n1", "type":"say", "mode":"narrative", "text":"检查前的对白"});
+    app.project.stories.get_mut("main").unwrap()["start"] = json!("n1");
+    app.view = View::Stage;
+    app.frame = 1;
+    app.update_live_compile(&ctx);
+    assert!(app.live_compile.is_some());
+
+    app.frame = 2;
+    app.project.stories.get_mut("main").unwrap()["title"] = json!("输入后的标题");
+    app.track();
+    let wait_for_result = |app: &mut App| {
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while app.live_compile.is_some() {
+            assert!(Instant::now() < deadline, "live check did not finish");
+            app.last_edit = Instant::now();
+            app.update_live_compile(&ctx);
+            std::thread::sleep(Duration::from_millis(1));
+        }
+    };
+    wait_for_result(&mut app);
+    assert!(app.needs_compile);
+    assert!(app.lua.is_empty());
+
+    app.last_edit = Instant::now() - live_compile::DEBOUNCE;
+    app.update_live_compile(&ctx);
+    wait_for_result(&mut app);
+    assert!(!app.needs_compile);
+    assert!(app.lua.is_empty());
+
+    app.view = View::Lua;
+    app.needs_compile = true;
+    app.last_edit = Instant::now() - live_compile::DEBOUNCE;
+    app.update_live_compile(&ctx);
+    wait_for_result(&mut app);
+    assert!(app.lua.contains("输入后的标题"), "{}", app.lua);
+}
+
+#[test]
 fn error_dialog_shows_an_action_and_preserves_raw_diagnostics() {
     for (message, action) in [
         (

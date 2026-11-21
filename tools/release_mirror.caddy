@@ -10,9 +10,11 @@
             @lom_local file
             handle @lom_local {
                 header Content-Disposition "attachment; filename=lom-editor.exe"
+                header Cache-Control "public, max-age=3600, s-maxage=86400"
                 file_server
             }
             handle {
+                header Cache-Control "no-cache"
                 redir https://github.com/mohui666/lom_modkit/releases/download/{re.lom_release.1}/lom-editor.exe 302
             }
         }

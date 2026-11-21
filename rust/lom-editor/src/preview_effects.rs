@@ -748,6 +748,7 @@ pub(super) fn extraction_names(state: &Value, refresh: bool) -> Vec<String> {
 pub struct Clock {
     key: String,
     snapshot: Value,
+    revision: Option<u64>,
     started: f64,
     held: f64,
     last: f64,
@@ -761,6 +762,7 @@ impl Default for Clock {
         Self {
             key: String::new(),
             snapshot: Value::Null,
+            revision: None,
             started: 0.0,
             held: 0.0,
             last: 0.0,
@@ -772,12 +774,21 @@ impl Default for Clock {
     }
 }
 impl Clock {
-    pub fn sync(&mut self, project: &Project, story: &Value, target: &str, now: f64) {
+    pub fn sync(
+        &mut self,
+        project: &Project,
+        story: &Value,
+        target: &str,
+        now: f64,
+        revision: Option<u64>,
+    ) {
         let key = format!(
             "{:?}:{}:{}:{}:{target}",
             project.source, project.manifest["id"], project.manifest["campaign_id"], story["id"]
         );
-        if self.key != key || self.snapshot != *story {
+        if self.key != key
+            || (revision.is_none() || self.revision != revision) && self.snapshot != *story
+        {
             self.key = key;
             self.snapshot = story.clone();
             self.started = now;
@@ -787,6 +798,7 @@ impl Clock {
             self.manual = false;
             self.replaying = false;
         }
+        self.revision = revision;
     }
     pub fn time(
         &mut self,
@@ -855,7 +867,7 @@ impl Clock {
         ui.small(tr(
             "画面使用本机游戏实际渲染的原版帧；停止尾段为固定时刻采样，精确效果请用 F5 实机确认。",
         ));
-        if !self.paused && !layout {
+        if !self.paused && !layout && super::animation_window_active(ui.ctx()) {
             ui.ctx()
                 .request_repaint_after(std::time::Duration::from_millis(33));
         }
