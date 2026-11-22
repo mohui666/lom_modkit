@@ -429,6 +429,7 @@
       },
       "optional": {
         "background": "str",
+        "music": "str",
         "display_name": "str",
         "max_health": "num",
         "health": "num",
@@ -515,6 +516,7 @@
         "friend_people": "num",
         "enemy_people": "num",
         "title": "str",
+        "music": "str",
         "friend_health": "num",
         "enemy_health": "num"
       }

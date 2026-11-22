@@ -2305,6 +2305,12 @@
           false
         ],
         [
+          "music",
+          "战斗音乐",
+          "music",
+          true
+        ],
+        [
           "max_health",
           "对手最大血量",
           "int",
@@ -2703,6 +2709,12 @@
           "title",
           "战役标题",
           "line",
+          true
+        ],
+        [
+          "music",
+          "战斗音乐",
+          "music",
           true
         ],
         [

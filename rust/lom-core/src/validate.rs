@@ -1439,8 +1439,22 @@ fn extra(n: &Value, ntype: &str, catalog: &Value, check_effect_names: bool) -> R
                 );
             }
         }
-        "combat" => combat(n, catalog)?,
-        "battle" => battle(n)?,
+        "combat" | "battle" => {
+            let music = &n["music"];
+            if user(music) {
+                user_ref(music, "music")?;
+            } else if nonempty(music) {
+                ensure!(
+                    array(&catalog["music"]).iter().any(|row| row["id"] == *music),
+                    "music {music} 不在官方音乐清单中"
+                );
+            }
+            if ntype == "combat" {
+                combat(n, catalog)?;
+            } else {
+                battle(n)?;
+            }
+        }
         "reward" | "result_screen" => {
             if ntype == "result_screen" {
                 ensure!(nonblank(&n["title"]), "title 不能为空或纯空白");

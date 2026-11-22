@@ -2,7 +2,7 @@
 
 当前工具端由 Rust 编译器、核心库与 egui 编辑器组成；C# `MortalModHost` 保留游戏接入。日常编辑见 [软件使用](software_usage.md)，构建和 CLI 见 [Rust 工具端](rust.md)，验证层次见 [测试矩阵](test_matrix.md)。旧 Python／Qt／PyInstaller 入口已经退役，不作为本手册操作入口。
 
-当前版本为 1.6.7，版本变更见 [GitHub Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.7)，验证入口见 [测试矩阵](test_matrix.md)。仓库不保留独立的版本 notes。
+当前版本为 1.6.8，版本变更见 [GitHub Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.8)，验证入口见 [测试矩阵](test_matrix.md)。仓库不保留独立的版本 notes。
 
 ## 编辑器入口与设置
 

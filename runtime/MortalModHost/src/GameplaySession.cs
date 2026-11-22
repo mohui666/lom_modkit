@@ -67,6 +67,7 @@ namespace MortalModHost
         }
         internal static bool HasRecordedResult { get { return _result.Length > 0; } }
         internal static bool ShouldForceCombatReturn { get { return PendingCombat; } }
+        internal static bool MusicOverrideApplied { get; set; }
         internal static string LastKind { get { return _lastKind; } }
         internal static string LastResult { get { return _lastResult; } }
         internal static string CombatDisplayName { get { return _combatDisplayName; } }
@@ -185,7 +186,7 @@ namespace MortalModHost
             _combatIdleAddress = idleAddress ?? "";
         }
 
-        internal static void Configure(string kind, string encoded)
+        internal static void Configure(string kind, string encoded, Func<string, string> resolveMusic = null)
         {
             if (!HasPending || !string.Equals(_kind, kind, StringComparison.Ordinal))
                 throw new InvalidOperationException("Gameplay 配置必须紧跟对应的 prepare");
@@ -207,6 +208,9 @@ namespace MortalModHost
                     throw new ArgumentException("Gameplay 配置值过长：" + key);
                 if (_config.ContainsKey(key))
                     throw new ArgumentException("Gameplay 配置字段重复：" + key);
+                // Freeze the game music key while the Story music collection is available.
+                if (key == "music" && value.Length > 0 && resolveMusic != null)
+                    value = resolveMusic(value);
                 _config.Add(key, value);
             }
             if (string.Equals(kind, "combat", StringComparison.Ordinal))
@@ -311,6 +315,7 @@ namespace MortalModHost
             _result = "";
             _combatDisplayName = "";
             _combatIdleAddress = "";
+            MusicOverrideApplied = false;
             _config.Clear();
         }
 

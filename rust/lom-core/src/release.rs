@@ -108,12 +108,17 @@ fn content_specs(node: &Value) -> Vec<ContentSpec<'_>> {
             portrait: None,
         });
     }
-    if ["music", "sound"].contains(&kind) {
+    if matches!(kind, "music" | "sound" | "combat" | "battle") {
+        let field = if matches!(kind, "combat" | "battle") {
+            "music"
+        } else {
+            "name"
+        };
         refs.push(ContentSpec {
-            field: "name",
-            raw: text(node, "name"),
+            field,
+            raw: text(node, field),
             kind: "audio",
-            audio_kind: Some(if kind == "music" {
+            audio_kind: Some(if kind != "sound" {
                 "music"
             } else if node["kind"] == "env" {
                 "env"

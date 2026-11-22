@@ -1,8 +1,8 @@
 # lom_modkit 文档
 
-当前版本为 **1.6.7**，编辑器和编译器使用 Rust，C# Host 提供游戏接入并内置 Rust 计算组件。仓库维护当前操作与接口文档，历史更新正文保留在 GitHub Release。 [国内下载](https://toolbox.mahui.site/downloads/lom-modkit/v1.6.7/lom-editor.exe) · [GitHub Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.7)
+当前版本为 **1.6.8**，编辑器和编译器使用 Rust，C# Host 提供游戏接入并内置 Rust 计算组件。仓库维护当前操作与接口文档，历史更新正文保留在 GitHub Release。 [国内下载](https://toolbox.mahui.site/downloads/lom-modkit/v1.6.8/lom-editor.exe) · [GitHub Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.8)
 
-本版改善作品统计、舞台预览、包检查和 F5 热重载。Windows 编辑器及游戏姓名栏补充缺字回退，MOD 模式放宽部分能力的 100 点上限。升级时请同步游戏 Host。
+决斗和战役可单独选曲，支持原版曲目和作品音频。升级时请同步游戏 Host。
 
 ## 开始使用
 
