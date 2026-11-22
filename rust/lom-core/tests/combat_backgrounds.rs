@@ -125,3 +125,73 @@ fn released_159_and_1518_projects_accept_background_edits_and_keep_lua_ownership
         assert_eq!(std::fs::read(&fixture).unwrap(), original);
     }
 }
+
+#[test]
+fn released_combat_and_battle_nodes_round_trip_with_per_fight_music() {
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../lom-editor/tests/fixtures/showcase3-legacy.lommod");
+    let mut project = Project::open(&fixture).unwrap();
+    let selections = [
+        ("combat_demo", "combat", "危險_002"),
+        ("battle_demo", "battle", "user:showcase.lantern_theme"),
+    ];
+    for (chapter, kind, music) in selections {
+        let node = project.stories.get_mut(chapter).unwrap()["nodes"]
+            .as_array_mut()
+            .unwrap()
+            .iter_mut()
+            .find(|node| node["type"] == kind)
+            .unwrap();
+        assert!(node.get("music").is_none());
+        node["music"] = json!(music);
+    }
+
+    let temp = tempfile::tempdir().unwrap();
+    let source = temp.path().join("project");
+    project.save_to(&source).unwrap();
+    let edited = Project::open(&source).unwrap();
+    let issues = lom_core::release::run_preflight(
+        &edited,
+        lom_core::release::Profile::Editing,
+        "1.6.8",
+    );
+    assert!(!issues.iter().any(|issue| {
+        issue.code == "unused_content" && issue.message.contains("user:showcase.lantern_theme")
+    }));
+    let output = temp.path().join("music.lommod");
+    edited.export(&output).unwrap();
+    let reopened = Project::open(&output).unwrap();
+    assert_eq!(reopened.manifest["min_host_version"], "1.6.8");
+    assert_eq!(reopened.stories, edited.stories);
+    assert_eq!(reopened.assets, edited.assets);
+    let mut entries = package::read_package(&output).unwrap();
+    for (chapter, _, music) in selections {
+        let lua = std::str::from_utf8(&entries[&format!("lua/{chapter}.lua")]).unwrap();
+        assert!(lua.contains(&format!("music={music}")));
+    }
+
+    entries.remove("package-content.sha256");
+    entries
+        .get_mut("lua/combat_demo.lua")
+        .unwrap()
+        .extend_from_slice(b"\nerror('unrelated Lua')\n");
+    let old = std::str::from_utf8(&entries["story-lua.sha256"]).unwrap();
+    let mut rewritten = String::from("algorithm=lom-story-lua-sha256-v1\n");
+    for line in old.lines().skip(1) {
+        let fields: Vec<_> = line.split('\t').collect();
+        rewritten.push_str(&format!(
+            "{}\t{:X}\t{}\t{:X}\n",
+            fields[0],
+            Sha256::digest(&entries[fields[0]]),
+            fields[2],
+            Sha256::digest(&entries[fields[2]]),
+        ));
+    }
+    entries.insert("story-lua.sha256".into(), rewritten.into_bytes());
+    let substituted = temp.path().join("substituted.lommod");
+    package::write_package(entries, &substituted).unwrap();
+    let report = package::inspect_package(&substituted).unwrap();
+    assert_eq!(report["integrity_verified"], true);
+    assert_eq!(report["source_lua_match"], false);
+    assert!(Project::open(&substituted).is_err());
+}

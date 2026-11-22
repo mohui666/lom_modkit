@@ -964,7 +964,8 @@ namespace MortalModHost
                 }, "mod_dice_clear");
                 script.Globals["mod_gameplay_configure"] = new CallbackFunction((ctx, args) =>
                 {
-                    GameplaySession.Configure(ArgString(args, 0), ArgString(args, 1, ""));
+                    GameplaySession.Configure(ArgString(args, 0), ArgString(args, 1, ""),
+                        name => GameplayMusic.Resolve(manager, name));
                     return DynValue.Nil;
                 }, "mod_gameplay_configure");
                 script.Globals["mod_gameplay_start_scene"] = new CallbackFunction((ctx, args) =>

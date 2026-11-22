@@ -77,7 +77,7 @@ fn category(node: &Value, field: &str, value: &str) -> Option<&'static str> {
     if value.starts_with("user:") {
         return Some(match leaf {
             "character" | "mood_character" => "character",
-            "voice" => "voice",
+            "voice" | "music" => "voice",
             "image" => "image",
             _ if matches!(kind, "music" | "sound") => "voice",
             _ => "content_ref",
@@ -86,7 +86,7 @@ fn category(node: &Value, field: &str, value: &str) -> Option<&'static str> {
     Some(match leaf {
         "character" | "mood_character" => "character",
         "portrait" => "portrait",
-        "voice" => "voice",
+        "voice" | "music" => "voice",
         "image" => "image",
         "name" if matches!(kind, "music" | "sound") => "voice",
         "goto" | "next_script" | "win" | "lose" | "resume_node" | "success" | "failure" => "goto",

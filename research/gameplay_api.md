@@ -220,6 +220,12 @@ Host 在好感展示入口克隆当前 `RelationshipStat`，只替换克隆的�
 
 现场只读反编译当前游戏 `Fungus.ShakePosition.DoTween()`，确认其读取 `_amount.Value`、`_duration.Value`、`_targetObject.Value`，调用 `iTween.ShakePosition` 并回调完成。现有官方人物生成代码设置 common 流图的 `ShockPosition`／`ShockDuration`，运行 `shock` 块；自定义人物仍使用 Host `CustomCharacterRuntime.Shock`／`ShakeImage` 的衰减位移。本次只补编辑器播放时遗漏的临时位移和 0.5 秒默认计时，不修改上述游戏执行逻辑。预览为衰减动画示意，不声称逐帧等同官方随机抖动。
 
+## 2026-11-22 决斗与战役配乐
+
+现场复核 `release_1.0.6001.2`。`Mortal.Combat.CombatManager.LoadCombatLevelAsset()` 和 `Mortal.Battle.GameLevelManager.Setup()` 分别以本场 `MusicData.Key` 调用 `SoundManager.PlayMusic(string)`。Host 替换这两个协程中各自的进场调用。原版曲目在 Story 中经 `LuaManager._musicData` 的 `MusicDataCollection.GetKey(string)` 解析，并随现有战斗上下文保留。自定义音乐从战斗会话归属的 MOD 包播放。配乐生效后跳过 `GameLevelManager.ChangeMusic()` 的模板二次换曲。`SceneController.LoadNextScene()` 直接进入 `StartLoadScene`，Host 在这个出口停止自定义配乐。普通 `LoadNewScene` 继续使用既有的音频清理。
+
+新版 `ToggleCanvasGroup` 通过 `GameUIDisplay.OnChanged` 更新界面，F11 键由检查过 `Keyboard.current` 的 `SceneController.Update()` 处理。后台录制仅在旧 `ToggleCanvasGroup.Update()` 存在时挂载该方法的键盘检查。
+
 ## 2026-11-07 原版音频试听
 
 2026-11-13 再次只读核对当前 `Mortal.Story.LuaManager.PlayMusic/PlaySound/PlayEnvSound`、`FadeOutMusic/FadeOutEnvSound` 与 `Mortal.Core.SoundManager` 的对应入口：音乐／环境音经各自集合取键；淡出秒数转成毫秒；`SoundManager.StopMusic()` 提交全部停止事件，并清空当前音乐和环境音记录。编辑器连续预览据此维护音乐、环境音及一次性音效，音乐停止节点清空全部预览通道；读取仍复用已有按需提取／解码组件。预览暂停、循环和混音在编辑器内处理，不调用游戏接口，不改官方资源；高级 Lua、原生调用和复杂 Wwise 运行时混音不在此次预览覆盖范围。

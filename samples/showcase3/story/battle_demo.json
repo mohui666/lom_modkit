@@ -35,6 +35,7 @@
     {
       "id": "battle1",
       "type": "battle",
+      "music": "危險_002",
       "friend_factions": [
         {
           "id": "500",

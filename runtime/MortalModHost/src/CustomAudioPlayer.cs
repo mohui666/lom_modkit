@@ -8,7 +8,7 @@ using UnityEngine;
 namespace MortalModHost
 {
     /// <summary>
-    /// 从当前演出 Mod 包播放自定义音频。只解析 <see cref="ModOverlay.CurrentPackage"/>。
+    /// 从所属 MOD 包播放自定义音频。剧情使用当前演出包，战斗由 Host 提供会话所属包。
     /// 流式解码后走 winmm waveOut，不经过 Unity 混音器（Wwise 工程里 AudioSource 经常无声）。
     /// </summary>
     internal static class CustomAudioPlayer
@@ -93,7 +93,7 @@ namespace MortalModHost
             StopVoice();
             if (string.IsNullOrEmpty(name))
                 return true;
-            return PlayKeyed(name, _voice, loop: false, isMusic: false);
+            return PlayKeyed(name, _voice, ModOverlay.CurrentPackage, loop: false, isMusic: false);
         }
 
         public static void ReleaseAll()
@@ -103,9 +103,14 @@ namespace MortalModHost
 
         public static bool PlayMusic(string name)
         {
+            return PlayMusic(name, ModOverlay.CurrentPackage);
+        }
+
+        internal static bool PlayMusic(string name, ModPackage package)
+        {
             // 先掐掉本通道残留（含 fade），再停官方 BGM，避免两轨叠在一起。
             StopMusicImmediate();
-            return PlayKeyed(name, _music, loop: true, isMusic: true);
+            return PlayKeyed(name, _music, package, loop: true, isMusic: true);
         }
 
         public static bool PlaySound(string name)
@@ -114,7 +119,7 @@ namespace MortalModHost
             // must not call NativePcmPlayer.Play/Stop on an earlier instance.
             CollectFinishedSounds();
             var player = new NativePcmPlayer();
-            if (!PlayKeyed(name, player, loop: false, isMusic: false))
+            if (!PlayKeyed(name, player, ModOverlay.CurrentPackage, loop: false, isMusic: false))
             {
                 player.Dispose();
                 return false;
@@ -149,7 +154,7 @@ namespace MortalModHost
 
         public static bool PlayEnv(string name)
         {
-            return PlayKeyed(name, _env, loop: true, isMusic: false);
+            return PlayKeyed(name, _env, ModOverlay.CurrentPackage, loop: true, isMusic: false);
         }
 
         public static void StopMusicImmediate()
@@ -215,7 +220,8 @@ namespace MortalModHost
             _envFade = _host.StartCoroutine(FadeThenStop(_env, seconds, StopEnvImmediate));
         }
 
-        private static bool PlayKeyed(string name, NativePcmPlayer player, bool loop, bool isMusic)
+        private static bool PlayKeyed(string name, NativePcmPlayer player, ModPackage package,
+            bool loop, bool isMusic)
         {
             ContentRef parsed;
             string error;
@@ -224,7 +230,6 @@ namespace MortalModHost
                 if (Log != null) Log.LogWarning("自定义音频引用无效：" + error);
                 return false;
             }
-            ModPackage package = ModOverlay.CurrentPackage;
             if (package == null)
             {
                 if (Log != null) Log.LogWarning("当前没有演出中的 Mod，无法播放 " + parsed.Raw);

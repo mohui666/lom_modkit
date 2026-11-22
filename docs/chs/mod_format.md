@@ -4,7 +4,7 @@
 
 **所有组件（编辑器 / 编译器 / 运行时插件）以本文档为准。** 改动需同步更新本文档。
 
-1.6.7 继续使用 **package_format=3 / story_schema=2 / content_schema=1**。人物登场可设置初始横向和纵向偏移。临时试玩请求的 format 与包格式是两套协议。[GitHub Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.7)
+1.6.8 继续使用 **package_format=3 / story_schema=2 / content_schema=1**。决斗与战役支持单场配乐。临时试玩请求的 format 与包格式是两套协议。[GitHub Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.8)
 
 2026-10-24 工作区扩展：Host ≥1.1.3 支持 `play_mode=addon/sandbox` 与独立的 `scenario.json`。事件、任务和结果动作使用[事件与任务配置](events_and_tasks.md)契约，旧作品继续兼容。
 
@@ -231,6 +231,8 @@ Host 从包内 Story 构建来源缓存，每次加载作品后首次进入该�
 | `battle_skill` | `op`("set"/"active"/"reset"), `key`(reset 不需要), `index`(set 用, 默认2), `active`(active 用, 默认1) | 战场技能 `SetPlayerBattleSkill/SetBattleSkillActive/ResetBattleSkill` |
 | `combat` | 必填 `character`, `background`, `win`, `lose`；可选对手 HP/气力/六维/评语/`talents`/行动概率；可选 `player_*` 与 `player_talents` 覆盖本场赵活 | 对手与赵活都只写本场 `CombatStat`。对手只填 `max_health` / `max_stamina` 时会以该最大值满血/满气开场；填写 `health` / `stamina` 才覆盖初始值。赵活未填的字段仍走官方 `SetPlayerStat` 从 `GameStat` 抄值。`player_*` 不写 `SaveSystem`/`PlayerStatManagerData`，战后赵活存档属性自然恢复。`talents`/`player_talents` 为官方 CombatSkill |
 | `battle` | 必填 `win`, `lose`；可选 `title`、`friend_health` / `enemy_health`、`friend_factions` / `enemy_factions`（`{id,people}`）、`friend_characters` / `enemy_characters` | 各方总人数 = 各阵营 people + 具名角色，至少 1。阵营必须是已有 `BattleLevel.NameKey` 的 id。具名角色仅限可生成的官方人物。标题写 `ReadyPanel._enemyNameText`；血量克隆 `HealthData`，不改官方资产。旧 `friend_people` / 单数 `friend_faction` 拒绝 |
+
+决斗和战役节点的可选 `music` 使用原版曲目 ID（例如 `危險_002`），或本包中类型为音乐的 `user:` 音频。留空使用关卡音乐。选择曲目后由 Host 在进场时播放，战役开打后继续使用所选曲目。决斗胜利曲沿用原版。使用此字段导出的包要求 Host 1.6.8。
 | `battle_result` | `win`, `lose`；可选 `kind`("any"/"combat"/"battle"，默认 any) | 读取 Host 按完整包指纹和剧情 id 绑定的最后真实结果并分支。当前仅支持反编译确认的 win/lose；无结果、类型不符或伪造 draw/escape 都会 fail-closed。终止节点，不允许额外 goto |
 | `reward` | `entries`(1~32)：`kind`=stat/affinity/talent/item/flag，`key`，非 flag 用 `amount`，item 另用 `category`=book/misc/special | 编译期展开为现有 `Player` / `Character` / `AddTalent` / `AddBook|Misc|Special` / `AddStory` 与 `modflags`，不发明奖励存档系统 |
 | `result_screen` | `title`（非空）、`entries`（同 reward）；可选 `text` | 先用原版 `mainui.DisplayMessageText` 显示作者填写的标题与说明，再按顺序执行 `reward` 的现有原子接口；这是作者友好的组合节点，不创建自定义结算 UI |

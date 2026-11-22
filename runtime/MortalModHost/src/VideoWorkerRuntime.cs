@@ -92,7 +92,12 @@ namespace MortalModHost
                 // Native Backup bypasses GetUserFolder and needs its own prefix.
                 Patch(harmony, typeof(SaveSystem), "GetBackupDataFile", new[] { typeof(string) }, "BackupFile");
                 Patch(harmony, typeof(SystemSettings), "IsRunningOnSteamDeck", Type.EmptyTypes, "DesktopLayout");
-                Patch(harmony, typeof(ToggleCanvasGroup), "Update", Type.EmptyTypes, "HasKeyboard");
+                // Older builds poll Keyboard.current in this component. In 1.0.6001.2,
+                // SceneController handles F11 and already checks whether a keyboard exists.
+                var legacyToggle = typeof(ToggleCanvasGroup).GetMethod("Update",
+                    BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
+                if (legacyToggle != null)
+                    harmony.Patch(legacyToggle, prefix: new HarmonyMethod(typeof(VideoWorkerRuntime), "HasKeyboard"));
             }
             catch (Exception error) { Fatal(error); }
         }

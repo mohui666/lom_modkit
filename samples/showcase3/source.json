@@ -4,7 +4,7 @@
     "package_format": 3,
     "story_schema": 2,
     "content_schema": 1,
-    "min_host_version": "1.5.19",
+    "min_host_version": "1.6.8",
     "id": "showcase3",
     "campaign_id": "showcase3",
     "name": "全节点样例3.0·七十三节点实机验收",
@@ -1608,6 +1608,7 @@
           "type": "combat",
           "character": "user:showcase.lin_deng",
           "background": "combat:back_combat_backmountain_1",
+          "music": "user:showcase.lantern_theme",
           "talents": [
             {
               "key": "0001",
@@ -1760,6 +1761,7 @@
         {
           "id": "battle1",
           "type": "battle",
+          "music": "危險_002",
           "friend_factions": [
             {
               "id": "500",

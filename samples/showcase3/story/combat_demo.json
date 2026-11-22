@@ -44,6 +44,7 @@
       "type": "combat",
       "character": "user:showcase.lin_deng",
       "background": "combat:back_combat_backmountain_1",
+      "music": "user:showcase.lantern_theme",
       "talents": [
         {
           "key": "0001",

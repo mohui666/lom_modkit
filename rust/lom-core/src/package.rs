@@ -727,6 +727,9 @@ fn add_user_content(
         if kind == "music" {
             refs.push(("name", "audio", Some("music")));
         }
+        if matches!(kind, "combat" | "battle") {
+            refs.push(("music", "audio", Some("music")));
+        }
         if kind == "sound" {
             refs.push((
                 "name",
@@ -1541,6 +1544,12 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
                     )
         })
     });
+    let gameplay_music = stories.values().any(|story| {
+        crate::parallel::story_actions(story).any(|(_, node)| {
+            matches!(node["type"].as_str(), Some("combat" | "battle"))
+                && node["music"].as_str().is_some_and(|music| !music.is_empty())
+        })
+    });
     let combat_backgrounds = stories.values().any(|story| {
         crate::parallel::story_actions(story).any(|(_, node)| {
             node["type"] == "combat"
@@ -1549,7 +1558,8 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
                     .is_some_and(|id| id.starts_with("combat:"))
         })
     });
-    if combat_backgrounds
+    if gameplay_music
+        || combat_backgrounds
         || picture_controls
         || presentation_controls
         || custom_pictures
@@ -1571,7 +1581,9 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
         || event_fade
         || dialogue_dimming
     {
-        let (minimum, required) = if combat_backgrounds {
+        let (minimum, required) = if gameplay_music {
+            ([1, 6, 8], "1.6.8")
+        } else if combat_backgrounds {
             ([1, 6, 2], "1.6.2")
         } else if picture_controls {
             ([1, 5, 19], "1.5.19")

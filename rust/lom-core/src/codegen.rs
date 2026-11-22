@@ -1348,6 +1348,7 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
                     &[
                         "character",
                         "background",
+                        "music",
                         "max_health",
                         "health",
                         "max_stamina",
@@ -1418,7 +1419,7 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
             } else {
                 gameplay_config(
                     node,
-                    &["title", "friend_health", "enemy_health"],
+                    &["title", "music", "friend_health", "enemy_health"],
                     &[
                         ("friend_factions", &["id", "people"]),
                         ("enemy_factions", &["id", "people"]),
