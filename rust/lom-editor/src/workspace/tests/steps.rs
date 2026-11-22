@@ -704,7 +704,7 @@ fn deleting_dragged_offsets_preserves_branches_parallel_actions_and_nonadjacent_
             {"id":"end","type":"end"}
         ]});
         let mut story = original.clone();
-        let mut selected = if parallel { 1 } else { 3 };
+        let mut selected = 3;
         for character in if parallel {
             vec!["player", "girl1"]
         } else {
@@ -770,12 +770,13 @@ fn deleting_offsets_reconnects_incoming_choice_dice_and_check_targets() {
 fn deleting_a_final_drag_offset_restores_the_end_and_ambiguous_deletion_changes_nothing() {
     let mut app = app();
     let original = json!({"story_schema":2,"id":"main","start":"show","nodes":[
-        {"id":"show","type":"show","character":"player"}
+        {"id":"show","type":"show","character":"player"},
+        {"id":"hold","type":"wait","seconds":1}
     ]});
     let mut story = original.clone();
-    crate::preview_layout::apply(
+    let offset = crate::preview_layout::apply(
         &mut story,
-        0,
+        1,
         &crate::preview_layout::Change {
             target: crate::preview_layout::Target::Character("player".into()),
             x: 120.0,
@@ -786,7 +787,7 @@ fn deleting_a_final_drag_offset_restores_the_end_and_ambiguous_deletion_changes_
     )
     .unwrap();
     app.project.stories.insert("main".into(), story);
-    app.selected = 1;
+    app.selected = offset;
     app.delete();
     assert_eq!(app.story().clone(), original);
 

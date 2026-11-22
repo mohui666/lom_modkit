@@ -641,6 +641,8 @@ fn assert_mood_drag_updates(action: Option<usize>, second_mood: bool) {
                 .insert(format!("assets/user/character/test.other/{name}"), bytes);
         }
     }
+    app.track();
+    app.flush();
     app.selected = 1;
     app.view = View::Stage;
     app.center = Center::Node;
@@ -661,18 +663,20 @@ fn assert_mood_drag_updates(action: Option<usize>, second_mood: bool) {
             },
         )
     };
-    draw(&mut app, vec![]);
-    let output = draw(&mut app, vec![]);
-    let center = output
-        .shapes
-        .iter()
-        .find_map(|shape| match &shape.shape {
+    let deadline = Instant::now() + Duration::from_secs(5);
+    let center = loop {
+        let output = draw(&mut app, vec![]);
+        if let Some(center) = output.shapes.iter().find_map(|shape| match &shape.shape {
             egui::Shape::Rect(rect) if rect.stroke.color == Color32::from_rgb(45, 145, 220) => {
                 Some(rect.rect.center())
             }
             _ => None,
-        })
-        .expect("selected bubble has a drag handle");
+        }) {
+            break center;
+        }
+        assert!(Instant::now() < deadline, "selected bubble has a drag handle");
+        std::thread::sleep(Duration::from_millis(5));
+    };
     let pointer = |position, pressed| egui::Event::PointerButton {
         pos: position,
         button: egui::PointerButton::Primary,
