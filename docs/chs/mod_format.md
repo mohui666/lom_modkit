@@ -4,7 +4,7 @@
 
 **所有组件（编辑器 / 编译器 / 运行时插件）以本文档为准。** 改动需同步更新本文档。
 
-1.6.6 继续使用 **package_format=3 / story_schema=2 / content_schema=1**。人物登场可设置初始横向和纵向偏移。临时试玩请求的 format 与包格式是两套协议。[GitHub Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.6)
+1.6.7 继续使用 **package_format=3 / story_schema=2 / content_schema=1**。人物登场可设置初始横向和纵向偏移。临时试玩请求的 format 与包格式是两套协议。[GitHub Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.7)
 
 2026-10-24 工作区扩展：Host ≥1.1.3 支持 `play_mode=addon/sandbox` 与独立的 `scenario.json`。事件、任务和结果动作使用[事件与任务配置](events_and_tasks.md)契约，旧作品继续兼容。
 

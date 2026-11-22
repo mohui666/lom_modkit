@@ -118,6 +118,22 @@ impl Preview {
         {
             return Ok(cached);
         }
+        if self.camera_filter == filters::Settings::default()
+            && self.cache.values().any(|cached| {
+                cached.texture.id() == thumbnail.id() && cached.source_size == thumbnail.size()
+            })
+        {
+            let [width, height] = thumbnail.size();
+            let loaded = DetailImage {
+                source,
+                thumbnail: thumbnail.id(),
+                texture: thumbnail.clone(),
+                source_pixels: Vec2::new(width as f32, height as f32),
+                limited: false,
+            };
+            ctx.data_mut(|data| data.insert_temp(slot, loaded.clone()));
+            return Ok(loaded);
+        }
         let (_, bytes, _) = self
             .asset(
                 project,
@@ -126,10 +142,7 @@ impl Preview {
                 &request.portrait,
             )
             .ok_or_else(|| anyhow::anyhow!(viewer_text("unavailable")))?;
-        let bytes = match bytes {
-            AssetSource::Project(bytes) => std::borrow::Cow::Borrowed(bytes),
-            AssetSource::Library(path) => std::borrow::Cow::Owned(std::fs::read(path)?),
-        };
+        let bytes = bytes.bytes()?;
         anyhow::ensure!(
             bytes.len() <= 32 * 1024 * 1024,
             "{}",
@@ -235,6 +248,8 @@ impl Preview {
                             );
                         }
                     }
+                } else if self.image_loading {
+                    ui.spinner();
                 } else {
                     ui.label(viewer_text("unavailable"));
                 }

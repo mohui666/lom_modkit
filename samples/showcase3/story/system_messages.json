@@ -8,7 +8,7 @@
       "id": "explain",
       "type": "say",
       "mode": "narrative",
-      "text": "心上人可直接按人名选择。下面的属性、好感、物品、天赋与奖励变更均关闭系统提示，最后再显示一次属性变更作对比。"
+      "text": "心上人可直接按人名选择。接下来把拳掌设为 125，并演示静默的好感、物品、天赋与奖励变更，最后再显示一次属性变更作对比。"
     },
     {
       "id": "lover",
@@ -22,6 +22,13 @@
       "type": "stat",
       "key": "morale",
       "delta": 1,
+      "show_message": false
+    },
+    {
+      "id": "martial_ability_above_100",
+      "type": "stat_set",
+      "key": "m-fist",
+      "value": 125,
       "show_message": false
     },
     {

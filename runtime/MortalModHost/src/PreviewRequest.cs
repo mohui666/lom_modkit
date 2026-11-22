@@ -19,6 +19,26 @@ namespace MortalModHost
         public string SourceScript, EventScript, EventNode;
         public string VideoRenderId;
         public string RequestId;
+        internal (long Length, long Created, long Written) SourceStamp { get; private set; }
+        private string _source;
+
+        internal static (long Length, long Created, long Written) FileStamp(string path)
+        {
+            var file = new FileInfo(path);
+            return file.Exists ? (file.Length, file.CreationTimeUtc.Ticks, file.LastWriteTimeUtc.Ticks) : default;
+        }
+
+        internal bool IsSameFile(PreviewRequest other)
+        {
+            return other != null && SourceStamp == other.SourceStamp && _source == other._source;
+        }
+
+        internal bool IsCurrent(string path)
+        {
+            PreviewRequest current;
+            string error;
+            return TryRead(path, out current, out error) && IsSameFile(current);
+        }
 
         public static bool TryRead(string path, out PreviewRequest request, out string error)
         {
@@ -26,7 +46,13 @@ namespace MortalModHost
             error = null;
             try
             {
-                var root = MiniJson.Parse(File.ReadAllText(path)) as Dictionary<string, object>;
+                var stamp = FileStamp(path);
+                string source;
+                using (var file = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete))
+                using (var reader = new StreamReader(file))
+                    source = reader.ReadToEnd();
+                if (FileStamp(path) != stamp) return false;
+                var root = MiniJson.Parse(source) as Dictionary<string, object>;
                 if (root == null)
                     throw new FormatException("顶层不是 JSON 对象");
                 object format;
@@ -40,7 +66,9 @@ namespace MortalModHost
                 {
                     ModId = RequiredId(root, "mod_id"),
                     ScriptId = RequiredId(root, "script_id"),
-                    NodeId = RequiredId(root, "node_id")
+                    NodeId = RequiredId(root, "node_id"),
+                    SourceStamp = stamp,
+                    _source = source
                 };
                 object video;
                 if (root.TryGetValue("video_render_id", out video))
@@ -108,6 +136,8 @@ namespace MortalModHost
                 request = parsed;
                 return true;
             }
+            catch (FileNotFoundException) { return false; }
+            catch (DirectoryNotFoundException) { return false; }
             catch (Exception ex)
             {
                 error = ex.Message;

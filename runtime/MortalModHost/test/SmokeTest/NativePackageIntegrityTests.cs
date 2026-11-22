@@ -137,7 +137,7 @@ namespace MortalModHost
         { byte[] storyBytes, luaBytes; return story + "\t" + (entries.TryGetValue(story, out storyBytes) ? Hash(storyBytes) : new string('0', 64)) + "\t" + lua + "\t" + (entries.TryGetValue(lua, out luaBytes) ? Hash(luaBytes) : new string('0', 64)) + "\n"; }
         private static ModPackage Load(string path)
         {
-            try { return (ModPackage)typeof(ModLoader).GetMethod("LoadPackage", BindingFlags.NonPublic | BindingFlags.Static).Invoke(null, new object[] { path, null }); }
+            try { return (ModPackage)typeof(ModLoader).GetMethod("LoadPackage", BindingFlags.NonPublic | BindingFlags.Static).Invoke(null, new object[] { path, null, null }); }
             catch (TargetInvocationException error) { throw error.InnerException; }
         }
         private static void Expect(string path, string message)

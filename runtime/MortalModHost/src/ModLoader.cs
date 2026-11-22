@@ -37,7 +37,7 @@ namespace MortalModHost
         internal const string StoryLuaHashAlgorithm = "lom-story-lua-sha256-v1";
 
         private const string PreviewPackageId = "lom_modkit_preview";
-        private const string PreviewPackageFileName = "__lom_modkit_preview.lommod";
+        internal const string PreviewPackageFileName = "__lom_modkit_preview.lommod";
 
         /// <summary>结局卡背景图允许的扩展名（契约 §3.1）。</summary>
         private static bool IsImageAsset(string path)
@@ -59,7 +59,7 @@ namespace MortalModHost
         /// acceptPackage 在试玩包优先级之前执行；身份冲突由 ModRegistry 原子处理。
         /// </summary>
         public static List<ModPackage> ScanMods(string modsDir, Action<string> logInfo, Action<string> logWarn,
-            Func<ModPackage, bool> acceptPackage = null)
+            Func<ModPackage, bool> acceptPackage = null, IReadOnlyList<ModPackage> previousPackages = null)
         {
             var result = new List<ModPackage>();
             if (!Directory.Exists(modsDir))
@@ -71,13 +71,19 @@ namespace MortalModHost
 
             string[] files = Directory.GetFiles(modsDir, "*.lommod");
             Array.Sort(files, StringComparer.OrdinalIgnoreCase); // 按文件名排序，加载顺序稳定
+            var previousByPath = new Dictionary<string, ModPackage>(StringComparer.Ordinal);
+            if (previousPackages != null)
+                foreach (ModPackage package in previousPackages)
+                    previousByPath[package.PackagePath] = package;
             var parsedPackages = new List<ModPackage>();
             foreach (string file in files)
             {
                 ModPackage package;
                 try
                 {
-                    package = LoadPackage(file, logWarn);
+                    ModPackage previous;
+                    previousByPath.TryGetValue(file, out previous);
+                    package = LoadPackage(file, logWarn, previous);
                 }
                 catch (Exception ex)
                 {
@@ -134,14 +140,17 @@ namespace MortalModHost
         /// <summary>
         /// 解析单个 .lommod（zip 全程只走内存流，不解到磁盘）。校验失败抛异常，由调用方兜底。
         /// </summary>
-        private static ModPackage LoadPackage(string path, Action<string> logWarn)
+        private static ModPackage LoadPackage(string path, Action<string> logWarn, ModPackage previous)
         {
-            using (var stream = File.OpenRead(path))
+            // An editor may replace the fixed preview path during preparation.
+            // Validate this open snapshot, without holding up the editor's rename.
+            using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete))
             {
                 if (stream.Length > MaxPackageFileBytes)
                     throw new FormatException("mod 包文件超过 160MB 上限");
-                string fingerprint;
-                fingerprint = ToUpperHex(NativeSha256.Hash(stream));
+                string fingerprint = ToUpperHex(NativeSha256.Hash(stream));
+                // Metadata alone cannot identify a changed or replaced archive.
+                if (previous != null && previous.PackageFingerprint == fingerprint) return previous;
                 stream.Position = 0;
 
                 using (var zip = new ZipArchive(stream, ZipArchiveMode.Read))

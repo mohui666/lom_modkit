@@ -7,6 +7,7 @@ fn known_label(key: &str) -> Option<String> {
         "frames" => return Some(crate::i18n::key("video.frames")),
         "seconds" => return Some(crate::i18n::key("video.seconds")),
         "cleanup_warning" => return Some(crate::i18n::key("video.cleanup_warning")),
+        "missing_item_icons" => return Some(crate::i18n::key("editor.preview.missing_item_icons")),
         _ => (),
     }
     let text = match key {

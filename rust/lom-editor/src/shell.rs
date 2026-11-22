@@ -306,6 +306,8 @@ fn font_definitions() -> egui::FontDefinitions {
     }
     #[cfg(target_os = "windows")]
     {
+        static CJK_EXTENSIONS: std::sync::OnceLock<Option<Vec<u8>>> = std::sync::OnceLock::new();
+        static CJK_EXTENSION_G: std::sync::OnceLock<Option<Vec<u8>>> = std::sync::OnceLock::new();
         append_system_font(
             &mut fonts,
             &CHINESE,
@@ -326,6 +328,18 @@ fn font_definitions() -> egui::FontDefinitions {
             &KOREAN,
             "system-korean",
             &["C:/Windows/Fonts/malgun.ttf", "C:/Windows/Fonts/gulim.ttc"],
+        );
+        append_system_font(
+            &mut fonts,
+            &CJK_EXTENSIONS,
+            "system-cjk-extensions",
+            &["C:/Windows/Fonts/simsunb.ttf"],
+        );
+        append_system_font(
+            &mut fonts,
+            &CJK_EXTENSION_G,
+            "system-cjk-extension-g",
+            &["C:/Windows/Fonts/simsunextg.ttf"],
         );
     }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
@@ -589,4 +603,30 @@ mod tests {
             });
         }
     }
+}
+
+#[cfg(all(test, target_os = "windows"))]
+#[test]
+fn windows_name_fonts_render_fallback_han() {
+    let ctx = egui::Context::default();
+    style(&ctx);
+    let _ = ctx.run(Default::default(), |ctx| {
+        ctx.fonts_mut(|fonts| {
+            for family in [egui::FontFamily::Proportional, egui::FontFamily::Monospace] {
+                let font = egui::FontId::new(14.0, family);
+                for (path, rare_names) in [
+                    ("C:/Windows/Fonts/msyh.ttc", "咲"),
+                    ("C:/Windows/Fonts/simsunb.ttf", "𡃁𪚥"),
+                    ("C:/Windows/Fonts/simsunextg.ttf", "𰻞"),
+                ] {
+                    if std::path::Path::new(path).is_file() {
+                        assert!(rare_names.chars().all(|ch| fonts.has_glyph(&font, ch)));
+                        let layout =
+                            fonts.layout_no_wrap(rare_names.into(), font.clone(), Color32::WHITE);
+                        assert!(!layout.is_empty());
+                    }
+                }
+            }
+        });
+    });
 }

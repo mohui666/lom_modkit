@@ -2145,11 +2145,10 @@ fn copy_content_to_project(
     Ok(json!({"added":id,"type":record.content_type}))
 }
 fn inspect_package(path: &std::path::Path) -> anyhow::Result<Value> {
-    let mut report = lom_core::package::inspect_package(path)?;
+    let (mut report, project) = lom_core::package::inspect_package_with_project(path)?;
     // Preserve release checks for valid packages while allowing damaged packages
     // to be inspected without opening them as authoring projects.
-    if report["ok"] == true {
-        let project = Project::open(path)?;
+    if let Some(project) = project {
         let assets = project.assets.keys().cloned().collect::<Vec<_>>();
         report["preflight"] = serde_json::to_value(release::run_preflight(
             &project,

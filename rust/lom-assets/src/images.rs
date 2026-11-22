@@ -85,26 +85,48 @@ pub fn catalog(path: &Path) -> Result<BTreeMap<String, Address>> {
     Ok(result)
 }
 
-pub fn sprite<'a>(studio: &'a Studio, address: &str) -> Result<StudioObject<'a>> {
-    let normalized = address.replace('\\', "/").to_lowercase();
-    let exact: Vec<_> = studio
-        .objects()
-        .filter(|o| {
-            o.class_id() == 213
-                && o.container()
-                    .is_some_and(|x| x.replace('\\', "/").to_lowercase() == normalized)
-        })
-        .collect();
-    if exact.len() == 1 {
-        return Ok(exact[0]);
+struct SpriteIndex<'a> {
+    // A present key with no object is ambiguous, even if a later file also has the key.
+    addresses: BTreeMap<String, Option<StudioObject<'a>>>,
+    names: BTreeMap<String, Option<StudioObject<'a>>>,
+}
+
+impl<'a> SpriteIndex<'a> {
+    fn new(studio: &'a Studio) -> Self {
+        let mut addresses = BTreeMap::new();
+        let mut names = BTreeMap::new();
+        for object in studio.objects().filter(|object| object.class_id() == 213) {
+            if let Some(address) = object.container() {
+                addresses
+                    .entry(address.replace('\\', "/").to_lowercase())
+                    .and_modify(|entry| *entry = None)
+                    .or_insert(Some(object));
+            }
+            if let Some(name) = object.name() {
+                names
+                    .entry(name.to_owned())
+                    .and_modify(|entry| *entry = None)
+                    .or_insert(Some(object));
+            }
+        }
+        Self { addresses, names }
     }
-    ensure!(exact.is_empty(), "素材地址不唯一：{address}");
-    ensure!(!normalized.contains('/'), "素材包内找不到地址：{address}");
-    let name = Path::new(address)
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .context("素材名称无效")?;
-    unity::unique(studio, 213, name)
+
+    fn get(&self, address: &str) -> Result<StudioObject<'a>> {
+        let normalized = address.replace('\\', "/").to_lowercase();
+        if let Some(object) = self.addresses.get(&normalized) {
+            return object.with_context(|| format!("素材地址不唯一：{address}"));
+        }
+        ensure!(!normalized.contains('/'), "素材包内找不到地址：{address}");
+        let name = Path::new(address)
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .context("素材名称无效")?;
+        self.names
+            .get(name)
+            .with_context(|| format!("找不到资源 {name}"))?
+            .with_context(|| format!("资源名称不唯一：{name}"))
+    }
 }
 pub fn decode(studio: &Studio, object: StudioObject<'_>, canvas: bool) -> Result<RgbaImage> {
     let metadata = object.read_sprite(Default::default())?;
@@ -563,11 +585,21 @@ pub fn extract(
             ("pictures".into(), String::new(), key.into()),
         );
     }
-    let mut failures = vec![];
+    let mut ordered_failures = vec![];
     let mut succeeded = 0;
     let mut reused = 0;
     let total = tasks.len();
-    let mut cache: Vec<(String, Studio)> = vec![];
+    let mut completed = 0;
+    let mut report_progress = |failed| {
+        completed += 1;
+        if completed == 1 || completed % 10 == 0 || completed == total {
+            crate::emit(
+                "progress",
+                json!({"message":"正在导出立绘、表情、背景和插图","done":completed,"total":total,"failed":failed}),
+            );
+        }
+    };
+    let mut by_bundle: BTreeMap<&str, Vec<ImageTask<'_>>> = BTreeMap::new();
     for (i, ((address, portrait), (relative, targets))) in tasks.into_iter().enumerate() {
         let reused_images = reuse_targets(&mut map, &previous, existing.as_deref(), &targets)?;
         if reused_images {
@@ -576,55 +608,73 @@ pub fn extract(
                 .iter()
                 .all(|(group, id, key)| target_geometry(&map, group, id, key).is_object())
             {
+                report_progress(ordered_failures.len());
                 continue;
             }
         }
-        let result = (|| -> Result<()> {
-            let entry = addresses
-                .get(&address)
-                .context("素材目录中没有对应的素材包")?;
-            if !cache.iter().any(|(name, _)| *name == entry.bundle) {
-                let path = bundles.join(&entry.bundle).canonicalize()?;
-                ensure!(path.starts_with(&bundles), "素材包路径超出游戏资源目录");
-                if cache.len() == 2 {
-                    cache.remove(0);
-                }
-                cache.push((entry.bundle.clone(), Studio::open(path)?));
-            }
-            let (_, environment) = cache
-                .iter()
-                .find(|(name, _)| *name == entry.bundle)
-                .unwrap();
-            let object = sprite(environment, &entry.internal)?;
-            let geometry = source_geometry(environment, object, portrait)?;
-            if !reused_images {
-                let image = decode(environment, object, portrait)?;
-                save(&image, &output.join(&relative), Some(max_size))?;
-            }
-            for (group, id, key) in &targets {
-                set_geometry(&mut map, group, id, key, &geometry);
-                if !reused_images {
-                    set_target(&mut map, group, id, key, &relative);
-                }
-            }
-            Ok(())
+        let Some(entry) = addresses.get(&address) else {
+            ordered_failures.push((
+                i,
+                json!({"address":address,"error":"素材目录中没有对应的素材包"}),
+            ));
+            report_progress(ordered_failures.len());
+            continue;
+        };
+        by_bundle.entry(&entry.bundle).or_default().push(ImageTask {
+            index: i,
+            address,
+            internal: &entry.internal,
+            portrait,
+            relative,
+            targets,
+            reused: reused_images,
+        });
+    }
+    // Keep one bundle open at a time. Its object metadata is indexed once,
+    // including for tasks that only need geometry for an existing image.
+    for (bundle, tasks) in by_bundle {
+        let studio = (|| -> Result<Studio> {
+            let path = bundles.join(bundle).canonicalize()?;
+            ensure!(path.starts_with(&bundles), "素材包路径超出游戏资源目录");
+            Ok(Studio::open(path)?)
         })();
-        match result {
-            Ok(()) => {
-                if !reused_images {
-                    succeeded += 1;
+        let indexed = studio
+            .as_ref()
+            .map(|studio| (studio, SpriteIndex::new(studio)));
+        for task in tasks {
+            let result = (|| -> Result<()> {
+                let (studio, sprites) = indexed
+                    .as_ref()
+                    .map_err(|error| anyhow::anyhow!("{error:#}"))?;
+                let object = sprites.get(task.internal)?;
+                let geometry = source_geometry(studio, object, task.portrait)?;
+                if !task.reused {
+                    let image = decode(studio, object, task.portrait)?;
+                    save(&image, &output.join(&task.relative), Some(max_size))?;
                 }
+                for (group, id, key) in &task.targets {
+                    set_geometry(&mut map, group, id, key, &geometry);
+                    if !task.reused {
+                        set_target(&mut map, group, id, key, &task.relative);
+                    }
+                }
+                Ok(())
+            })();
+            match result {
+                Ok(()) => succeeded += usize::from(!task.reused),
+                Err(error) => ordered_failures.push((
+                    task.index,
+                    json!({"address":task.address,"error":format!("{error:#}")}),
+                )),
             }
-            Err(error) => failures.push(json!({"address":address,"error":format!("{error:#}")})),
-        }
-        if i == 0 || (i + 1) % 10 == 0 || i + 1 == total {
-            crate::emit(
-                "progress",
-                json!({"message":"正在导出立绘、表情、背景和插图","done":i+1,"total":total,"failed":failures.len()}),
-            );
+            report_progress(ordered_failures.len());
         }
     }
-    drop(cache);
+    ordered_failures.sort_unstable_by_key(|(index, _)| *index);
+    let mut failures: Vec<_> = ordered_failures
+        .into_iter()
+        .map(|(_, error)| error)
+        .collect();
     let (combat_exported, combat_reused, combat_failures) = extract_combat_backgrounds(
         &data,
         &output,
@@ -637,16 +687,20 @@ pub fn extract(
     reused += combat_reused;
     failures.extend(combat_failures);
     let inventory = unity::open(&data.join("globalgamemanagers.assets"))?;
-    let (icons, icons_reused) = inventory_pictures(
+    let icons = inventory_pictures(
         &inventory,
         &output,
         max_size,
         existing.as_deref(),
         &previous["pictures"],
     )?;
-    reused += icons_reused;
-    succeeded += icons.as_object().unwrap().len() - icons_reused;
-    for (key, relative) in icons.as_object().unwrap() {
+    reused += icons.reused;
+    succeeded += icons.images.len() - icons.reused;
+    for key in &icons.unavailable {
+        // A previous mapping may reference an image that no longer exists.
+        map["pictures"].as_object_mut().unwrap().remove(key);
+    }
+    for (key, relative) in &icons.images {
         map["pictures"][key] = relative.clone();
         let catalog = map["picture_catalog"].as_array_mut().unwrap();
         if !catalog.iter().any(|row| row["key"] == *key) {
@@ -704,8 +758,11 @@ pub fn extract(
         )?;
         map["event_book"] = json!("assets/ui/event_book.png");
     }
-    let report = json!({"exported":succeeded,"reused":reused,"incremental":existing.is_some(),"failed":failures.len(),"failures":failures,"resource_platform":bundles.file_name().unwrap().to_string_lossy(),"unavailable_characters":unavailable,
+    let mut report = json!({"exported":succeeded,"reused":reused,"incremental":existing.is_some(),"failed":failures.len(),"failures":failures,"resource_platform":bundles.file_name().unwrap().to_string_lossy(),"unavailable_characters":unavailable,
         "characters":map["characters"].as_object().unwrap().len(),"views":map["views"].as_object().unwrap().len(),"combat_backgrounds":map["combat_backgrounds"].as_object().unwrap().len(),"pictures":map["pictures"].as_object().unwrap().len(),"moods":map["moods"].as_object().unwrap().len(),"game_tested":false,"engine":"rust"});
+    if !icons.unavailable.is_empty() {
+        report["missing_item_icons"] = json!(icons.unavailable);
+    }
     fs::write(
         output.join("preview_map.json"),
         serde_json::to_vec_pretty(&map)?,
@@ -808,13 +865,19 @@ fn extract_combat_backgrounds(
     }
     Ok((exported, reused, failures))
 }
-pub(crate) fn inventory_pictures(
+struct InventoryPictures {
+    images: serde_json::Map<String, Value>,
+    reused: usize,
+    unavailable: Vec<String>,
+}
+
+fn inventory_pictures(
     studio: &Studio,
     output: &Path,
     max_size: u32,
     existing: Option<&Path>,
     previous: &Value,
-) -> Result<(Value, usize)> {
+) -> Result<InventoryPictures> {
     let catalog: Value = serde_json::from_str(include_str!("../../../data/picture_keys.json"))?;
     let requested: std::collections::BTreeSet<_> = catalog["pictures"]
         .as_array()
@@ -839,7 +902,7 @@ pub(crate) fn inventory_pictures(
     let bytes = unity::raw(database)?;
     let mut reader = Reader::at(&bytes, 28);
     reader.string()?;
-    let mut map = json!({});
+    let mut images = serde_json::Map::new();
     let mut files: BTreeMap<(usize, i64), String> = BTreeMap::new();
     let mut records = vec![];
     for category in ["book", "misc", "special", "consumable"] {
@@ -859,11 +922,15 @@ pub(crate) fn inventory_pictures(
                 continue;
             }
             let pointer = fields.ptr()?;
-            let icon = unity::resolve(studio, item, pointer)?;
+            if pointer.is_null() {
+                continue;
+            }
+            let icon = unity::resolve(studio, item, pointer)
+                .with_context(|| format!("无法读取原版物品图标：{key}"))?;
             let identity = (icon.file_index(), pointer.path_id);
             if let Some(relative) = cached_file(existing, &previous[&key])? {
                 files.entry(identity).or_insert(relative.clone());
-                map[&key] = json!(relative);
+                images.insert(key.clone(), json!(relative));
             }
             records.push((
                 key,
@@ -882,36 +949,69 @@ pub(crate) fn inventory_pictures(
         if cached_identities.contains(&identity) {
             reused += 1;
         }
-        if map.get(&key).is_some() {
+        if images.contains_key(&key) {
             continue;
         }
         let relative = if let Some(relative) = files.get(&identity) {
             relative.clone()
         } else {
             save(
-                &decode(studio, icon, false)?,
+                &decode(studio, icon, false)
+                    .with_context(|| format!("无法解码原版物品图标：{key}"))?,
                 &output.join(&generated),
                 Some(max_size),
             )?;
             files.insert(identity, generated.clone());
             generated
         };
-        map[&key] = json!(relative);
+        images.insert(key, json!(relative));
     }
-    for key in requested {
-        ensure!(map.get(key).is_some(), "原版物品图标未找到：{key}");
-    }
-    Ok((map, reused))
+    let (kept, unavailable) = retain_catalog_icons(&mut images, requested, existing, previous)?;
+    Ok(InventoryPictures {
+        images,
+        reused: reused + kept,
+        unavailable,
+    })
 }
 
-type Tasks = BTreeMap<(String, bool), (String, Vec<(String, String, String)>)>;
-fn add_task(
-    tasks: &mut Tasks,
-    address: &str,
+fn retain_catalog_icons<'a>(
+    images: &mut serde_json::Map<String, Value>,
+    requested: impl IntoIterator<Item = &'a str>,
+    existing: Option<&Path>,
+    previous: &Value,
+) -> Result<(usize, Vec<String>)> {
+    let mut reused = 0;
+    let mut unavailable = Vec::new();
+    for key in requested {
+        if images.contains_key(key) {
+            continue;
+        }
+        // The shipped catalog spans game versions. An absent optional entry
+        // cannot prevent the independent portrait library from being loaded.
+        if let Some(relative) = cached_file(existing, &previous[key])? {
+            images.insert(key.to_owned(), json!(relative));
+            reused += 1;
+        } else {
+            unavailable.push(key.to_owned());
+        }
+    }
+    Ok((reused, unavailable))
+}
+
+type ImageTarget = (String, String, String);
+type Tasks = BTreeMap<(String, bool), (String, Vec<ImageTarget>)>;
+
+struct ImageTask<'a> {
+    index: usize,
+    address: String,
+    internal: &'a str,
     portrait: bool,
-    folder: &str,
-    target: (String, String, String),
-) {
+    relative: String,
+    targets: Vec<ImageTarget>,
+    reused: bool,
+}
+
+fn add_task(tasks: &mut Tasks, address: &str, portrait: bool, folder: &str, target: ImageTarget) {
     let digest = format!("{:x}", Sha256::digest(address.as_bytes()));
     tasks
         .entry((address.into(), portrait))
@@ -1007,5 +1107,31 @@ mod tests {
         }
         fs::create_dir(root.path().join("assets")).unwrap();
         assert!(cached_file(Some(root.path()), &json!("assets")).is_err());
+    }
+
+    #[test]
+    fn unavailable_optional_book_icon_does_not_block_other_assets() {
+        let root = tempfile::tempdir().unwrap();
+        fs::create_dir(root.path().join("assets")).unwrap();
+        fs::write(root.path().join("assets/kept.png"), b"cached").unwrap();
+        let previous = json!({
+            "item:book:6015":"assets/no-longer-present.png",
+            "item:book:6016":"assets/kept.png"
+        });
+        let mut images = serde_json::Map::from_iter([(
+            "item:book:6014".to_owned(),
+            json!("assets/exported.png"),
+        )]);
+        let (reused, missing) = retain_catalog_icons(
+            &mut images,
+            ["item:book:6014", "item:book:6015", "item:book:6016"],
+            Some(root.path()),
+            &previous,
+        )
+        .unwrap();
+        assert_eq!(reused, 1);
+        assert_eq!(missing, ["item:book:6015"]);
+        assert_eq!(images["item:book:6016"], "assets/kept.png");
+        assert_eq!(images.len(), 2);
     }
 }

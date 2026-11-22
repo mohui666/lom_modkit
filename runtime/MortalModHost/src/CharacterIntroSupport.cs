@@ -168,8 +168,14 @@ namespace MortalModHost
                 }
                 if (frame != null) frame.fillAmount = 1f;
                 if (brush != null) brush.fillAmount = 1f;
-                if (titleText != null) titleText.text = data.Title;
+                if (titleText != null)
+                {
+                    titleText.text = data.Title;
+                    NameGlyphFallback.Apply(titleText);
+                }
                 SetText(nameText, data.Name);
+                NameGlyphFallback.Apply(nameText as TMPro.TMP_Text);
+                NameGlyphFallback.Apply(nameText as Text);
                 if (introText != null) introText.text = data.Intro;
                 SetActive(countText, false);
                 SetActive(continueButton, true);

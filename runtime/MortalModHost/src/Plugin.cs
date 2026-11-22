@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using System.Text;
+using System.Threading.Tasks;
 using BepInEx;
 using BepInEx.Configuration;
+using BepInEx.Logging;
 using BepInEx.Unity.Mono;
 using BepInEx.Unity.Mono.Configuration;
 using HarmonyLib;
@@ -28,7 +30,7 @@ namespace MortalModHost
     {
         public const string GUID = "com.mohui666.mortalmodhost";
         public const string NAME = "MortalModHost";
-        public const string VERSION = "1.6.6";
+        public const string VERSION = "1.6.7";
 
         internal static Plugin Instance { get; private set; }
 
@@ -91,7 +93,9 @@ namespace MortalModHost
         private int _menuScreenWidth, _menuScreenHeight;
         private Vector2 _scroll;
         private float _nextPreviewPoll;
-        private long _loadedPreviewStamp = -1L;
+        private PreviewRequest _loadedPreviewRequest;
+        private (long Length, long Created, long Written) _loadedPreviewPackage;
+        private PreviewScan _pendingPreviewScan;
         private string _previewWaitingScene = "";
         private bool _showDebugger;
         private Rect _debugWindowRect = new Rect(20f, 20f, 520f, 680f);
@@ -162,7 +166,7 @@ namespace MortalModHost
                 + (string.IsNullOrEmpty(Application.version) ? "<unknown>" : Application.version)
                 + "；扫描 mods 目录：" + modsDir);
 
-            ReloadMods();
+            ApplyModScan(ScanMods(modsDir, Application.version, null));
 
             if (_enabled.Value)
             {
@@ -689,29 +693,48 @@ namespace MortalModHost
                 MaintainModDisclosure();
         }
 
-        /// <summary>重新扫描包并原子替换注册表；编辑器热更新试玩包时使用。</summary>
-        private void ReloadMods()
+        private sealed class ModScan
         {
+            internal List<ModPackage> Packages;
+            internal readonly List<(LogLevel Level, string Message)> Messages =
+                new List<(LogLevel Level, string Message)>();
+        }
+
+        private sealed class PreviewScan
+        {
+            internal PreviewRequest Request;
+            internal (long Length, long Created, long Written) PackageStamp;
+            internal Task<ModScan> Task;
+        }
+
+        private static ModScan ScanMods(string modsDir, string gameVersion, IReadOnlyList<ModPackage> previous)
+        {
+            var scanned = new ModScan();
+            scanned.Packages = ModLoader.ScanMods(modsDir,
+                message => scanned.Messages.Add((LogLevel.Info, message)),
+                message => scanned.Messages.Add((LogLevel.Warning, message)),
+                package =>
+                {
+                    CompatibilityResult compatibility = RuntimeCompatibility.Evaluate(package, VERSION, gameVersion);
+                    foreach (string warning in compatibility.Warnings)
+                        scanned.Messages.Add((LogLevel.Warning, "mod " + package.Id + " 兼容性提示：" + warning));
+                    if (!compatibility.IsCompatible)
+                        scanned.Messages.Add((LogLevel.Error, "拒绝加载 mod " + package.Id + "（"
+                            + Path.GetFileName(package.PackagePath) + "）：" + compatibility.Error));
+                    return compatibility.IsCompatible;
+                }, previous);
+            return scanned;
+        }
+
+        /// <summary>只在主线程切换与清理游戏资源、脚本注册和 LeanLocalization。</summary>
+        private void ApplyModScan(ModScan scanned)
+        {
+            foreach (var message in scanned.Messages)
+                Logger.Log(message.Level, message.Message);
             CustomAudioPlayer.ReleaseAll();
             CustomCharacterRuntime.ClearAll();
             CustomImageRuntime.ClearAll();
-            string modsDir = Path.Combine(Paths.PluginPath, "MortalModHost", "mods");
-            List<ModPackage> scannedMods = ModLoader.ScanMods(
-                modsDir,
-                msg => Logger.LogInfo(msg),
-                msg => Logger.LogWarning(msg),
-                package =>
-                {
-                    CompatibilityResult compatibility = RuntimeCompatibility.Evaluate(
-                        package, VERSION, Application.version);
-                    foreach (string warning in compatibility.Warnings)
-                        Logger.LogWarning("mod " + package.Id + " 兼容性提示：" + warning);
-                    if (!compatibility.IsCompatible)
-                        Logger.LogError("拒绝加载 mod " + package.Id + "（"
-                            + Path.GetFileName(package.PackagePath) + "）：" + compatibility.Error);
-                    return compatibility.IsCompatible;
-                });
-            LoadedMods = ModRegistry.Rebuild(scannedMods, msg => Logger.LogWarning(msg));
+            LoadedMods = ModRegistry.Rebuild(scanned.Packages, msg => Logger.LogWarning(msg));
             ReadTextRegistry.Rebuild(LoadedMods, msg => Logger.LogWarning(msg));
             try
             {
@@ -727,22 +750,61 @@ namespace MortalModHost
             Logger.LogInfo("mod 扫描完成：成功 " + LoadedMods.Count + " 个，注册脚本 " + ModRegistry.Count + " 个。");
         }
 
+        private ModScan PreparePreviewScan(PreviewRequest request, string requestPath, string modsDir,
+            (long Length, long Created, long Written) packageStamp)
+        {
+            if (_pendingPreviewScan != null)
+            {
+                var pending = _pendingPreviewScan;
+                if (!pending.Task.IsCompleted) return null;
+                _pendingPreviewScan = null;
+                if (request.IsSameFile(pending.Request) && packageStamp == pending.PackageStamp
+                    && request.IsCurrent(requestPath))
+                    return pending.Task.GetAwaiter().GetResult();
+                // Observe the discarded task if its directory scan failed.
+                if (pending.Task.IsFaulted) _ = pending.Task.Exception;
+            }
+
+            // The editor writes the fixed package first and publishes its request
+            // last. Do not apply a newer package for a request being replaced.
+            if (request.ModId == "lom_modkit_preview" && packageStamp.Written > request.SourceStamp.Written)
+                return null;
+            string gameVersion = Application.version;
+            var previous = LoadedMods;
+            _pendingPreviewScan = new PreviewScan
+            {
+                Request = request,
+                PackageStamp = packageStamp,
+                Task = Task.Run(() => ScanMods(modsDir, gameVersion, previous))
+            };
+            _nextPreviewPoll = Time.unscaledTime;
+            PlaytestStatusRuntime.Waiting("游戏已启动，正在准备试玩包");
+            return null;
+        }
+
         /// <summary>
         /// 消费编辑器的单次试玩请求。Free 场景直接演出；Title 场景使用隔离存档开局；
         /// 其它演出场景暂存请求，回到安全场景后自动继续。
         /// </summary>
         private void HandlePreviewRequest()
         {
+            if (_pendingPreviewScan != null && !_pendingPreviewScan.Task.IsCompleted) return;
             if (Time.unscaledTime < _nextPreviewPoll) return;
             _nextPreviewPoll = Time.unscaledTime + 0.35f;
             string pluginDir = Path.Combine(Paths.PluginPath, "MortalModHost");
             string requestPath = Path.Combine(pluginDir, "preview-request.json");
-            if (!File.Exists(requestPath)) return;
+            if (!File.Exists(requestPath))
+            {
+                if (_pendingPreviewScan?.Task.IsFaulted == true) _ = _pendingPreviewScan.Task.Exception;
+                _pendingPreviewScan = null;
+                return;
+            }
 
             PreviewRequest request;
             string error;
             if (!PreviewRequest.TryRead(requestPath, out request, out error))
             {
+                if (error == null) return; // the editor is replacing or clearing this request
                 VideoWorkerRuntime.RejectPreview("视频后台试玩请求无效：" + error);
                 Logger.LogWarning("试玩请求无效，已删除：" + error);
                 TryDelete(requestPath, "无效试玩请求");
@@ -759,7 +821,7 @@ namespace MortalModHost
                 RuntimeTrace.Active, ModDisclosure.Active, ModDisclosure.ModId, request.ModId);
             if (scene != "Title" && scene != "Free" && !(scene == "Story" && hotReload))
             {
-                // Wait before ReloadMods, which releases the current package's
+                // Wait before applying the scan, which releases the current package's
                 // audio and character/image registrations during a rescan.
                 if (_previewWaitingScene != scene)
                     Logger.LogInfo("试玩请求等待标题、自由场景或当前编辑器试玩演出就绪。");
@@ -780,11 +842,13 @@ namespace MortalModHost
                 return;
             }
 
-            long stamp;
-            try { stamp = File.GetLastWriteTimeUtc(requestPath).Ticks; }
-            catch (IOException) { return; }
-            if (_loadedPreviewStamp != stamp)
+            string modsDir = Path.Combine(pluginDir, "mods");
+            string previewPath = Path.Combine(modsDir, ModLoader.PreviewPackageFileName);
+            var packageStamp = PreviewRequest.FileStamp(previewPath);
+            if (!request.IsSameFile(_loadedPreviewRequest) || _loadedPreviewPackage != packageStamp)
             {
+                ModScan prepared = PreparePreviewScan(request, requestPath, modsDir, packageStamp);
+                if (prepared == null || PreviewRequest.FileStamp(previewPath) != packageStamp) return;
                 EventTestRuntime.Clear();
                 if (hotReload)
                 {
@@ -803,10 +867,14 @@ namespace MortalModHost
                         return;
                     }
                 }
-                ReloadMods();
-                _loadedPreviewStamp = stamp;
+                ApplyModScan(prepared);
+                _loadedPreviewRequest = request;
+                _loadedPreviewPackage = packageStamp;
                 _previewWaitingScene = "";
             }
+
+            if (!request.IsCurrent(requestPath) || PreviewRequest.FileStamp(previewPath) != packageStamp)
+                return;
 
             ModPackage target = null;
             foreach (var mod in LoadedMods)
@@ -821,7 +889,7 @@ namespace MortalModHost
                 if (PlaytestStatusRuntime.Tracked)
                 {
                     PlaytestStatusRuntime.Fail("预览包未加载或入口不匹配：" + request.ModId + "/" + request.ScriptId, null, null);
-                    TryDelete(requestPath, "失败的试玩请求");
+                    DeleteCurrentPreviewRequest(requestPath, request, "失败的试玩请求");
                     return;
                 }
                 Logger.LogWarning("试玩包尚未加载或入口不匹配，将继续等待：" + request.ModId + "/" + request.ScriptId);
@@ -833,14 +901,14 @@ namespace MortalModHost
             {
                 PlaytestStatusRuntime.Fail("试玩状态请求只能进入固定的编辑器临时包，当前加载的同名作品不是该包", null, null);
                 Logger.LogWarning("试玩状态请求拒绝进入非编辑器同名作品：" + target.PackagePath);
-                TryDelete(requestPath, "无效试玩状态请求");
+                DeleteCurrentPreviewRequest(requestPath, request, "无效试玩状态请求");
                 return;
             }
 
             int videoReady = VideoRenderRuntime.Prepare(request);
             if (videoReady <= 0)
             {
-                if (videoReady < 0) TryDelete(requestPath, "无效视频生成请求");
+                if (videoReady < 0) DeleteCurrentPreviewRequest(requestPath, request, "无效视频生成请求");
                 return;
             }
 
@@ -859,32 +927,32 @@ namespace MortalModHost
                 {
                     EventTestRuntime.Clear();
                     NavigationFailed("事件测试未启动：" + eventError.Message);
-                    TryDelete(requestPath, "无效事件测试请求");
+                    DeleteCurrentPreviewRequest(requestPath, request, "无效事件测试请求");
                     return;
                 }
                 StartCampaign(target);
-                if (LastNavigationError == null) CompletePreviewRequest(requestPath, target);
-                else { EventTestRuntime.Clear(); TryDelete(requestPath, "失败的事件测试请求"); }
+                if (LastNavigationError == null) CompletePreviewRequest(requestPath, request, target);
+                else { EventTestRuntime.Clear(); DeleteCurrentPreviewRequest(requestPath, request, "失败的事件测试请求"); }
             }
             else if (reloadCurrentPreview)
             {
                 Logger.LogInfo("F5 热重载：从节点 " + request.NodeId + " 重新载入 Story 场景");
                 PlayMod(target);
-                CompletePreviewRequest(requestPath, target);
+                CompletePreviewRequest(requestPath, request, target);
             }
             else if (scene == "Free")
             {
                 _previewWaitingScene = "";
                 Logger.LogInfo("收到编辑器试玩请求：" + request.ScriptId + "/" + request.NodeId + "（自由场景直接演出）");
                 PlayMod(target);
-                CompletePreviewRequest(requestPath, target);
+                CompletePreviewRequest(requestPath, request, target);
             }
             else if (scene == "Title")
             {
                 _previewWaitingScene = "";
                 Logger.LogInfo("收到编辑器试玩请求：" + request.ScriptId + "/" + request.NodeId + "（隔离存档开局）");
                 StartCampaign(target);
-                CompletePreviewRequest(requestPath, target);
+                CompletePreviewRequest(requestPath, request, target);
             }
             else if (!string.Equals(_previewWaitingScene, scene, StringComparison.Ordinal))
             {
@@ -893,14 +961,21 @@ namespace MortalModHost
             }
         }
 
-        private void CompletePreviewRequest(string requestPath, ModPackage package)
+        private void CompletePreviewRequest(string requestPath, PreviewRequest request, ModPackage package)
         {
-            TryDelete(requestPath, "已完成试玩请求");
-            // 仅删除编辑器固定临时包；Lua、文本和图片已经加载进内存，不影响本次演出。
-            if (package.Id == "lom_modkit_preview"
-                && string.Equals(Path.GetFileName(package.PackagePath), "__lom_modkit_preview.lommod", StringComparison.OrdinalIgnoreCase))
+            DeleteCurrentPreviewRequest(requestPath, request, "已完成试玩请求");
+            // A replacement editor request owns its own temporary file. Only
+            // remove the fixed path if it is still the one prepared above.
+            if (!File.Exists(requestPath) && package.Id == "lom_modkit_preview"
+                && string.Equals(Path.GetFileName(package.PackagePath), ModLoader.PreviewPackageFileName, StringComparison.OrdinalIgnoreCase)
+                && PreviewRequest.FileStamp(package.PackagePath) == _loadedPreviewPackage)
                 TryDelete(package.PackagePath, "编辑器临时试玩包");
-            _loadedPreviewStamp = -1L;
+            _loadedPreviewRequest = null;
+        }
+
+        private void DeleteCurrentPreviewRequest(string path, PreviewRequest request, string label)
+        {
+            if (request.IsCurrent(path)) TryDelete(path, label);
         }
 
         private void TryDelete(string path, string label)

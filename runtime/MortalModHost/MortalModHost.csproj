@@ -4,7 +4,7 @@
     <!-- 目标框架与现有插件 MortalInstantWin 一致（net48），BepInEx 6 Mono + Unity 2020.3 实测可加载 -->
     <TargetFramework>net48</TargetFramework>
     <AssemblyName>MortalModHost</AssemblyName>
-    <Version>1.6.6</Version>
+    <Version>1.6.7</Version>
     <RootNamespace>MortalModHost</RootNamespace>
     <LangVersion>7.3</LangVersion>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -127,9 +127,21 @@
       <HintPath>$(GameDir)\Mortal_Data\Managed\UnityEngine.UI.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="UnityUIExtensions">
+      <HintPath>$(GameDir)\Mortal_Data\Managed\UnityUIExtensions.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <!-- Font.CreateDynamicFontFromOSFont（披露芯片在找不到游戏字体时回退系统中文字体） -->
     <Reference Include="UnityEngine.TextRenderingModule">
       <HintPath>$(GameDir)\Mortal_Data\Managed\UnityEngine.TextRenderingModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Unity.TextMeshPro">
+      <HintPath>$(GameDir)\Mortal_Data\Managed\Unity.TextMeshPro.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.TextCoreModule">
+      <HintPath>$(GameDir)\Mortal_Data\Managed\UnityEngine.TextCoreModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <!-- UnityEngine.UIModule：CanvasGroup（GameOver 描述容器/按钮画布 fade 目标） -->

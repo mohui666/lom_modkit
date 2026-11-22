@@ -5,8 +5,12 @@ use serde_json::{json, Value};
 use std::{
     collections::{BTreeMap, VecDeque},
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
+#[path = "preview/assets.rs"]
+mod assets;
+use assets::AssetSource;
 #[path = "preview_effects.rs"]
 pub(crate) mod effects;
 pub(crate) use effects::Library as EffectLibrary;
@@ -1449,14 +1453,11 @@ struct Cached {
     texture: TextureHandle,
     filter_image: Option<filters::FilterImage>,
     opaque: Rect,
+    source_size: [usize; 2],
     bytes: usize,
     touched: u64,
 }
-#[derive(Debug, PartialEq)]
-enum AssetSource<'a> {
-    Project(&'a [u8]),
-    Library(PathBuf),
-}
+const TEXTURE_CACHE_BYTES: usize = 256 * 1024 * 1024;
 struct Simulation {
     target: String,
     before: Value,
@@ -1505,6 +1506,11 @@ pub struct Preview {
     simulation: Option<Simulation>,
     simulation_cache: simulation::Cache,
     cache: BTreeMap<String, Cached>,
+    project_images: Option<assets::ProjectImages>,
+    asset_revision: u64,
+    library_revision: u64,
+    image_loader: Option<assets::Loader>,
+    image_loading: bool,
     tick: u64,
     mood_clocks: BTreeMap<String, (String, f64)>,
     pub extract_requested: bool,
@@ -1594,6 +1600,11 @@ impl Preview {
             simulation: None,
             simulation_cache: simulation::Cache::default(),
             cache: BTreeMap::new(),
+            project_images: None,
+            asset_revision: 0,
+            library_revision: 0,
+            image_loader: None,
+            image_loading: false,
             tick: 0,
             mood_clocks: BTreeMap::new(),
             extract_requested: false,
@@ -1691,7 +1702,7 @@ impl Preview {
                 .map(|cached| cached.bytes)
                 .sum::<usize>()
                 + additional
-                > 256 * 1024 * 1024
+                > TEXTURE_CACHE_BYTES
         {
             let oldest = self
                 .cache
@@ -1706,6 +1717,7 @@ impl Preview {
     fn cached_texture(&mut self, key: &str) -> Option<(TextureHandle, Rect)> {
         let cached = self.cache.get_mut(key)?;
         cached.touched = self.tick;
+        let previous_cost = cached.bytes;
         if let Some(image) = &mut cached.filter_image {
             if image.update(&self.camera_filter) {
                 cached.texture.set(
@@ -1715,8 +1727,11 @@ impl Preview {
                 cached.bytes = cached.texture.size().iter().product::<usize>() * 4 + image.bytes();
             }
         }
+        let check_budget = cached.bytes > previous_cost || cached.bytes > TEXTURE_CACHE_BYTES;
         let result = (cached.texture.clone(), cached.opaque);
-        self.trim_texture_cache(0);
+        if check_budget {
+            self.trim_texture_cache(0);
+        }
         Some(result)
     }
 
@@ -1726,6 +1741,7 @@ impl Preview {
         key: String,
         pixels: egui::ColorImage,
         opaque: Rect,
+        source_size: [usize; 2],
     ) -> TextureHandle {
         let cost = pixels.pixels.len() * 4;
         let (filter_image, pixels) = if self.camera_filter == filters::Settings::default() {
@@ -1745,6 +1761,7 @@ impl Preview {
                 texture: texture.clone(),
                 filter_image,
                 opaque,
+                source_size,
                 bytes: cost,
                 touched: self.tick,
             },
@@ -1784,7 +1801,7 @@ impl Preview {
             let opaque = effects::visible_bounds(&image);
             // RGB at alpha=0 carries additive light. Never premultiply again.
             let pixels = egui::ColorImage::from_rgba_premultiplied(size, image.as_raw());
-            let texture = self.cache_texture(ctx, key, pixels, opaque);
+            let texture = self.cache_texture(ctx, key, pixels, opaque, size);
             Ok((texture, opaque))
         })();
         match loaded {
@@ -1819,7 +1836,11 @@ impl Preview {
         })?;
         self.mapping = mapping;
         self.library = root;
+        self.library_revision = self.library_revision.wrapping_add(1);
         self.cache.clear();
+        if let Some(loader) = &mut self.image_loader {
+            loader.clear_failures();
+        }
         self.mood_clocks.clear();
         Ok(())
     }
@@ -1838,79 +1859,79 @@ impl Preview {
         );
         self.mapping = mapping;
         self.library = root;
+        self.library_revision = self.library_revision.wrapping_add(1);
         self.cache.clear();
+        if let Some(loader) = &mut self.image_loader {
+            loader.clear_failures();
+        }
         self.mood_clocks.clear();
         Ok(())
     }
+
+    pub(crate) fn prepare_images(
+        &mut self,
+        snapshot: &Arc<BTreeMap<String, Vec<u8>>>,
+        background: bool,
+    ) {
+        if self
+            .project_images
+            .as_ref()
+            .is_none_or(|index| !Arc::ptr_eq(&index.snapshot, snapshot))
+        {
+            self.project_images = Some(assets::ProjectImages::new(snapshot.clone()));
+            self.asset_revision = self.asset_revision.wrapping_add(1);
+            self.cache.retain(|key, _| !key.starts_with("project:"));
+            if let Some(loader) = &mut self.image_loader {
+                loader.clear_failures();
+            }
+        }
+        if background {
+            if self.image_loader.is_none() {
+                self.image_loader = assets::Loader::new();
+            }
+            if let Some(loader) = &mut self.image_loader {
+                loader.begin_frame();
+            }
+        } else {
+            self.image_loader = None;
+        }
+    }
+
     fn asset<'a>(
         &self,
         p: &'a Project,
         name: &str,
         character: bool,
         portrait: &str,
-    ) -> Option<(String, AssetSource<'a>, Value)> {
+    ) -> Option<(String, AssetSource<'a>, Arc<Value>)> {
         if name.is_empty() {
             return None;
         }
+        let index = self.project_images.as_ref();
         if let Some(id) = name.strip_prefix("user:") {
-            for (key, bytes) in &p.assets {
-                if key.ends_with("/content.json") {
-                    if let Ok(meta) = serde_json::from_slice::<Value>(bytes) {
-                        if meta["id"].as_str() == Some(id) {
-                            let file = if character {
-                                meta["portraits"][portrait]
-                                    .as_str()
-                                    .or_else(|| meta["portraits"]["normal"].as_str())
-                                    .or_else(|| meta["files"]["main"].as_str())
-                            } else {
-                                meta["files"]["main"].as_str()
-                            }?;
-                            let path = Path::new(key)
-                                .parent()?
-                                .join(file)
-                                .to_string_lossy()
-                                .replace('\\', "/");
-                            return p
-                                .assets
-                                .get(&path)
-                                .map(|b| (path, AssetSource::Project(b), meta));
-                        }
-                    }
-                }
-            }
-            return None;
+            let (path, metadata) = assets::user_image(&p.assets, index, id, character, portrait)?;
+            return p
+                .assets
+                .get(&path)
+                .map(|bytes| (path, AssetSource::Project(bytes), metadata));
         }
         if character {
-            for (key, bytes) in &p.assets {
-                if !key.starts_with("assets/user/character/") || !key.ends_with("/content.json") {
-                    continue;
-                }
-                let Ok(meta) = serde_json::from_slice::<Value>(bytes) else {
-                    continue;
-                };
-                let target = if name == "player_beautified" {
-                    "player"
-                } else {
-                    name
-                };
-                if meta["extends"] != target {
-                    continue;
-                }
-                if let Some(file) = meta["portraits"][portrait].as_str() {
-                    let path = format!("{}{file}", key.strip_suffix("content.json")?);
-                    return p
-                        .assets
-                        .get(&path)
-                        .map(|b| (path, AssetSource::Project(b), meta));
-                }
+            let target = if name == "player_beautified" {
+                "player"
+            } else {
+                name
+            };
+            if let Some((path, metadata)) =
+                assets::portrait_override(&p.assets, index, target, portrait)
+            {
+                return p
+                    .assets
+                    .get(&path)
+                    .map(|bytes| (path, AssetSource::Project(bytes), metadata));
             }
         }
         if let Some(bytes) = p.assets.get(name) {
-            return Some((
-                format!("project:{name}"),
-                AssetSource::Project(bytes),
-                json!({}),
-            ));
+            return Some((name.to_owned(), AssetSource::Project(bytes), Arc::default()));
         }
         let rel = if let Some(key) = name.strip_prefix("@mood:") {
             key
@@ -1963,7 +1984,7 @@ impl Preview {
         Some((
             canon.to_string_lossy().into(),
             AssetSource::Library(canon),
-            meta,
+            Arc::new(meta),
         ))
     }
     fn texture(
@@ -1973,7 +1994,8 @@ impl Preview {
         name: &str,
         character: bool,
         portrait: &str,
-    ) -> Option<(TextureHandle, Value)> {
+    ) -> Option<(TextureHandle, Arc<Value>)> {
+        self.image_loading = false;
         let result = self.texture_inner(ctx, p, name, character, portrait);
         if self.stage_only && result.is_none() && !name.is_empty() {
             self.missing_images.insert(format!(
@@ -1990,11 +2012,15 @@ impl Preview {
         name: &str,
         character: bool,
         portrait: &str,
-    ) -> Option<(TextureHandle, Value)> {
+    ) -> Option<(TextureHandle, Arc<Value>)> {
         self.tick += 1;
-        let mood_key = name
-            .strip_prefix("@mood:")
-            .map(|_| format!("mood-frame:{}:{name}", self.library.display()));
+        let mood_key = name.strip_prefix("@mood:").map(|_| {
+            format!(
+                "mood-frame:{}:{}:{name}",
+                self.library_revision,
+                self.library.display()
+            )
+        });
         let mood_cached_key = mood_key
             .as_ref()
             .map(|key| self.camera_filter.cache_key(key));
@@ -2002,54 +2028,73 @@ impl Preview {
             .as_ref()
             .and_then(|key| self.cached_texture(key))
         {
-            return Some((cached.0, json!({})));
+            return Some((cached.0, Arc::default()));
         }
-        let (key, source, meta) = self.asset(p, name, character, portrait)?;
-        use std::hash::{Hash, Hasher};
-        let key = if let Some(key) = mood_key {
+        let (path, source, meta) = self.asset(p, name, character, portrait)?;
+        let source_key = if let Some(key) = mood_key {
             key
         } else {
             match &source {
+                AssetSource::Project(_) if self.project_images.is_some() => {
+                    format!("project:{}:{path}", self.asset_revision)
+                }
                 AssetSource::Project(bytes) => {
+                    // Headless and untracked callers can change the supplied
+                    // project without a workspace asset revision.
+                    use std::hash::{Hash, Hasher};
                     let mut hash = std::collections::hash_map::DefaultHasher::new();
                     bytes.hash(&mut hash);
-                    format!("{key}:{}", hash.finish())
+                    format!("project:{path}:{}", hash.finish())
                 }
-                AssetSource::Library(path) => {
-                    let metadata = std::fs::metadata(path).ok()?;
-                    if metadata.len() > 32 * 1024 * 1024 {
+                AssetSource::Library(file) => {
+                    let metadata = std::fs::metadata(file).ok()?;
+                    if metadata.len() > assets::MAX_IMAGE_BYTES as u64 {
                         return None;
                     }
-                    format!("{key}:{}:{:?}", metadata.len(), metadata.modified().ok()?)
+                    format!(
+                        "library:{}:{path}:{}:{:?}",
+                        self.library_revision,
+                        metadata.len(),
+                        metadata.modified().ok()?
+                    )
                 }
             }
         };
-        let key = self.camera_filter.cache_key(&key);
+        let key = self.camera_filter.cache_key(&source_key);
         if let Some(cached) = self.cached_texture(&key) {
             return Some((cached.0, meta));
         }
-        let bytes = match source {
-            AssetSource::Project(bytes) => std::borrow::Cow::Borrowed(bytes),
-            AssetSource::Library(path) => std::borrow::Cow::Owned(std::fs::read(path).ok()?),
-        };
-        if bytes.len() > 32 * 1024 * 1024 {
-            return None;
-        }
-        let reader = image::ImageReader::new(std::io::Cursor::new(bytes))
-            .with_guessed_format()
-            .ok()?;
-        let image = reader.decode().ok()?;
-        let image = if image.width() > 1600 || image.height() > 1600 {
-            image.thumbnail(1600, 1600)
-        } else {
-            image
-        }
-        .into_rgba8();
-        let size = [image.width() as usize, image.height() as usize];
-        let opaque = opaque_bounds(&image);
-        let pixels = egui::ColorImage::from_rgba_unmultiplied(size, image.as_raw());
-        let texture = self.cache_texture(ctx, key, pixels, opaque);
+        let pixels = self.load_image(ctx, &source_key, source, path, 1600)?;
+        let texture = self.cache_texture(ctx, key, pixels.image, pixels.opaque, pixels.source_size);
         Some((texture, meta))
+    }
+
+    fn load_image(
+        &mut self,
+        ctx: &egui::Context,
+        key: &str,
+        source: AssetSource<'_>,
+        path: String,
+        max_side: u32,
+    ) -> Option<assets::Pixels> {
+        if let (Some(loader), Some(index)) = (&mut self.image_loader, &self.project_images) {
+            let job_source = match source {
+                AssetSource::Project(_) => {
+                    assets::LoadSource::Project(index.snapshot.clone(), path)
+                }
+                AssetSource::Library(file) => assets::LoadSource::Library(file),
+            };
+            match loader.load(ctx, key, job_source, max_side) {
+                assets::Load::Ready(pixels) => Some(pixels),
+                assets::Load::Pending => {
+                    self.image_loading = true;
+                    None
+                }
+                assets::Load::Missing => None,
+            }
+        } else {
+            assets::decode(source, max_side)
+        }
     }
     pub fn image_browser(
         &mut self,
@@ -2166,6 +2211,8 @@ impl Preview {
                                                         &texture,
                                                         rect.shrink(3.0),
                                                     );
+                                                } else if self.image_loading {
+                                                    ui.put(rect, egui::Spinner::new());
                                                 } else {
                                                     ui.painter().text(
                                                         rect.center(),
@@ -3677,6 +3724,10 @@ impl Preview {
         )
         .on_hover_text(portrait);
         let texture = self.texture(ui.ctx(), project, lookup, true, portrait);
+        if self.image_loading {
+            ui.spinner();
+            return;
+        }
         if texture.is_none() {
             ui.add_space(12.0);
             ui.label(crate::i18n::tr(
@@ -5884,6 +5935,7 @@ mod content_tests {
                 texture,
                 filter_image: None,
                 opaque: Rect::from_min_size(Pos2::ZERO, Vec2::splat(1.0)),
+                source_size: [1, 1],
                 bytes: 4,
                 touched: 0,
             },
@@ -6177,6 +6229,56 @@ mod content_tests {
             first.id()
         );
     }
+
+    #[test]
+    fn background_image_results_follow_the_current_asset_snapshot() {
+        let png = |width| {
+            let matrix = image::RgbaImage::from_pixel(width, 1, image::Rgba([90, 2, 4, 255]));
+            let mut output = std::io::Cursor::new(Vec::new());
+            matrix
+                .write_to(&mut output, image::ImageFormat::Png)
+                .unwrap();
+            output.into_inner()
+        };
+        let mut project = Project::new();
+        let directory = "assets/user/image/preview";
+        let path = format!("{directory}/image.png");
+        project.assets.insert(
+            format!("{directory}/content.json"),
+            br#"{"id":"preview","files":{"main":"image.png"}}"#.to_vec(),
+        );
+        project.assets.insert(path.clone(), png(1));
+        let mut preview = Preview::new(Path::new("/unused"));
+        let ctx = egui::Context::default();
+        preview.prepare_images(&Arc::new(project.assets.clone()), true);
+        assert!(preview
+            .texture(&ctx, &project, "user:preview", false, "")
+            .is_none());
+        assert!(preview.image_loading);
+
+        project.assets.insert(path, png(2));
+        let snapshot = Arc::new(project.assets.clone());
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
+        let texture = loop {
+            preview.prepare_images(&snapshot, true);
+            if let Some((texture, _)) = preview.texture(&ctx, &project, "user:preview", false, "") {
+                break texture;
+            }
+            assert!(preview.image_loading && std::time::Instant::now() < deadline);
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        };
+        assert_eq!(texture.size(), [2, 1]);
+        preview.prepare_images(&snapshot, true);
+        assert_eq!(
+            preview
+                .texture(&ctx, &project, "user:preview", false, "")
+                .unwrap()
+                .0
+                .id(),
+            texture.id()
+        );
+    }
+
     #[test]
     fn old_portrait_libraries_offer_reextraction_without_changing_the_project() {
         let directory = tempfile::tempdir().unwrap();

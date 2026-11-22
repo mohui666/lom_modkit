@@ -239,6 +239,7 @@ namespace MortalModHost
                 TestAtomicPackageIdentitySelection();
                 TestCombatBackgroundAddressPolicy();
                 TestCombatSpriteLayoutPolicy();
+                TestCombatRadarPolicy();
                 TestCombatVitalPolicy();
                 TestPreviewRequest(modsDir);
                 TestUserContent();
@@ -601,6 +602,14 @@ namespace MortalModHost
             Assert(request.ModId == "lom_modkit_preview" && request.ScriptId == "main" && request.NodeId == "n3",
                 "试玩请求字段解析错误");
             Assert(!request.FreshCampaign, "旧试玩请求不能重置战役");
+            Assert(request.IsCurrent(path), "加载任务应识别尚未替换的试玩请求");
+            var firstRequest = request;
+            DateTime originalTimestamp = File.GetLastWriteTimeUtc(path);
+            File.WriteAllText(path,
+                "{\"format\":1,\"mod_id\":\"lom_modkit_preview\",\"script_id\":\"main\",\"node_id\":\"n4\"}");
+            File.SetLastWriteTimeUtc(path, originalTimestamp);
+            Assert(PreviewRequest.TryRead(path, out request, out error) && request.NodeId == "n4"
+                && !firstRequest.IsCurrent(path), "同时间同长度但内容更新的请求必须淘汰旧加载任务");
             File.WriteAllText(path, "{\"format\":1,\"mod_id\":\"lom_modkit_preview\",\"script_id\":\"event_test_setup_1\",\"node_id\":\"notice\",\"fresh_campaign\":true,\"event_id\":\"test\",\"target\":\"section_01_free_03\",\"from\":\"section_01_free_start_02\"}");
             Assert(PreviewRequest.TryRead(path, out request, out error) && request.FreshCampaign && request.EventId == "test", "事件测试请求应保留隔离开局与目标");
             File.WriteAllText(path, "{\"format\":1,\"mod_id\":\"some_other_mod\",\"script_id\":\"main\",\"node_id\":\"n3\",\"fresh_campaign\":true,\"event_id\":\"test\"}");
@@ -969,6 +978,18 @@ namespace MortalModHost
                     "必须执行当前试玩包而不是旧残留内容");
                 Assert(warnings.Count == 1 && warnings[0].Contains("忽略旧预览残留"),
                     "忽略旧试玩包必须给出可诊断告警：" + string.Join(" | ", warnings));
+
+                var reused = ModLoader.ScanMods(modsDir, null, null, previousPackages: mods);
+                Assert(ReferenceEquals(reused[0], mods[0]), "同字节的已验证包不应重新解析");
+                DateTime timestamp = File.GetLastWriteTimeUtc(preferred);
+                WriteV3Zip(preferred,
+                    ("manifest.json", manifest),
+                    ("lua/main.lua", "-- current preview\ncombat_start({ character = 'user:test.weiyuan', strength = 125 })"));
+                File.SetLastWriteTimeUtc(preferred, timestamp);
+                var rescanned = ModLoader.ScanMods(modsDir, null, null, previousPackages: reused);
+                Assert(rescanned.Count == 1 && !ReferenceEquals(rescanned[0], reused[0])
+                    && rescanned[0].LuaScripts["main"].Contains("strength = 125"),
+                    "时间未变但内容改变的试玩包必须重新验证和读取");
             }
             finally
             {
@@ -1098,6 +1119,17 @@ namespace MortalModHost
                 "无独立战斗动画时所有状态必须共用 idle 占位，避免切攻击上移");
             Assert(CombatStatDisplayPolicy.SliderMax == 100,
                 "决斗详情滑条必须按 CombatStat 的 100 上限显示，不能用玩家 GameStat.Max=50");
+        }
+
+        private static void TestCombatRadarPolicy()
+        {
+            Assert(CombatStatDisplayPolicy.ExtendDuelRadarAxis(80, 0.02f) == 0.02f
+                    && CombatStatDisplayPolicy.ExtendDuelRadarAxis(150, 0.5f) == 0.5f
+                    && CombatStatDisplayPolicy.ExtendDuelRadarAxis(200, 1f) == 1f,
+                "普通外层能力值沿用原版半径和最小显示值");
+            Assert(CombatStatDisplayPolicy.ExtendDuelRadarAxis(250, 1f) == 1.5f
+                    && CombatStatDisplayPolicy.ExtendDuelRadarAxis(400, 1f) == 3f,
+                "超过 200 后依旧每 100 点延伸一个半径");
         }
 
         private static void TestCombatVitalPolicy()
