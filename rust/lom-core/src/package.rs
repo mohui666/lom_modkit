@@ -149,13 +149,13 @@ fn sha(data: &[u8]) -> String {
     format!("{:X}", Sha256::digest(data))
 }
 pub fn verify_integrity(entries: &Entries) -> Result<()> {
+    verify_integrity_with_hash(entries, || content_hash(entries))
+}
+fn verify_integrity_with_hash(entries: &Entries, hash: impl FnOnce() -> String) -> Result<()> {
     let record = entries
         .get(CONTENT_HASH)
         .context("缺少 package-content.sha256")?;
-    let expected = format!(
-        "algorithm=lom-entry-sha256-v1\nsha256={}\n",
-        content_hash(entries)
-    );
+    let expected = format!("algorithm=lom-entry-sha256-v1\nsha256={}\n", hash());
     ensure!(
         record == expected.as_bytes(),
         "package-content.sha256 校验失败"
@@ -232,8 +232,7 @@ fn validate_raw_directory(file: &mut File, start: u64, unique_count: usize) -> R
     );
     Ok(())
 }
-fn read_archive(path: &Path) -> Result<Entries> {
-    let file = File::open(path)?;
+fn read_archive(file: &mut File) -> Result<Entries> {
     ensure!(
         file.metadata()?.len() <= MAX_PACKAGE_BYTES,
         "包文件超过 160 MiB"
@@ -266,63 +265,124 @@ fn read_archive(path: &Path) -> Result<Entries> {
     Ok(entries)
 }
 pub fn read_package(path: &Path) -> Result<Entries> {
-    let entries = read_archive(path)?;
+    let entries = read_archive(&mut File::open(path)?)?;
     validate_entries(&entries)?;
     Ok(entries)
 }
-fn validate_entries(entries: &Entries) -> Result<()> {
-    let manifest: Value = serde_json::from_slice(
+pub(crate) struct Documents {
+    pub(crate) manifest: Value,
+    pub(crate) scenario: Option<Value>,
+    pub(crate) stories: BTreeMap<String, Value>,
+}
+pub(crate) fn open_project(path: PathBuf) -> Result<crate::project::Project> {
+    let entries = read_archive(&mut File::open(&path)?)?;
+    let documents = validate_entries(&entries)?;
+    crate::project::Project::from_verified_package(path, documents, entries)
+}
+fn read_manifest(entries: &Entries) -> Result<Value> {
+    Ok(serde_json::from_slice(
         entries
             .get("manifest.json")
             .context("包缺少 manifest.json")?,
-    )?;
+    )?)
+}
+fn validate_entries(entries: &Entries) -> Result<Documents> {
+    let manifest = read_manifest(entries)?;
     validate::validate_manifest(&manifest)?;
-    verify_integrity(&entries)?;
-    verify_story_lua_pairs(entries, &manifest)?;
-    if crate::scenario::enabled(&manifest) {
+    verify_integrity(entries)?;
+    let stories = verify_story_lua_pairs(entries, &manifest)?;
+    finish_documents(entries, manifest, stories)
+}
+fn finish_documents(
+    entries: &Entries,
+    manifest: Value,
+    stories: BTreeMap<String, Value>,
+) -> Result<Documents> {
+    let scenario = if crate::scenario::enabled(&manifest) {
         let config: Value =
             serde_json::from_slice(entries.get("scenario.json").context("缺少 scenario.json")?)?;
-        let mut stories = BTreeMap::new();
-        for (name, data) in entries {
-            if name.starts_with("story/") && name.ends_with(".json") {
-                let story: Value = serde_json::from_slice(data)?;
-                stories.insert(
-                    story["id"].as_str().context("章节 id 无效")?.to_owned(),
-                    story,
-                );
-            }
-        }
         crate::scenario::validate(&config, &manifest, &stories)?;
+        Some(config)
     } else {
         ensure!(
             !entries.contains_key("scenario.json"),
             "scenario.json 需要 manifest.play_mode"
         );
-    }
-    Ok(())
+        None
+    };
+    Ok(Documents {
+        manifest,
+        scenario,
+        stories,
+    })
 }
 /// Read-only inspection can explain a malformed manifest or integrity failure.
 /// Unsafe ZIP containers are still rejected before any preview is produced.
 pub fn inspect_package(path: &Path) -> Result<Value> {
-    let entries = read_archive(path)?;
-    let error = validate_entries(&entries).err().map(|e| format!("{e:#}"));
-    let manifest = entries
-        .get("manifest.json")
-        .and_then(|b| serde_json::from_slice::<Value>(b).ok());
+    Ok(inspect(path, false)?.0)
+}
+/// Build a project from the same verified documents for subsequent editor checks.
+pub fn inspect_package_with_project(
+    path: &Path,
+) -> Result<(Value, Option<crate::project::Project>)> {
+    inspect(path, true)
+}
+fn inspect(path: &Path, load_project: bool) -> Result<(Value, Option<crate::project::Project>)> {
+    let mut file = File::open(path)?;
+    let entries = read_archive(&mut file)?;
+    let content_digest = content_hash(&entries);
+    let integrity = verify_integrity_with_hash(&entries, || content_digest.clone());
+    let integrity_verified = integrity.is_ok();
+    let manifest = read_manifest(&entries);
+    let manifest_preview = manifest.as_ref().ok().cloned();
+    let mut source_lua_match = false;
+    let documents = manifest.and_then(|manifest| {
+        // Report the source comparison even if an independent check fails, but
+        // keep the import error in its usual manifest/integrity/source order.
+        let stories = verify_story_lua_pairs(&entries, &manifest);
+        source_lua_match = stories.is_ok();
+        validate::validate_manifest(&manifest)?;
+        integrity?;
+        finish_documents(&entries, manifest, stories?)
+    });
+    let error = documents.as_ref().err().map(|e| format!("{e:#}"));
     let rows=entries.iter().map(|(name,bytes)|{
         let is_text=["json","lua","txt","sha256","md"].contains(&Path::new(name).extension().and_then(|s|s.to_str()).unwrap_or(""));
         let count=bytes.len().min(MAX_TEXT_BYTES as usize);
         let preview=if is_text{Some(String::from_utf8_lossy(&bytes[..count]).trim_start_matches('\u{feff}').to_owned())}else{None};
         json!({"path":name,"size":bytes.len(),"sha256":sha(bytes),"preview":preview,"preview_truncated":is_text&&bytes.len()>count})
     }).collect::<Vec<_>>();
-    Ok(
-        json!({"ok":error.is_none(),"validation_error":error,"manifest":manifest,"integrity_verified":verify_integrity(&entries).is_ok(),"source_lua_match":manifest.as_ref().is_some_and(|m|verify_story_lua_pairs(&entries,m).is_ok()),"content_hash":content_hash(&entries),"package_sha256":sha(&fs::read(path)?),"entries":rows}),
-    )
+    file.seek(SeekFrom::Start(0))?;
+    let mut package_hash = Sha256::new();
+    ensure!(
+        std::io::copy(&mut file.take(MAX_PACKAGE_BYTES + 1), &mut package_hash)?
+            <= MAX_PACKAGE_BYTES,
+        "包文件超过 160 MiB"
+    );
+    let report = json!({
+        "ok": error.is_none(),
+        "validation_error": error,
+        "manifest": manifest_preview,
+        "integrity_verified": integrity_verified,
+        "source_lua_match": source_lua_match,
+        "content_hash": content_digest,
+        "package_sha256": format!("{:X}", package_hash.finalize()),
+        "entries": rows
+    });
+    let project = match documents {
+        Ok(documents) if load_project => Some(crate::project::Project::from_verified_package(
+            path.canonicalize()?,
+            documents,
+            entries,
+        )?),
+        _ => None,
+    };
+    Ok((report, project))
 }
 /// Hashes establish byte consistency only. Independently compile the authored
 /// documents so rewriting both hashes cannot conceal substituted executable Lua.
 /// Bundled resources are confined to a disposable directory, never registered.
-fn verify_story_lua_pairs(entries: &Entries, manifest: &Value) -> Result<()> {
+fn verify_story_lua_pairs(entries: &Entries, manifest: &Value) -> Result<BTreeMap<String, Value>> {
     let mut stories = BTreeMap::new();
     for (name, bytes) in entries {
         if let Some(id) = name
@@ -343,15 +403,11 @@ fn verify_story_lua_pairs(entries: &Entries, manifest: &Value) -> Result<()> {
                 entries.contains_key(&format!("lua/{id}.lua")),
                 "包内 Story 缺少对应 Lua: {name}"
             );
-            stories.insert(id, story);
+            stories.insert(id.to_owned(), story);
         }
     }
     ensure!(!stories.is_empty(), "包内没有 story/*.json");
-    let owned_stories = stories
-        .iter()
-        .map(|(id, story)| ((*id).to_owned(), story.clone()))
-        .collect();
-    let overrides = crate::vanilla_patch::targets(&owned_stories)?;
+    let overrides = crate::vanilla_patch::targets(&stories)?;
     let declared: BTreeMap<String, String> = manifest
         .get("vanilla_overrides")
         .cloned()
@@ -459,7 +515,7 @@ fn verify_story_lua_pairs(entries: &Entries, manifest: &Value) -> Result<()> {
             "包内 {path} 不是由对应 {source} 编译生成，拒绝导入"
         );
     }
-    Ok(())
+    Ok(stories)
 }
 pub fn write_package(mut entries: Entries, output: &Path) -> Result<PathBuf> {
     ensure!(

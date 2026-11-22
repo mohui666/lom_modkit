@@ -1,8 +1,8 @@
 # lom_modkit 文档
 
-当前版本为 **1.6.6**，编辑器和编译器使用 Rust，C# Host 提供游戏接入并内置 Rust 计算组件。更新内容见 [GitHub Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.6)，下载见 [发布页](https://github.com/mohui666/lom_modkit/releases/latest)。仓库维护当前操作与接口文档，历史更新正文仅保留在 GitHub Release。
+当前版本为 **1.6.7**，编辑器和编译器使用 Rust，C# Host 提供游戏接入并内置 Rust 计算组件。仓库维护当前操作与接口文档，历史更新正文保留在 GitHub Release。 [国内下载](https://toolbox.mahui.site/downloads/lom-modkit/v1.6.7/lom-editor.exe) · [GitHub Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.7)
 
-本版完善游戏内 F8 开发工具、独立工具语言、原版事件前后文和条件说明，支持日期／章节跳转测试；决斗加入 28 张专用背景并修复小梅形态解析。升级时请同步游戏 Host，已有素材库可补充提取新背景缩略图。
+本版改善作品统计、舞台预览、包检查和 F5 热重载。Windows 编辑器及游戏姓名栏补充缺字回退，MOD 模式放宽部分能力的 100 点上限。升级时请同步游戏 Host。
 
 ## 开始使用
 

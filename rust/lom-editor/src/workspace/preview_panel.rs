@@ -243,6 +243,8 @@ impl App {
         }
     }
     pub(super) fn right(&mut self, ctx: &egui::Context) {
+        self.preview
+            .prepare_images(&self.last.assets, self.screenshot.is_none());
         if self.center == Center::Node && self.is_vanilla_patch() {
             if self.vanilla.route_open() {
                 return;
@@ -654,12 +656,23 @@ impl App {
                         });
                     }
                     View::Statistics => {
-                        let analysis = lom_core::analysis::analyze_project(
-                            &self.project.stories,
-                            &self.project.manifest,
-                        );
+                        let statistics = match &mut self.statistics {
+                            Some((revision, statistics)) if *revision == self.document_revision => {
+                                statistics
+                            }
+                            cached => {
+                                &mut cached
+                                    .insert((
+                                        self.document_revision,
+                                        lom_core::analysis::project_statistics(
+                                            &self.project.stories,
+                                        ),
+                                    ))
+                                    .1
+                            }
+                        };
                         egui::ScrollArea::vertical().show(ui, |ui| {
-                            report(ui, &analysis["stats"], 0);
+                            report(ui, statistics, 0);
                         });
                     }
                 }

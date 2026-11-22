@@ -46,6 +46,7 @@ namespace MortalModHost
             label.text = ModOverlay.CurrentPackage != null
                 && PersistentModState.TryGetCharacterTitle(ModOverlay.CurrentPackage, character, out custom)
                 ? custom : original ?? "";
+            NameGlyphFallback.Apply(label);
             // Empty text hides the title without leaving the shared nameplate disabled.
             label.gameObject.SetActive(true);
         }
@@ -62,13 +63,14 @@ namespace MortalModHost
     {
         private static void Postfix(CharacterSayDialog __instance, Text ____titleText)
         {
-            if (ModOverlay.CurrentPackage == null || CharacterTitleRuntime.CustomSpeaker != null) return;
-            var actor = __instance.SpeakingCharacter as StoryCharacterController;
+            var actor = ModOverlay.CurrentPackage != null && CharacterTitleRuntime.CustomSpeaker == null
+                ? __instance.SpeakingCharacter as StoryCharacterController : null;
             if (actor != null && actor.Data != null && ____titleText != null)
             {
                 CharacterTitleRuntime.Apply(__instance, actor.Data.Id, ____titleText.text);
                 CharacterNameRuntime.Apply(__instance, actor.Data.Id);
             }
+            else NameGlyphFallback.Apply(____titleText);
         }
     }
 }

@@ -10,6 +10,12 @@ namespace MortalModHost
     {
         internal const int SliderMax = 100;
 
+        internal static float ExtendDuelRadarAxis(int value, float originalDistance)
+        {
+            const int radius = 100;
+            return value > 2 * radius ? (value - radius) / (float)radius : originalDistance;
+        }
+
         /// <summary>
         /// 对齐 GameStatUtils.GetGameStatLevel，但先把作者值夹到官方 Max，
         /// 避免 100 / 50 越出 LevelText。

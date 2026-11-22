@@ -8,6 +8,7 @@ using Mortal.Core;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.ResourceManagement.AsyncOperations;
+using UnityEngine.UI.Extensions;
 using UnityObject = UnityEngine.Object;
 
 namespace MortalModHost
@@ -124,11 +125,6 @@ namespace MortalModHost
             {
                 GameplayOverrideFailure.Abort("决斗对手", ex);
             }
-        }
-
-        internal static void ReapplyConfiguredItems(CombatActionController controller)
-        {
-            ReapplyConfiguredItems(controller, "");
         }
 
         internal static void ApplyConfiguredValues(CombatStat clone)
@@ -315,59 +311,45 @@ namespace MortalModHost
                 ? Traverse.Create(manager).Field("_enemyAction").GetValue<CombatActionController>()
                 : null;
             if (__instance != enemyAction && !Owns(__instance.Stat.Data)) return;
-            ReapplyConfiguredItems(__instance, "");
+            ReapplyConfiguredItems(__instance.Stat);
             CombatPlayerStatSession.SyncVitalityItems(__instance.Stat);
             LogConfiguredVitality("CombatActionController.SetStat", __instance.Stat);
         }
 
-        internal static void ReapplyConfiguredItems(
-            CombatActionController controller, string prefix)
-        {
-            if (controller == null || controller.Stat == null) return;
-            ReapplyConfiguredItems(controller.Stat, prefix);
-        }
-
         internal static void ReapplyConfiguredItems(CombatStatController controller)
         {
-            ReapplyConfiguredItems(controller, "");
-        }
-
-        private static void ReapplyConfiguredItems(
-            CombatStatController controller, string prefix)
-        {
             if (controller == null) return;
-            string head = prefix ?? "";
-            ReapplyStatItem(controller, head + "stamina_power", delegate(CombatStatController stat, int v)
+            ReapplyStatItem(controller, "stamina_power", delegate(CombatStatController stat, int v)
             {
                 if (controller.Data != null) controller.Data.Stamina = v;
                 stat.Stamina = new CombatStatItem(v);
             });
-            ReapplyStatItem(controller, head + "strength", delegate(CombatStatController stat, int v)
+            ReapplyStatItem(controller, "strength", delegate(CombatStatController stat, int v)
             {
                 if (controller.Data != null) controller.Data.Strength = v;
                 stat.Strength = new CombatStatItem(v);
             });
-            ReapplyStatItem(controller, head + "dexterity", delegate(CombatStatController stat, int v)
+            ReapplyStatItem(controller, "dexterity", delegate(CombatStatController stat, int v)
             {
                 if (controller.Data != null) controller.Data.Dexterity = v;
                 stat.Dexterity = new CombatStatItem(v);
             });
-            ReapplyStatItem(controller, head + "sword", delegate(CombatStatController stat, int v)
+            ReapplyStatItem(controller, "sword", delegate(CombatStatController stat, int v)
             {
                 if (controller.Data != null) controller.Data.Sword = v;
                 stat.Sword = new CombatStatItem(v);
             });
-            ReapplyStatItem(controller, head + "fist", delegate(CombatStatController stat, int v)
+            ReapplyStatItem(controller, "fist", delegate(CombatStatController stat, int v)
             {
                 if (controller.Data != null) controller.Data.Fist = v;
                 stat.Fist = new CombatStatItem(v);
             });
-            ReapplyStatItem(controller, head + "martial_weapon", delegate(CombatStatController stat, int v)
+            ReapplyStatItem(controller, "martial_weapon", delegate(CombatStatController stat, int v)
             {
                 if (controller.Data != null) controller.Data.MartialWeapon = v;
                 stat.MartialWeapon = new CombatStatItem(v);
             });
-            ReapplyStatItem(controller, head + "talking", delegate(CombatStatController stat, int v)
+            ReapplyStatItem(controller, "talking", delegate(CombatStatController stat, int v)
             {
                 if (controller.Data != null) controller.Data.Talking = v;
                 stat.Talking = new CombatStatItem(v);
@@ -1136,22 +1118,19 @@ namespace MortalModHost
 
     /// <summary>
     /// 原版 SetStatusUI 早于 Character.SetData，Setup 时还没有自定义待机图。
-    /// 打开「状态」时四帧已换完，这里再刷头像，并把六维按配置写回后重绘雷达。
+    /// 打开「状态」时四帧已换完，这里再刷头像。
     /// </summary>
     [HarmonyPatch(typeof(CombatCharacterStatusUI), "OnPanelOpen")]
     internal static class CombatStatusPanelOpenPatch
     {
-        private static void Postfix(CombatCharacterStatusUI __instance)
+        private static void Postfix(CombatCharacterStatusUI __instance,
+            TMPro.TextMeshProUGUI ____nameText, UnityEngine.UI.Text ____titleText)
         {
+            NameGlyphFallback.Apply(____nameText);
+            NameGlyphFallback.Apply(____titleText);
             if (!GameplaySession.PendingCombat || __instance == null) return;
             CombatStatusLog.DumpConfig("OnPanelOpen");
             CombatStatusAvatarPatch.ApplyIdlePortrait(__instance);
-            CombatActionController action = Traverse.Create(__instance)
-                .Field("_actionController").GetValue<CombatActionController>();
-            if (action == null) return;
-            string prefix = CombatRadarStatApplyPatch.ConfigPrefix(action);
-            CombatStatOverridePatch.ReapplyConfiguredItems(action, prefix);
-            Traverse.Create(__instance).Method("UpdateRadarStat").GetValue();
         }
     }
 
@@ -1346,103 +1325,22 @@ namespace MortalModHost
     }
 
     /// <summary>
-    /// 雷达数字读 CombatStatItem.FinalValue，分母固定 100。打开任一状态页前
-    /// 再把作者六维写回 Item，避免玩家页仍停在 GameStat 的 50。
+    /// 延伸决斗雷达的第二层，每 100 点超额能力仍占一个半径。
+    /// 原版继续用 FinalValue 绘制数字，用 ModifyValue 绘制增减色。
     /// </summary>
     [HarmonyPatch(typeof(CombatCharacterStatusUI), "UpdateRadarStat")]
-    internal static class CombatRadarStatApplyPatch
+    internal static class CombatRadarOverflowPatch
     {
-        private static void Prefix(CombatCharacterStatusUI __instance)
+        private static void Postfix(CombatActionController ____actionController, UIPolygon ____statRadar2)
         {
-            if (!GameplaySession.PendingCombat || __instance == null) return;
-            CombatActionController action = Traverse.Create(__instance)
-                .Field("_actionController").GetValue<CombatActionController>();
-            if (action == null) return;
-            string prefix = ConfigPrefix(action);
-            CombatStatOverridePatch.ReapplyConfiguredItems(action, prefix);
-        }
-
-        private static void Postfix(CombatCharacterStatusUI __instance)
-        {
-            if (!GameplaySession.PendingCombat || __instance == null) return;
-            CombatActionController action = Traverse.Create(__instance)
-                .Field("_actionController").GetValue<CombatActionController>();
-            if (action == null || action.Stat == null) return;
-            string prefix = ConfigPrefix(action);
-            CombatStatOverridePatch.ReapplyConfiguredItems(action, prefix);
-            WriteRadarFromConfig(action, prefix + "strength", __instance, "_strValue", 0,
-                delegate(int v)
-                {
-                    action.Stat.Strength = new CombatStatItem(v);
-                    if (action.Stat.Data != null) action.Stat.Data.Strength = v;
-                });
-            WriteRadarFromConfig(action, prefix + "dexterity", __instance, "_dexValue", 1,
-                delegate(int v)
-                {
-                    action.Stat.Dexterity = new CombatStatItem(v);
-                    if (action.Stat.Data != null) action.Stat.Data.Dexterity = v;
-                });
-            WriteRadarFromConfig(action, prefix + "sword", __instance, "_swordValue", 2,
-                delegate(int v)
-                {
-                    action.Stat.Sword = new CombatStatItem(v);
-                    if (action.Stat.Data != null) action.Stat.Data.Sword = v;
-                });
-            WriteRadarFromConfig(action, prefix + "martial_weapon", __instance, "_weaponValue", 3,
-                delegate(int v)
-                {
-                    action.Stat.MartialWeapon = new CombatStatItem(v);
-                    if (action.Stat.Data != null) action.Stat.Data.MartialWeapon = v;
-                });
-            WriteRadarFromConfig(action, prefix + "fist", __instance, "_fistValue", 4,
-                delegate(int v)
-                {
-                    action.Stat.Fist = new CombatStatItem(v);
-                    if (action.Stat.Data != null) action.Stat.Data.Fist = v;
-                });
-            WriteRadarFromConfig(action, prefix + "stamina_power", __instance, "_staminaValue", 5,
-                delegate(int v)
-                {
-                    action.Stat.Stamina = new CombatStatItem(v);
-                    if (action.Stat.Data != null) action.Stat.Data.Stamina = v;
-                });
-        }
-
-        internal static string ConfigPrefix(CombatActionController action)
-        {
-            CombatManager manager = CombatManager.Instance;
-            CombatActionController player = manager != null
-                ? Traverse.Create(manager).Field("_playerAction").GetValue<CombatActionController>()
-                : null;
-            return player != null && action == player ? CombatPlayerOverridePolicy.Prefix : "";
-        }
-
-        private static void WriteRadarFromConfig(
-            CombatActionController action, string key, CombatCharacterStatusUI ui,
-            string textField, int index, Action<int> apply)
-        {
-            int value;
-            if (action == null || !GameplaySession.TryConfigInt(key, 0, 10000, out value))
-            {
-                CombatStatusLog.Write("六维 " + key + " config=MISSING");
-                return;
-            }
-            apply(value);
-            UnityEngine.UI.Text text = Traverse.Create(ui).Field(textField)
-                .GetValue<UnityEngine.UI.Text>();
-            if (text != null)
-            {
-                text.text = value.ToString();
-                text.color = Color.white;
-            }
-            object radar = Traverse.Create(ui).Field("_statRadar").GetValue();
-            if (radar == null) return;
-            float[] distances = Traverse.Create(radar).Property("VerticesDistances")
-                .GetValue<float[]>();
-            if (distances == null || index < 0 || index >= distances.Length) return;
-            distances[index] = Mathf.Clamp01((float)value / 100f);
-            Traverse.Create(radar).Method("SetAllDirty").GetValue();
-            CombatStatusLog.Write("六维 " + key + " config=" + value + " ui=" + value);
+            CombatStatController stat = ____actionController.Stat;
+            float[] outer = ____statRadar2.VerticesDistances;
+            outer[0] = CombatStatDisplayPolicy.ExtendDuelRadarAxis(stat.Strength.FinalValue, outer[0]);
+            outer[1] = CombatStatDisplayPolicy.ExtendDuelRadarAxis(stat.Dexterity.FinalValue, outer[1]);
+            outer[2] = CombatStatDisplayPolicy.ExtendDuelRadarAxis(stat.Sword.FinalValue, outer[2]);
+            outer[3] = CombatStatDisplayPolicy.ExtendDuelRadarAxis(stat.MartialWeapon.FinalValue, outer[3]);
+            outer[4] = CombatStatDisplayPolicy.ExtendDuelRadarAxis(stat.Fist.FinalValue, outer[4]);
+            outer[5] = CombatStatDisplayPolicy.ExtendDuelRadarAxis(stat.Stamina.FinalValue, outer[5]);
         }
     }
 

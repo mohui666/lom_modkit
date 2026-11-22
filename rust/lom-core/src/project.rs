@@ -93,12 +93,16 @@ impl Project {
             return Self::import_lua(path).map(|(project, _)| project);
         }
         let path = path.canonicalize()?;
+        let directory = path.is_dir();
+        if !directory && path.extension().and_then(|s| s.to_str()) == Some("lommod") {
+            return package::open_project(path);
+        }
         let mut project = Self::draft();
         project.stories.clear();
         project.paths.clear();
         project.source = Some(path.clone());
         let mut migrations = Vec::new();
-        if path.is_dir() {
+        if directory {
             project.has_manifest = path.join("manifest.json").is_file();
             if project.has_manifest {
                 project.manifest = load_json(path.join("manifest.json"))?;
@@ -149,22 +153,6 @@ impl Project {
                     .insert_story(migrated.document, PathBuf::from(file.file_name().unwrap()))?;
             }
             collect_assets(&path, &path.join("assets"), &mut project.assets)?;
-        } else if path.extension().and_then(|s| s.to_str()) == Some("lommod") {
-            let entries = package::read_package(&path)?;
-            project.manifest = serde_json::from_slice(&entries["manifest.json"])?;
-            project.scenario = entries
-                .get("scenario.json")
-                .map(|v| serde_json::from_slice(v))
-                .transpose()?;
-            for (name, bytes) in &entries {
-                if name.starts_with("story/") && name.ends_with(".json") {
-                    let rel = &name[6..];
-                    ensure!(!rel.contains('/'), "story/ 不允许嵌套章节");
-                    project.insert_story(serde_json::from_slice(bytes)?, PathBuf::from(rel))?;
-                } else if name.starts_with("assets/") {
-                    project.assets.insert(name.clone(), bytes.clone());
-                }
-            }
         } else {
             project.has_manifest = false;
             let migrated = crate::migration::migrate_story(&load_json(&path)?)?;
@@ -203,6 +191,29 @@ impl Project {
                     Ok(())
                 }),
             )?;
+        }
+        Ok(project)
+    }
+    pub(crate) fn from_verified_package(
+        path: PathBuf,
+        documents: package::Documents,
+        entries: package::Entries,
+    ) -> Result<Self> {
+        let mut project = Self {
+            manifest: documents.manifest,
+            scenario: documents.scenario,
+            stories: Stories::default(),
+            paths: BTreeMap::new(),
+            source: Some(path),
+            assets: entries
+                .into_iter()
+                .filter(|(name, _)| name.starts_with("assets/"))
+                .collect(),
+            story_subdir: true,
+            has_manifest: true,
+        };
+        for (id, story) in documents.stories {
+            project.insert_story(story, PathBuf::from(format!("{id}.json")))?;
         }
         Ok(project)
     }

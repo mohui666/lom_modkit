@@ -109,14 +109,22 @@ pub fn successors(story: &Value, index: usize) -> Vec<String> {
     }
     out.into_iter().collect()
 }
-fn reachable(graph: &Graph, roots: impl IntoIterator<Item = String>) -> BTreeSet<String> {
+fn reachable<'a>(
+    graph: &'a Graph,
+    roots: impl IntoIterator<Item = &'a str>,
+    blocked: impl Fn(&str) -> bool,
+) -> BTreeSet<&'a str> {
     let mut pending: Vec<_> = roots.into_iter().collect();
     let mut seen = BTreeSet::new();
     while let Some(id) = pending.pop() {
-        if !graph.contains_key(&id) || !seen.insert(id.clone()) {
+        if blocked(id) {
             continue;
         }
-        pending.extend(graph[&id].iter().cloned());
+        if let Some(edges) = graph.get(id) {
+            if seen.insert(id) {
+                pending.extend(edges.iter().map(String::as_str));
+            }
+        }
     }
     seen
 }
@@ -135,87 +143,121 @@ fn story_graph(story: &Value) -> Graph {
 fn node_key(story: &str, node: &str) -> String {
     format!("{story}/{node}")
 }
-fn project_graph(stories: &BTreeMap<String, Value>) -> Graph {
-    let mut graph = Graph::new();
-    for (sid, story) in stories {
-        for (i, n) in nodes(story).iter().enumerate() {
-            let mut successors: BTreeSet<_> = successors(story, i)
-                .iter()
-                .map(|id| node_key(sid, id))
-                .collect();
-            if text(n, "type") == "end" {
-                if let Some(next) = stories.get(text(n, "next_script")) {
-                    successors.insert(node_key(text(n, "next_script"), text(next, "start")));
-                }
+fn reversed(graph: &Graph) -> Graph {
+    let mut reverse: Graph = graph
+        .keys()
+        .map(|id| (id.clone(), BTreeSet::new()))
+        .collect();
+    for (from, targets) in graph {
+        for target in targets {
+            if let Some(incoming) = reverse.get_mut(target) {
+                incoming.insert(from.clone());
             }
-            graph.insert(node_key(sid, text(n, "id")), successors);
         }
     }
-    graph
+    reverse
 }
-fn write_dominates(story: &Value, target: &str, flag: &str) -> bool {
-    let graph = story_graph(story);
-    let start = text(story, "start");
-    let reached = reachable(&graph, [start.into()]);
-    if !reached.contains(target) {
-        return false;
-    }
+fn dominated_flag_reads<'a>(
+    story: &'a Value,
+    graph: &'a Graph,
+    reached: &BTreeSet<&str>,
+) -> BTreeSet<(&'a str, &'a str)> {
     // Native raw Lua can mutate flags. A path through raw before this read
     // cannot prove a constant condition, even when a prior writer dominates.
-    if nodes(story).iter().any(|node| {
-        text(node, "type") == "raw"
-            && reached.contains(text(node, "id"))
-            && reachable(&graph, [text(node, "id").into()]).contains(target)
-    }) {
-        return false;
-    }
-    let blocked: BTreeSet<_> = nodes(story)
+    let raw_roots = nodes(story)
         .iter()
-        .filter(|n| text(n, "type") == "flag" && text(n, "flag") == flag)
-        .map(|n| text(n, "id").to_string())
-        .collect();
-    let graph: Graph = graph
-        .into_iter()
-        .filter(|(n, _)| !blocked.contains(n))
-        .map(|(n, edges)| {
-            (
-                n,
-                edges.into_iter().filter(|e| !blocked.contains(e)).collect(),
-            )
-        })
-        .collect();
-    !reachable(&graph, [start.into()]).contains(target)
+        .filter(|node| text(node, "type") == "raw")
+        .map(|node| text(node, "id"))
+        .filter(|id| reached.contains(id));
+    let after_raw = reachable(graph, raw_roots, |_| false);
+    let mut readers: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
+    let mut writers: BTreeMap<&str, BTreeSet<&str>> = BTreeMap::new();
+    for node in nodes(story) {
+        let id = text(node, "id");
+        let flag = text(node, "flag");
+        match text(node, "type") {
+            "flag" => {
+                writers.entry(flag).or_default().insert(id);
+            }
+            "branch"
+                if node["source"].as_str().unwrap_or("mod") == "mod"
+                    && reached.contains(id)
+                    && !after_raw.contains(id) =>
+            {
+                readers.entry(flag).or_default().push(id);
+            }
+            _ => {}
+        }
+    }
+    let mut proven = BTreeSet::new();
+    for (flag, targets) in readers {
+        let Some(blocked) = writers.get(flag) else {
+            continue;
+        };
+        let without_writes = reachable(graph, [text(story, "start")], |id| blocked.contains(id));
+        proven.extend(
+            targets
+                .into_iter()
+                .filter(|id| !without_writes.contains(id))
+                .map(|id| (flag, id)),
+        );
+    }
+    proven
 }
-pub fn analyze_project(stories: &BTreeMap<String, Value>, manifest: &Value) -> Value {
-    let mut issues = Vec::new();
-    let mut conditions = Vec::new();
-    let mut uses: BTreeMap<(String, String), Vec<Value>> = BTreeMap::new();
-    let mut count = 0;
+
+/// Count project content without building graphs or evaluating conditions.
+pub fn project_statistics(stories: &BTreeMap<String, Value>) -> Value {
+    let mut count = 0usize;
     let mut dialogue = 0;
     let mut voiced = 0;
     let mut choice_count = 0;
     let mut characters = BTreeSet::new();
+    for node in stories.values().flat_map(nodes) {
+        count += 1;
+        match text(node, "type") {
+            "say" => {
+                dialogue += 1;
+                voiced += usize::from(!text(node, "voice").is_empty());
+            }
+            "choice" => choice_count += 1,
+            _ => {}
+        }
+        characters.extend(
+            crate::parallel::actions(node)
+                .iter()
+                .map(|action| text(action, "character"))
+                .filter(|character| !character.is_empty()),
+        );
+    }
+    json!({
+        "stories": stories.len(),
+        "nodes": count,
+        "dialogue": dialogue,
+        "voiced": voiced,
+        "unvoiced": dialogue - voiced,
+        "voice_coverage": if dialogue == 0 { 0.0 } else { voiced as f64 / dialogue as f64 * 100.0 },
+        "choice_nodes": choice_count,
+        "characters": characters.len(),
+    })
+}
+
+pub fn analyze_project(stories: &BTreeMap<String, Value>, manifest: &Value) -> Value {
+    let mut issues = Vec::new();
+    let mut conditions = Vec::new();
+    let mut uses: BTreeMap<(String, String), Vec<Value>> = BTreeMap::new();
+    let mut project_graph = Graph::new();
+    let mut has_raw = false;
     for (sid, story) in stories {
         let graph = story_graph(story);
-        let reached = reachable(&graph, [text(story, "start").into()]);
-        let finals: BTreeSet<_> = nodes(story)
+        let reached = reachable(&graph, [text(story, "start")], |_| false);
+        let dominated = dominated_flag_reads(story, &graph, &reached);
+        let finals = nodes(story)
             .iter()
             .filter(|n| final_ending(text(n, "type")))
-            .map(|n| text(n, "id").to_string())
-            .collect();
-        let mut reverse: Graph = graph
-            .keys()
-            .map(|id| (id.clone(), BTreeSet::new()))
-            .collect();
-        for (from, targets) in &graph {
-            for target in targets {
-                if let Some(incoming) = reverse.get_mut(target) {
-                    incoming.insert(from.clone());
-                }
-            }
-        }
-        let can_finish = reachable(&reverse, finals.clone());
-        for id in graph.keys().filter(|id| !reached.contains(*id)) {
+            .map(|n| text(n, "id"));
+        let reverse = reversed(&graph);
+        let can_finish = reachable(&reverse, finals, |_| false);
+        for id in graph.keys().filter(|id| !reached.contains(id.as_str())) {
             issues.push(json!({"severity":"warning","code":"unreachable","story":sid,"node":id,"detail":"节点不可达"}));
         }
         for (id, targets) in &graph {
@@ -224,10 +266,10 @@ pub fn analyze_project(stories: &BTreeMap<String, Value>, manifest: &Value) -> V
                     issues.push(json!({"severity":"error","code":"broken_target","story":sid,"node":id,"detail":format!("目标不存在: {target}")}));
                 }
             }
-            if reached.contains(id) && !can_finish.contains(id) {
-                let cycle = targets
-                    .iter()
-                    .any(|next| reachable(&graph, [next.clone()]).contains(id));
+            if reached.contains(id.as_str()) && !can_finish.contains(id.as_str()) {
+                let cycle = targets.iter().any(|next| {
+                    reachable(&graph, [next.as_str()], |_| false).contains(id.as_str())
+                });
                 if cycle {
                     issues.push(json!({"severity":"error","code":"no_exit_scc","story":sid,"node":id,"detail":"循环没有可达出口"}));
                 } else if targets.is_empty() {
@@ -236,30 +278,24 @@ pub fn analyze_project(stories: &BTreeMap<String, Value>, manifest: &Value) -> V
             }
         }
         for n in nodes(story) {
-            count += 1;
             let kind = text(n, "type");
             let nid = text(n, "id");
-            if kind == "say" {
-                dialogue += 1;
-                if !text(n, "voice").is_empty() {
-                    voiced += 1;
+            has_raw |= kind == "raw";
+            let mut targets: BTreeSet<_> = graph[nid].iter().map(|id| node_key(sid, id)).collect();
+            if kind == "end" {
+                let next_id = text(n, "next_script");
+                if let Some(next) = stories.get(next_id) {
+                    targets.insert(node_key(next_id, text(next, "start")));
                 }
             }
-            if kind == "choice" {
-                choice_count += 1;
-            }
-            for action in crate::parallel::actions(n) {
-                if !text(action, "character").is_empty() {
-                    characters.insert(text(action, "character").to_string());
-                }
-            }
+            project_graph.insert(node_key(sid, nid), targets);
             let symbol = match kind {
                 "flag" => Some(("mod_flag", "write", text(n, "flag"))),
                 "game_flag" => Some(("game_flag", "write", text(n, "flag"))),
                 "branch" => {
                     let source = n["source"].as_str().unwrap_or("mod");
                     let flag = text(n, "flag");
-                    let proven = source == "mod" && write_dominates(story, nid, flag);
+                    let proven = source == "mod" && dominated.contains(&(flag, nid));
                     conditions.push(json!({"story":sid,"node":nid,"source":source,"subject":if source=="stat"{text(n,"stat")}else{flag},"cases":n["cases"],"proof":if proven{"always_true"}else{"unknown"},"reason":if proven{"所有可达路径都先设置了该 Mod Flag"}else{"依赖未知运行时状态或存在未写入路径"}}));
                     if proven {
                         for case in n["cases"]
@@ -308,7 +344,6 @@ pub fn analyze_project(stories: &BTreeMap<String, Value>, manifest: &Value) -> V
             }
         }
     }
-    let graph = project_graph(stories);
     let entry = text(manifest, "entry");
     let mut roots = BTreeSet::new();
     if let Some(story) = stories.get(entry) {
@@ -343,58 +378,32 @@ pub fn analyze_project(stories: &BTreeMap<String, Value>, manifest: &Value) -> V
     for ((family, name), refs) in uses {
         let reads = refs.iter().filter(|u| u["access"] == "read").count();
         let writes = refs.len() - reads;
-        let (unused, before) = if family == "mod_flag" {
-            let blockers: BTreeSet<_> = refs
-                .iter()
-                .filter(|u| u["access"] == "write")
-                .map(|u| node_key(text(u, "story"), text(u, "node")))
-                .collect();
-            let pruned: Graph = graph
-                .iter()
-                .filter(|(n, _)| !blockers.contains(*n))
-                .map(|(n, es)| {
-                    (
-                        n.clone(),
-                        es.iter()
-                            .filter(|e| !blockers.contains(*e))
-                            .cloned()
-                            .collect(),
-                    )
-                })
-                .collect();
-            let reached = reachable(&pruned, roots.clone());
-            let has_raw = stories
-                .values()
-                .any(|s| nodes(s).iter().any(|n| text(n, "type") == "raw"));
-            (
-                if has_raw {
-                    Value::Null
-                } else {
-                    json!(reads == 0)
-                },
-                if has_raw || refs.iter().any(|u| u["node"].is_null()) {
-                    Value::Null
-                } else {
-                    json!(refs
-                        .iter()
-                        .filter(|u| u["access"] == "read")
-                        .any(|u| reached.contains(&node_key(text(u, "story"), text(u, "node")))))
-                },
-            )
+        let (unused, before) = if family == "mod_flag" && !has_raw {
+            let before = if refs.iter().any(|u| u["node"].is_null()) {
+                Value::Null
+            } else if reads == 0 {
+                json!(false)
+            } else {
+                let blockers: BTreeSet<_> = refs
+                    .iter()
+                    .filter(|u| u["access"] == "write")
+                    .map(|u| node_key(text(u, "story"), text(u, "node")))
+                    .collect();
+                let reached = reachable(&project_graph, roots.iter().map(String::as_str), |id| {
+                    blockers.contains(id)
+                });
+                json!(refs.iter().filter(|u| u["access"] == "read").any(|u| {
+                    reached.contains(node_key(text(u, "story"), text(u, "node")).as_str())
+                }))
+            };
+            (json!(reads == 0), before)
         } else {
             (Value::Null, Value::Null)
         };
         symbols.push(json!({"kind":family,"name":name,"reads":reads,"writes":writes,"unused":unused,"possibly_read_before_write":before,"uses":refs}));
     }
     // Prove a final ending over cross-chapter edges; reachable raw Lua keeps the result unknown.
-    let mut reverse: Graph = graph.keys().map(|k| (k.clone(), BTreeSet::new())).collect();
-    for (from, tos) in &graph {
-        for to in tos {
-            if let Some(edges) = reverse.get_mut(to) {
-                edges.insert(from.clone());
-            }
-        }
-    }
+    let reverse = reversed(&project_graph);
     let mut finals = Vec::new();
     let mut unknown = Vec::new();
     for (sid, s) in stories {
@@ -415,15 +424,15 @@ pub fn analyze_project(stories: &BTreeMap<String, Value>, manifest: &Value) -> V
             }
         }
     }
-    let can_finish = reachable(&reverse, finals);
-    let may_unknown = reachable(&reverse, unknown);
+    let can_finish = reachable(&reverse, finals.iter().map(String::as_str), |_| false);
+    let may_unknown = reachable(&reverse, unknown.iter().map(String::as_str), |_| false);
     for (sid, s) in stories {
         let root = node_key(sid, text(s, "start"));
-        if !can_finish.contains(&root) && !may_unknown.contains(&root) {
+        if !can_finish.contains(root.as_str()) && !may_unknown.contains(root.as_str()) {
             issues.push(json!({"severity":"error","code":"missing_ending","story":sid,"detail":"从章节入口无法到达最终结局"}));
         }
     }
-    json!({"issues":issues,"conditions":conditions,"symbols":symbols,"stats":{"stories":stories.len(),"nodes":count,"dialogue":dialogue,"voiced":voiced,"unvoiced":dialogue-voiced,"voice_coverage":if dialogue==0{0.0}else{voiced as f64/dialogue as f64*100.0},"choice_nodes":choice_count,"characters":characters.len()}})
+    json!({"issues":issues,"conditions":conditions,"symbols":symbols,"stats":project_statistics(stories)})
 }
 fn truth(value: &Value) -> bool {
     match value {
@@ -765,6 +774,72 @@ pub fn run_story_tests(stories: &BTreeMap<String, Value>, cases: &Value) -> Resu
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn statistics_count_parallel_cast_without_counting_actions_as_steps() {
+        let stories = BTreeMap::from([
+            (
+                "main".into(),
+                json!({"start":"voiced","nodes":[
+                    {"id":"voiced","type":"say","character":"a","voice":"voice.ogg"},
+                    {"id":"group","type":"parallel","actions":[
+                        {"type":"show","character":"b"}, {"type":"move","character":"a"}
+                    ]},
+                    {"id":"choice","type":"choice","options":[{"goto":"end"}]},
+                    {"id":"end","type":"end"}
+                ]}),
+            ),
+            (
+                "extra".into(),
+                json!({"start":"text","nodes":[
+                    {"id":"text","type":"say","character":"b"}, {"id":"end","type":"end"}
+                ]}),
+            ),
+        ]);
+        let summary = project_statistics(&stories);
+        assert_eq!(
+            summary,
+            json!({"stories":2,"nodes":6,"dialogue":2,"voiced":1,"unvoiced":1,
+                "voice_coverage":50.0,"choice_nodes":1,"characters":2})
+        );
+        assert_eq!(analyze_project(&stories, &json!({}))["stats"], summary);
+    }
+    #[test]
+    fn shared_flag_traversal_preserves_each_reads_proof() {
+        let story = json!({"start":"first","nodes":[
+            {"id":"first","type":"branch","flag":"x","cases":[{"value":1,"goto":"set"},{"value":2,"goto":"set"}]},
+            {"id":"set","type":"flag","flag":"x"},
+            {"id":"pick","type":"choice","options":[{"goto":"safe"},{"goto":"raw"}]},
+            {"id":"safe","type":"branch","flag":"x","cases":[{"value":1,"goto":"end"},{"value":2,"goto":"end"}]},
+            {"id":"raw","type":"raw","goto":"unsafe"},
+            {"id":"unsafe","type":"branch","flag":"x","cases":[{"value":1,"goto":"end"},{"value":2,"goto":"end"}]},
+            {"id":"unreachable_raw","type":"raw","goto":"safe"},
+            {"id":"end","type":"end"}
+        ]});
+        let report = analyze_project(&BTreeMap::from([("main".into(), story)]), &json!({}));
+        let proofs: Vec<_> = report["conditions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|read| (text(read, "node"), text(read, "proof")))
+            .collect();
+        assert_eq!(
+            proofs,
+            [
+                ("first", "unknown"),
+                ("safe", "always_true"),
+                ("unsafe", "unknown")
+            ]
+        );
+        let dead_branches: Vec<_> = report["issues"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|issue| issue["code"] == "dead_branch")
+            .map(|issue| text(issue, "node"))
+            .collect();
+        assert_eq!(dead_branches, ["safe"]);
+        assert!(report["symbols"][0]["possibly_read_before_write"].is_null());
+    }
     #[test]
     fn branch_bypass_is_unknown_and_cross_chapter_cycles_have_no_ending() {
         let stories = BTreeMap::from([

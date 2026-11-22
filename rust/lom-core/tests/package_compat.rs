@@ -122,7 +122,8 @@ fn inspection_previews_tampered_source_without_allowing_it_to_open() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("inspect.lommod");
     Project::new().export(&path).unwrap();
-    let good = package::inspect_package(&path).unwrap();
+    let (good, reusable_project) = package::inspect_package_with_project(&path).unwrap();
+    assert_eq!(reusable_project.unwrap(), Project::open(&path).unwrap());
     assert_eq!(good["ok"], true);
     assert_eq!(good["integrity_verified"], true);
     assert_eq!(good["source_lua_match"], true);
@@ -141,7 +142,8 @@ fn inspection_previews_tampered_source_without_allowing_it_to_open() {
         zip.write_all(&bytes).unwrap();
     }
     zip.finish().unwrap();
-    let report = package::inspect_package(&path).unwrap();
+    let (report, reusable_project) = package::inspect_package_with_project(&path).unwrap();
+    assert!(reusable_project.is_none());
     assert_eq!(report["ok"], false);
     assert_eq!(report["integrity_verified"], false);
     assert_eq!(report["source_lua_match"], false);
