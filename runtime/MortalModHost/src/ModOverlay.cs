@@ -115,7 +115,7 @@ namespace MortalModHost
             try
             {
                 var tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
-                if (tex.LoadImage(bytes))
+                if (GifImageRuntime.Load(tex, bytes))
                 {
                     EndingTexture = tex;
                     EndingImagePath = key;

@@ -75,7 +75,7 @@ namespace MortalModHost
             StopFade();
             DestroyVisual();
             Texture2D texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
-            if (!texture.LoadImage(content.Bytes))
+            if (!GifImageRuntime.Load(texture, content.Bytes))
             {
                 UnityEngine.Object.Destroy(texture);
                 Warn("自定义背景解码失败：" + raw);
@@ -174,7 +174,7 @@ namespace MortalModHost
             StopCgFade();
             DestroyCgVisual();
             Texture2D texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
-            if (!texture.LoadImage(content.Bytes))
+            if (!GifImageRuntime.Load(texture, content.Bytes))
             {
                 UnityEngine.Object.Destroy(texture);
                 Warn("自定义 CG 解码失败：" + raw);
@@ -285,7 +285,7 @@ namespace MortalModHost
 
             DestroyOverlay(slot);
             Texture2D texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
-            if (!texture.LoadImage(content.Bytes))
+            if (!GifImageRuntime.Load(texture, content.Bytes))
             {
                 UnityEngine.Object.Destroy(texture);
                 Warn("插图解码失败：" + raw);

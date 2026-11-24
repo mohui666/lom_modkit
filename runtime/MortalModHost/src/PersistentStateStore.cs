@@ -177,8 +177,9 @@ namespace MortalModHost
         private ProfileState Profile(string character)
         {
             ContentRef reference;string error;
-            if(!ContentRef.TryParse(character,out reference,out error) || !ContentRef.IsUserRef(character))
-                throw new ArgumentException("人物资料状态需要合法的 user: 自定义人物标识");
+            if(!ContentRef.TryParse(character,out reference,out error)
+                && !(ContentRef.IsStoryAffinityRef(character) && ContentRef.IsAffinityKey(character)))
+                throw new ArgumentException("人物资料状态需要合法的作品人物标识");
             ProfileState state;
             if(!_characterProfiles.TryGetValue(character,out state)) {
                 state=new ProfileState();_characterProfiles.Add(character,state);

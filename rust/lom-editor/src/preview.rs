@@ -140,6 +140,11 @@ pub fn route(story: &Value, target: &str) -> Option<Vec<String>> {
     let start = story["start"]
         .as_str()
         .or_else(|| ns.first()?.get("id")?.as_str())?;
+    route_from(story, start, target)
+}
+
+pub(crate) fn route_from(story: &Value, start: &str, target: &str) -> Option<Vec<String>> {
+    let ns = story["nodes"].as_array()?;
     let mut links: BTreeMap<&str, Vec<String>> = BTreeMap::new();
     for (index, node) in ns.iter().enumerate() {
         links
@@ -1456,11 +1461,25 @@ fn character_display_name(project: &Project, id: &str) -> String {
 
 struct Cached {
     texture: TextureHandle,
+    gif: Option<crate::gif_preview::Player>,
     filter_image: Option<filters::FilterImage>,
     opaque: Rect,
     source_size: [usize; 2],
     bytes: usize,
     touched: u64,
+}
+fn filtered_pixels(
+    settings: &filters::Settings,
+    pixels: Arc<egui::ColorImage>,
+) -> (Option<filters::FilterImage>, egui::ImageData) {
+    if *settings == filters::Settings::default() {
+        (None, egui::ImageData::Color(pixels))
+    } else {
+        let mut image = filters::FilterImage::new((*pixels).clone());
+        image.update(settings);
+        let pixels = egui::ImageData::Color(image.pixels());
+        (Some(image), pixels)
+    }
 }
 const TEXTURE_CACHE_BYTES: usize = 256 * 1024 * 1024;
 struct Simulation {
@@ -1719,18 +1738,31 @@ impl Preview {
         }
     }
 
-    fn cached_texture(&mut self, key: &str) -> Option<(TextureHandle, Rect)> {
+    fn cached_texture(&mut self, ctx: &egui::Context, key: &str) -> Option<(TextureHandle, Rect)> {
         let cached = self.cache.get_mut(key)?;
         cached.touched = self.tick;
         let previous_cost = cached.bytes;
-        if let Some(image) = &mut cached.filter_image {
-            if image.update(&self.camera_filter) {
+        let changed = if let Some(pixels) = cached.gif.as_mut().and_then(|gif| gif.update(ctx)) {
+            let (image, pixels) = filtered_pixels(&self.camera_filter, pixels);
+            cached.filter_image = image;
+            cached.texture.set(pixels, egui::TextureOptions::LINEAR);
+            true
+        } else if let Some(image) = &mut cached.filter_image {
+            let updated = image.update(&self.camera_filter);
+            if updated {
                 cached.texture.set(
                     egui::ImageData::Color(image.pixels()),
                     egui::TextureOptions::LINEAR,
                 );
-                cached.bytes = cached.texture.size().iter().product::<usize>() * 4 + image.bytes();
             }
+            updated
+        } else {
+            false
+        };
+        if changed {
+            cached.bytes = cached.texture.size().iter().product::<usize>() * 4
+                + cached.filter_image.as_ref().map_or(0, filters::FilterImage::bytes)
+                + cached.gif.as_ref().map_or(0, crate::gif_preview::Player::bytes);
         }
         let check_budget = cached.bytes > previous_cost || cached.bytes > TEXTURE_CACHE_BYTES;
         let result = (cached.texture.clone(), cached.opaque);
@@ -1747,23 +1779,22 @@ impl Preview {
         pixels: egui::ColorImage,
         opaque: Rect,
         source_size: [usize; 2],
+        mut gif: Option<crate::gif_preview::Player>,
     ) -> TextureHandle {
         let cost = pixels.pixels.len() * 4;
-        let (filter_image, pixels) = if self.camera_filter == filters::Settings::default() {
-            (None, egui::ImageData::from(pixels))
-        } else {
-            let mut image = filters::FilterImage::new(pixels);
-            image.update(&self.camera_filter);
-            let pixels = egui::ImageData::Color(image.pixels());
-            (Some(image), pixels)
-        };
-        let cost = cost + filter_image.as_ref().map_or(0, filters::FilterImage::bytes);
+        let (filter_image, pixels) = filtered_pixels(&self.camera_filter, Arc::new(pixels));
+        if let Some(gif) = &mut gif {
+            gif.update(ctx);
+        }
+        let cost = cost + filter_image.as_ref().map_or(0, filters::FilterImage::bytes)
+            + gif.as_ref().map_or(0, crate::gif_preview::Player::bytes);
         self.trim_texture_cache(cost);
         let texture = ctx.load_texture(&key, pixels, egui::TextureOptions::LINEAR);
         self.cache.insert(
             key,
             Cached {
                 texture: texture.clone(),
+                gif,
                 filter_image,
                 opaque,
                 source_size,
@@ -1784,7 +1815,7 @@ impl Preview {
             .camera_filter
             .cache_key(&format!("effect-frame:{}", frame.file.display()));
         self.tick += 1;
-        if let Some(cached) = self.cached_texture(&key) {
+        if let Some(cached) = self.cached_texture(ctx, &key) {
             return Some(cached);
         }
         let loaded = (|| -> anyhow::Result<_> {
@@ -1806,7 +1837,7 @@ impl Preview {
             let opaque = effects::visible_bounds(&image);
             // RGB at alpha=0 carries additive light. Never premultiply again.
             let pixels = egui::ColorImage::from_rgba_premultiplied(size, image.as_raw());
-            let texture = self.cache_texture(ctx, key, pixels, opaque, size);
+            let texture = self.cache_texture(ctx, key, pixels, opaque, size, None);
             Ok((texture, opaque))
         })();
         match loaded {
@@ -2031,7 +2062,7 @@ impl Preview {
             .map(|key| self.camera_filter.cache_key(key));
         if let Some(cached) = mood_cached_key
             .as_ref()
-            .and_then(|key| self.cached_texture(key))
+            .and_then(|key| self.cached_texture(ctx, key))
         {
             return Some((cached.0, Arc::default()));
         }
@@ -2066,11 +2097,11 @@ impl Preview {
             }
         };
         let key = self.camera_filter.cache_key(&source_key);
-        if let Some(cached) = self.cached_texture(&key) {
+        if let Some(cached) = self.cached_texture(ctx, &key) {
             return Some((cached.0, meta));
         }
         let pixels = self.load_image(ctx, &source_key, source, path, 1600)?;
-        let texture = self.cache_texture(ctx, key, pixels.image, pixels.opaque, pixels.source_size);
+        let texture = self.cache_texture(ctx, key, pixels.image, pixels.opaque, pixels.source_size, pixels.gif);
         Some((texture, meta))
     }
 
@@ -5939,6 +5970,7 @@ mod content_tests {
             "first".into(),
             Cached {
                 texture,
+                gif: None,
                 filter_image: None,
                 opaque: Rect::from_min_size(Pos2::ZERO, Vec2::splat(1.0)),
                 source_size: [1, 1],

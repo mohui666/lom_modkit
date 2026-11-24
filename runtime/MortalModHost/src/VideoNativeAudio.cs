@@ -30,7 +30,7 @@ namespace MortalModHost
             _capturing = true;
         }
 
-        internal void Frame()
+        internal void Frame(bool record = true)
         {
             uint count = AkSoundEngine.UpdateCaptureSampleCount(0);
             if (count == 0) return;
@@ -38,6 +38,7 @@ namespace MortalModHost
             if (_samples.Length < length) { _samples = new float[length]; _bytes = new byte[checked(length * 4)]; }
             uint read = AkSoundEngine.GetCaptureSamples(0, _samples, count);
             if (read != count) throw new InvalidOperationException("游戏原生音频采样未完整读取");
+            if (!record) return;
             int bytes = checked(length * 4);
             Buffer.BlockCopy(_samples, 0, _bytes, 0, bytes);
             _writer.Write(_bytes, 0, bytes);

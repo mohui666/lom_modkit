@@ -521,15 +521,15 @@ impl App {
                     crate::file_dialog::asset_files_in("PNG 动画帧", &["png"], true, library)
                 } else if draft.kind == 1 {
                     crate::file_dialog::asset_files_in(
-                        "PNG / JPEG",
-                        &["png", "jpg", "jpeg"],
+                        "PNG / JPEG / GIF",
+                        lom_core::content::IMAGE_EXTENSIONS,
                         true,
                         library,
                     )
                 } else if draft.kind == 0 || draft.kind >= 5 {
                     crate::file_dialog::asset_files_in(
-                        "PNG / JPEG",
-                        &["png", "jpg", "jpeg"],
+                        "PNG / JPEG / GIF",
+                        lom_core::content::IMAGE_EXTENSIONS,
                         false,
                         library,
                     )

@@ -19,11 +19,13 @@ pub(crate) enum Scope {
     Chapter,
     Project,
     Step,
+    Segment,
 }
 
 #[derive(Clone)]
 pub(crate) struct Settings {
     pub scope: Scope,
+    pub end_node: Option<String>,
     pub width: u32,
     pub height: u32,
     pub fps: u32,
@@ -37,6 +39,7 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             scope: Scope::Chapter,
+            end_node: None,
             width: 1920,
             height: 1080,
             fps: 30,
@@ -71,8 +74,12 @@ pub(crate) fn prepare_request(project: &Project, request: &Value) -> Result<Prep
         "chapter" => Scope::Chapter,
         "project" => Scope::Project,
         "step" => Scope::Step,
-        _ => anyhow::bail!("scope 必须是 chapter、project 或 step"),
+        "segment" => Scope::Segment,
+        _ => anyhow::bail!("scope 必须是 chapter、project、step 或 segment"),
     };
+    if let Some(value) = request.get("end_node") {
+        settings.end_node = Some(value.as_str().context("end_node 必须是步骤 ID")?.into());
+    }
     ensure!(
         request.get("width").is_some() == request.get("height").is_some(),
         "width 和 height 须同时指定"
@@ -109,12 +116,15 @@ pub(crate) fn prepare_request(project: &Project, request: &Value) -> Result<Prep
         Scope::Project => {
             ensure!(
                 request.get("script").is_none() && request.get("node").is_none(),
-                "project 范围从作品入口开始；指定起点请使用 step 范围"
+                "project 范围从作品入口开始；指定起点请使用 step 或 segment 范围"
             );
             (entry, "")
         }
         Scope::Chapter => {
-            ensure!(request.get("node").is_none(), "node 仅用于 step 范围");
+            ensure!(
+                request.get("node").is_none(),
+                "node 仅用于 step 或 segment 范围"
+            );
             (
                 request
                     .get("script")
@@ -127,6 +137,12 @@ pub(crate) fn prepare_request(project: &Project, request: &Value) -> Result<Prep
         Scope::Step => (
             request["script"].as_str().context("step 范围需要 script")?,
             request["node"].as_str().context("step 范围需要 node")?,
+        ),
+        Scope::Segment => (
+            request["script"]
+                .as_str()
+                .context("segment 范围需要 script")?,
+            request["node"].as_str().context("segment 范围需要 node")?,
         ),
     };
     prepare(project, script, node, settings)
@@ -191,11 +207,30 @@ pub(crate) fn prepare(
         story.get("vanilla_patch").is_none(),
         "原版章节补丁不支持直接生成视频，请使用结构化剧情章节"
     );
-    let node = if settings.scope == Scope::Step {
+    let node = if matches!(settings.scope, Scope::Step | Scope::Segment) {
         selected
     } else {
         story["start"].as_str().context("章节缺少起始步骤")?
     };
+    if settings.scope == Scope::Segment {
+        let end = settings
+            .end_node
+            .as_deref()
+            .context("指定片段需要选择终点步骤")?;
+        let nodes = story["nodes"].as_array().context("章节缺少步骤")?;
+        for (role, target) in [("起点", node), ("终点", end)] {
+            ensure!(
+                !target.is_empty() && nodes.iter().any(|step| step["id"] == target),
+                "片段{role}步骤不存在：{script}/{target}"
+            );
+        }
+        ensure!(
+            node == end || crate::preview::route_from(story, node, end).is_some(),
+            "从 {script}/{node} 无法沿剧情连线到达终点 {end}"
+        );
+    } else {
+        ensure!(settings.end_node.is_none(), "end_node 仅用于 segment 范围");
+    }
     for (location, index) in &settings.choices {
         let (chapter, node) = location.split_once('/').context("预设选项位置无效")?;
         let node = project
@@ -215,7 +250,10 @@ pub(crate) fn prepare(
     let mut terminals = Vec::new();
     let mut terminal_cards = Vec::new();
     for (id, story) in &project.stories {
-        for node in story["nodes"].as_array().into_iter().flatten() {
+        if settings.scope == Scope::Segment && id != script {
+            continue;
+        }
+        for (index, node) in story["nodes"].as_array().into_iter().flatten().enumerate() {
             let kind = node["type"].as_str().unwrap_or("");
             // Match the native ending paths emitted by lom-core::codegen.
             // A panel=endgame may continue afterwards, so it is not a terminal.
@@ -223,9 +261,16 @@ pub(crate) fn prepare(
                 kind == "goto_scene" && matches!(node["scene"].as_str(), Some("End" | "GameOver"));
             let terminal = card
                 || kind == "death"
-                || kind == "end"
-                    && ((settings.scope == Scope::Chapter && id == script)
-                        || node["next_script"].as_str().is_none_or(str::is_empty));
+                || if settings.scope == Scope::Segment {
+                    kind == "goto_scene"
+                        || (kind == "end"
+                            && !(node["resume_original"] == true
+                                && lom_core::vanilla_import::resume_index(story, index).is_some()))
+                } else {
+                    kind == "end"
+                        && ((settings.scope == Scope::Chapter && id == script)
+                            || node["next_script"].as_str().is_none_or(str::is_empty))
+                };
             if terminal {
                 let location = format!("{id}/{}", node["id"].as_str().unwrap_or(""));
                 if card {
@@ -255,11 +300,16 @@ fn job_root() -> PathBuf {
 
 fn specification(prepared: &Prepared, encoder: &Path) -> Value {
     let settings = &prepared.settings;
-    json!({"format":1,"width":settings.width,"height":settings.height,"fps":settings.fps,
+    let mut request = json!({"format":1,"width":settings.width,"height":settings.height,"fps":settings.fps,
         "encoder":encoder,"auto_speed":settings.auto_speed,"choice_hold":settings.choice_hold,
         "max_seconds":3600,"choices":settings.choices,"terminal_nodes":prepared.terminals,
         "terminal_cards":prepared.terminal_cards,
-        "entry_story":prepared.script,"entry_node":prepared.node})
+        "entry_story":prepared.script,"entry_node":prepared.node});
+    if let Some(end) = &settings.end_node {
+        request["format"] = json!(2);
+        request["end_node"] = json!(end);
+    }
+    request
 }
 
 fn start_worker(
@@ -450,6 +500,9 @@ pub(crate) fn render(
                         "background":prepared.settings.background,
                         "visual_review_performed":false,
                         "message":crate::i18n::key("video.progress.complete")});
+                    if let Some(end) = &prepared.settings.end_node {
+                        result["end_node"] = json!(end);
+                    }
                     if let Err(error) = fs::remove_file(&native) {
                         result["cleanup_warning"] =
                             json!(format!("视频已导出，临时成片未能清理：{error}"));
@@ -548,6 +601,8 @@ mod tests {
         )
         .unwrap();
         let spec = specification(&step, Path::new("ffmpeg.exe"));
+        assert_eq!(spec["format"], 1);
+        assert!(spec.get("end_node").is_none());
         assert_eq!(spec["entry_node"], "route");
         assert_eq!(spec["choices"]["main/route"], 1);
         assert_eq!(spec["width"], 1280);
@@ -571,6 +626,44 @@ mod tests {
         ] {
             assert!(prepare_request(&project, &invalid).is_err(), "{invalid}");
         }
+    }
+
+    #[test]
+    fn segment_uses_connected_step_ids_and_a_distinct_runtime_request() {
+        let mut project = Project::new();
+        project.stories.get_mut("main").unwrap()["nodes"] = json!([
+            {"id":"say1","type":"say","mode":"narrative","text":"片段之前","goto":"clip_in"},
+            {"id":"clip_out","type":"say","mode":"narrative","text":"片段终点","goto":"end1"},
+            {"id":"clip_in","type":"say","mode":"narrative","text":"片段起点","goto":"clip_out"},
+            {"id":"end1","type":"end"}
+        ]);
+        let original = project.clone();
+        let mut request = json!({
+            "scope":"segment", "script":"main", "node":"clip_in", "end_node":"clip_out"
+        });
+        let prepared = prepare_request(&project, &request).unwrap();
+        let spec = specification(&prepared, Path::new("ffmpeg.exe"));
+        assert_eq!(spec["format"], 2);
+        assert_eq!(spec["entry_node"], "clip_in");
+        assert_eq!(spec["end_node"], "clip_out");
+        assert_eq!(project, original);
+
+        request["end_node"] = json!("clip_in");
+        assert!(prepare_request(&project, &request).is_ok());
+        for end in [json!("say1"), json!("missing"), json!(""), Value::Null] {
+            request["end_node"] = end;
+            assert!(prepare_request(&project, &request).is_err(), "{request}");
+        }
+        assert!(prepare_request(
+            &project,
+            &json!({"scope":"segment","script":"main","node":"clip_in"})
+        )
+        .is_err());
+        assert!(prepare_request(
+            &project,
+            &json!({"scope":"step","script":"main","node":"clip_in","end_node":"clip_out"})
+        )
+        .is_err());
     }
 
     #[test]

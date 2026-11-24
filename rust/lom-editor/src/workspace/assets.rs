@@ -432,7 +432,7 @@ impl App {
                 if kind == "audio" {
                     ["wav", "ogg"].contains(&ext.as_str())
                 } else {
-                    ["png", "jpg", "jpeg"].contains(&ext.as_str())
+                    lom_core::content::IMAGE_EXTENSIONS.contains(&ext.as_str())
                 },
                 "素材类型与文件格式不符"
             );
@@ -451,6 +451,10 @@ impl App {
                 !bytes.is_empty() && bytes.len() as u64 <= limit,
                 "素材为空或超过大小上限"
             );
+            if ext == "gif" {
+                lom_core::gif_image::first_frame(&bytes)
+                    .with_context(|| format!("GIF 无法解码：{}", path.display()))?;
+            }
             if i == 0 {
                 main = name.clone();
                 if extends.is_empty() {

@@ -33,11 +33,12 @@ namespace MortalModHost
             return channel;
         }
 
-        internal static void Frame()
+        internal static void Frame(bool record = true)
         {
             Array.Clear(_mixed, 0, _mixed.Length);
             foreach (var channel in Channels) channel.Mix(_mixed);
             Channels.RemoveAll(channel => { if (channel.IsPlaying) return false; channel.Dispose(); return true; });
+            if (!record) return;
             Buffer.BlockCopy(_mixed, 0, _bytes, 0, _bytes.Length);
             _writer.Write(_bytes);
             _samples += _mixed.Length;

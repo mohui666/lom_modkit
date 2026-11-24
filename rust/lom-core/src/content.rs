@@ -5,7 +5,15 @@ use std::path::{Path, PathBuf};
 
 pub const MAX_AUDIO_BYTES: u64 = 20 * 1024 * 1024;
 pub const MAX_IMAGE_BYTES: u64 = 8 * 1024 * 1024;
+pub const IMAGE_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "gif"];
 pub const STORY_AFFINITY_PREFIX: &str = "story:";
+
+pub(crate) fn extension_character_id(reference: &str) -> &str {
+    reference
+        .strip_prefix(STORY_AFFINITY_PREFIX)
+        .unwrap_or(reference)
+}
+
 pub const CONTENT_TYPES: &[&str] = &[
     "audio",
     "character",
@@ -92,7 +100,7 @@ fn safe_filename(v: &Value, label: &str, audio: bool) -> Result<String> {
         if audio {
             ["ogg", "wav"].contains(&ext.as_str())
         } else {
-            ["png", "jpg", "jpeg"].contains(&ext.as_str())
+            IMAGE_EXTENSIONS.contains(&ext.as_str())
         },
         "{label}扩展名不支持：{name:?}"
     );
@@ -372,6 +380,12 @@ pub fn normalize_content_metadata(data: &Value) -> Result<Value> {
         crate::character_profile::normalize_metadata(data, &mut meta)?;
         if let Some(avatar) = optional_image(&data["avatar"], "avatar（好感头像）")? {
             meta["avatar"] = json!(avatar);
+        }
+        if let Some(thumbnail) = optional_image(
+            &data["social_thumbnail"],
+            "social_thumbnail（人际页缩略图）",
+        )? {
+            meta["social_thumbnail"] = json!(thumbnail);
         }
         if !data["initial_affinity"].is_null() {
             meta["initial_affinity"] = json!(integer_field(data, "initial_affinity", 0, 100)?);
@@ -870,6 +884,7 @@ pub fn listed_content_files(meta: &Value) -> Vec<String> {
     }
     add(&meta["intro"]["image"]);
     add(&meta["avatar"]);
+    add(&meta["social_thumbnail"]);
     out
 }
 pub fn content_metadata_payload(meta: &Value) -> Value {
@@ -916,6 +931,7 @@ pub fn content_metadata_payload(meta: &Value) -> Value {
         }
         for key in [
             "avatar",
+            "social_thumbnail",
             "initial_affinity",
             "biography",
             "initially_known",

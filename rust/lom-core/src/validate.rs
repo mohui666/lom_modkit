@@ -193,10 +193,10 @@ fn asset_image(v: &Value, strict_prefix: bool) -> Result<()> {
     let image = string(v);
     let normalized = image.replace('\\', "/");
     ensure!(
-        [".png", ".jpg", ".jpeg"]
+        [".png", ".jpg", ".jpeg", ".gif"]
             .iter()
             .any(|ext| image.to_lowercase().ends_with(ext)),
-        "image 必须是包内 assets/ 下的 .png/.jpg/.jpeg 图片"
+        "image 必须是包内 assets/ 下的 PNG/JPEG/GIF 图片"
     );
     let prefix = if strict_prefix { image } else { &normalized };
     ensure!(

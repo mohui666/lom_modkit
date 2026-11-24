@@ -59,7 +59,7 @@
       "id": "custom_cg1",
       "type": "custom_cg",
       "action": "show",
-      "image": "user:showcase.departure_cg",
+      "image": "user:showcase.gif_lantern",
       "fade": 0.3,
       "scale": 68,
       "x": 0,
@@ -660,7 +660,13 @@
     },
     {
       "character": "story:special830",
-      "delta": 7,
+      "id": "story_profile_meet",
+      "op": "meet",
+      "type": "character_profile"
+    },
+    {
+      "character": "story:special830",
+      "delta": 17,
       "id": "story_affinity_up",
       "show_message": true,
       "type": "affinity"

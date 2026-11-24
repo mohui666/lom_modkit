@@ -108,7 +108,8 @@ namespace MortalModHost
             out int affinity,out bool known,out int unlocked,out int locked)
         {
             string slot=CurrentSlot(package);_package=package;
-            RequireStore(package).ReadCharacterProfile(package,slot,character,content.InitialAffinity,content.InitiallyKnown,
+            int initialAffinity = ContentRef.IsStoryAffinityRef(character) ? 0 : content.InitialAffinity;
+            RequireStore(package).ReadCharacterProfile(package,slot,character,initialAffinity,content.InitiallyKnown,
                 out affinity,out known,out unlocked,out locked);
         }
         internal static void SetCharacterKnown(ModPackage package,string character,bool known)

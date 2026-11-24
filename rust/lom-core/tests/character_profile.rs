@@ -94,9 +94,13 @@ fn profile_metadata_validates_native_types_limits_and_ownership() {
         assert!(content::normalize_content_metadata(&raw).is_err());
     }
     let mut extension = metadata();
-    extension["extends"] = json!("player");
+    extension["extends"] = json!("special830");
     extension["initially_known"] = json!(true);
-    assert!(content::normalize_content_metadata(&extension).is_err());
+    let extension = content::normalize_content_metadata(&extension).unwrap();
+    assert_eq!(extension["initially_known"], true);
+    assert_eq!(character_profile::affinity_reference(&extension).as_deref(), Some("story:special830"));
+    assert!(character_profile::uses_native_affinity("girl7"));
+    assert!(!character_profile::uses_native_affinity("special830"));
     let mut image = metadata();
     image["type"] = json!("image");
     image["biography_pages"] = json!([]);
@@ -248,6 +252,70 @@ fn referenced_page_must_exist_and_extensions_are_reported_at_the_source_step() {
     assert!(project
         .export(&directory.path().join("extension.lommod"))
         .is_err());
+}
+
+#[test]
+fn original_character_biographies_export_with_their_affinity_source() {
+    let folder = tempfile::tempdir().unwrap();
+    for (target, reference) in [("special830", "story:special830"), ("girl7", "girl7")] {
+        let mut project = Project::new();
+        let mut meta = metadata();
+        meta["extends"] = json!(target);
+        meta["biography_pages"] = json!([{"text":"按好感解锁的传记","unlock_level":4}]);
+        add_character(&mut project, &meta);
+        let normalized = content::normalize_content_metadata(&meta).unwrap();
+        assert_eq!(character_profile::affinity_reference(&normalized).as_deref(), Some(reference));
+        if target == "special830" {
+            project.stories.insert("main".into(), story(
+                json!({"character":reference,"op":"meet"})));
+        }
+        let output = folder.path().join(format!("{target}.lommod"));
+        project.export(&output).unwrap();
+        let reopened = Project::open(&output).unwrap();
+        assert_eq!(reopened.manifest["min_host_version"], "1.6.10");
+        let meta_path = format!("assets/user/character/{}/content.json", meta["id"].as_str().unwrap());
+        let packed: Value = serde_json::from_slice(&reopened.assets[&meta_path]).unwrap();
+        assert_eq!(packed["biography_pages"], meta["biography_pages"]);
+    }
+}
+
+#[test]
+fn released_projects_can_edit_and_export_a_social_thumbnail_without_a_story_reference() {
+    let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/released-1.5.4-name-base.lommod");
+    let original = std::fs::read(&fixture).unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let thumbnail = include_bytes!(
+        "../../../samples/showcase3/assets/user/character/showcase.lin_deng/happy.png"
+    );
+    let files = std::collections::BTreeMap::from([("thumbnail.png".into(), thumbnail.to_vec())]);
+    for target in [None, Some("special830"), Some("girl7")] {
+        let mut project = Project::open(&fixture).unwrap();
+        let stories = project.stories.clone();
+        let mut meta = metadata();
+        if let Some(target) = target {
+            meta["extends"] = json!(target);
+        }
+        meta["avatar"] = json!("normal.png");
+        add_character(&mut project, &meta);
+        meta["social_thumbnail"] = json!("thumbnail.png");
+        lom_core::content_edit::update(&mut project, METADATA, &meta, &files).unwrap();
+        let source = dir.path().join(target.unwrap_or("standalone"));
+        project.save_to(&source).unwrap();
+        let output = source.with_extension("lommod");
+        Project::open(&source).unwrap().export(&output).unwrap();
+        let reopened = Project::open(&output).unwrap();
+        assert_eq!(reopened.stories, stories);
+        assert_eq!(reopened.manifest["min_host_version"], "1.6.10");
+        let packed: Value = serde_json::from_slice(&reopened.assets[METADATA]).unwrap();
+        assert_eq!(packed["avatar"], "normal.png");
+        assert_eq!(packed["social_thumbnail"], "thumbnail.png");
+        assert_eq!(
+            reopened.assets["assets/user/character/profile.person/thumbnail.png"],
+            thumbnail
+        );
+    }
+    assert_eq!(std::fs::read(&fixture).unwrap(), original);
 }
 
 #[test]

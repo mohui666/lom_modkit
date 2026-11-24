@@ -6,6 +6,31 @@ pub const MAX_PAGES: i64 = 4;
 pub const MAX_LEVEL: i64 = 10;
 pub const OPERATIONS: &[&str] = &["meet", "forget", "unlock_biography", "lock_biography"];
 
+pub fn uses_native_affinity(id: &str) -> bool {
+    // These RelationshipStatType IDs are native even though the affinity
+    // picker omits the protagonist and alternate character appearances.
+    matches!(id, "player" | "girl2_3_1" | "girl2_4" | "girl5_11" | "special215_1" | "special805_0" | "special831")
+        || crate::validate::editor_data()["affinity_characters"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .any(|entry| entry.as_str() == Some(id))
+}
+
+pub fn affinity_reference(metadata: &Value) -> Option<String> {
+    if let Some(target) = metadata["extends"]
+        .as_str()
+        .filter(|target| !target.is_empty())
+    {
+        return Some(if uses_native_affinity(target) {
+            target.to_owned()
+        } else {
+            format!("{}{target}", crate::content::STORY_AFFINITY_PREFIX)
+        });
+    }
+    metadata["id"].as_str().map(|id| format!("user:{id}"))
+}
+
 pub fn page_operation(node: &Value) -> bool {
     matches!(
         node["op"].as_str(),
@@ -14,13 +39,6 @@ pub fn page_operation(node: &Value) -> bool {
 }
 
 pub fn normalize_metadata(raw: &Value, normalized: &mut Value) -> Result<()> {
-    let profile_fields = ["initially_known", "biography_pages"];
-    if profile_fields.iter().any(|key| raw.get(key).is_some()) {
-        ensure!(
-            normalized["extends"].as_str().unwrap_or("").is_empty(),
-            "认识状态与分级传记只支持独立自定义人物，不能用于原版人物扩展"
-        );
-    }
     if let Some(known) = raw.get("initially_known") {
         ensure!(
             known.is_boolean(),
@@ -74,7 +92,11 @@ pub fn has_biography(metadata: &Value) -> bool {
 }
 
 pub fn has_profile(metadata: &Value) -> bool {
-    has_biography(metadata) || metadata.get("initially_known").is_some()
+    has_biography(metadata)
+        || metadata.get("initially_known").is_some()
+        || metadata["social_thumbnail"]
+            .as_str()
+            .is_some_and(|file| !file.trim().is_empty())
 }
 
 pub fn validate_for_export(metadata: &Value) -> Result<()> {
@@ -88,10 +110,20 @@ pub fn validate_for_export(metadata: &Value) -> Result<()> {
 pub fn validate_node(node: &Value) -> Result<()> {
     let character = node["character"]
         .as_str()
-        .context("人物资料操作必须指定独立自定义人物")?;
+        .context("人物资料操作必须指定作品人物")?;
+    let story_character = character
+        .strip_prefix(crate::content::STORY_AFFINITY_PREFIX)
+        .is_some_and(|id| {
+            !uses_native_affinity(id)
+                && crate::validate::editor_data()["characters"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .any(|entry| entry["id"] == id)
+        });
     ensure!(
-        crate::content::parse_content_ref(character)?.is_some(),
-        "人物资料操作只支持本作品的独立 user: 人物，不能用于原版人物"
+        story_character || crate::content::parse_content_ref(character)?.is_some(),
+        "人物资料操作需要本作品的自定义人物或使用作品好感的剧情人物"
     );
     ensure!(
         OPERATIONS.contains(&node["op"].as_str().unwrap_or("")),
@@ -114,9 +146,13 @@ pub fn validate_node(node: &Value) -> Result<()> {
 }
 
 pub fn validate_reference(node: &Value, metadata: &Value) -> Result<()> {
+    let character = node["character"].as_str().unwrap_or("");
+    let story_character = character.starts_with(crate::content::STORY_AFFINITY_PREFIX);
     ensure!(
-        metadata["type"] == "character" && metadata["extends"].as_str().unwrap_or("").is_empty(),
-        "人物资料操作只支持独立自定义人物，不能用于原版人物扩展"
+        metadata["type"] == "character"
+            && affinity_reference(metadata).as_deref() == Some(character)
+            && (!story_character || has_profile(metadata)),
+        "请在本作品的人物素材中为 {character} 设置人际资料"
     );
     if page_operation(node) {
         let count = metadata["biography_pages"]

@@ -47,7 +47,7 @@ pub struct ContentPanel {
     portrait_prefix: String,
     message: String,
     message_is_error: bool,
-    preview: Option<(String, egui::TextureHandle)>,
+    preview: Option<(String, egui::TextureHandle, Option<crate::gif_preview::Player>)>,
     replace_shared: bool,
     animation_frame: Option<usize>,
     animation_playing: bool,
@@ -82,7 +82,9 @@ impl ContentPanel {
             !bytes.is_empty() && bytes.len() <= limit,
             "素材为空或超过大小限制"
         );
-        if !audio {
+        if ext == "gif" && !audio {
+            lom_core::gif_image::first_frame(&bytes)?;
+        } else if !audio {
             image::load_from_memory(&bytes)?;
         }
         if self.draft["type"] == "character" {
@@ -102,6 +104,7 @@ impl ContentPanel {
                     self.draft["intro"]["image"] = json!(name);
                 }
                 7 => self.draft["avatar"] = json!(name),
+                8 => self.draft["social_thumbnail"] = json!(name),
                 i => {
                     self.draft[[
                         "combat_idle",
@@ -131,15 +134,19 @@ impl ContentPanel {
                 .unwrap_or("")
                 .to_ascii_lowercase();
             anyhow::ensure!(
-                ["png", "jpg", "jpeg"].contains(&ext.as_str()),
-                "立绘需要 PNG/JPG 图片"
+                lom_core::content::IMAGE_EXTENSIONS.contains(&ext.as_str()),
+                "立绘需要 PNG/JPEG/GIF 图片"
             );
             anyhow::ensure!(
                 std::fs::metadata(path)?.len() <= lom_core::content::MAX_IMAGE_BYTES,
                 "图片超过 8 MiB"
             );
             let bytes = std::fs::read(path)?;
-            image::load_from_memory(&bytes)?;
+            if ext == "gif" {
+                lom_core::gif_image::first_frame(&bytes)?;
+            } else {
+                image::load_from_memory(&bytes)?;
+            }
             let stem = path
                 .file_stem()
                 .and_then(|v| v.to_str())
@@ -337,9 +344,7 @@ impl ContentPanel {
                 &[],
             );
             ui.small(crate::i18n::key("workspace.content.extension_hint"));
-            if self.draft["extends"].as_str().unwrap_or("").is_empty() {
-                crate::character_profile_panel::content(ui, &mut self.draft, &catalog);
-            }
+            crate::character_profile_panel::content(ui, &mut self.draft, &catalog);
             for (key, label, field_kind) in [
                 ("title", "称号", "str"),
                 ("scale", "立绘缩放（%）", "float"),
@@ -415,6 +420,7 @@ impl ContentPanel {
                     "战斗受伤",
                     "战斗防御",
                     "好感度头像",
+                    "人际页缩略图",
                 ]
             } else {
                 vec!["主文件"]
@@ -449,6 +455,18 @@ impl ContentPanel {
                     && ui.button(tr("恢复使用默认立绘头像")).clicked()
                 {
                     self.draft.as_object_mut().unwrap().remove("avatar");
+                    self.preview = None;
+                }
+            }
+            if kind == "character" && self.slot == 8 {
+                ui.small(tr("用于游戏「状态 → 人际」的角色列表。留空时使用默认缩略图。"));
+                if self.draft["social_thumbnail"].is_string()
+                    && ui.button(tr("移除自定义缩略图")).clicked()
+                {
+                    self.draft
+                        .as_object_mut()
+                        .unwrap()
+                        .remove("social_thumbnail");
                     self.preview = None;
                 }
             }
@@ -491,7 +509,7 @@ impl ContentPanel {
             if kind == "character" && ui.button(tr("新增表情立绘…")).clicked() {
                 let paths = match crate::file_dialog::asset_files(
                     "立绘图片",
-                    &["png", "jpg", "jpeg"],
+                    lom_core::content::IMAGE_EXTENSIONS,
                     true,
                 ) {
                     Ok(paths) => paths,
@@ -535,7 +553,7 @@ impl ContentPanel {
                 let extensions = if kind == "audio" {
                     vec!["wav", "ogg"]
                 } else {
-                    vec!["png", "jpg", "jpeg"]
+                    lom_core::content::IMAGE_EXTENSIONS.to_vec()
                 };
                 let path = match crate::file_dialog::asset_files("素材", &extensions, false) {
                     Ok(paths) => paths.and_then(|paths| paths.into_iter().next()),
@@ -616,6 +634,16 @@ impl ContentPanel {
                     7 => self.draft["avatar"]
                         .as_str()
                         .or_else(|| self.draft["files"]["main"].as_str()),
+                    8 => self.draft["social_thumbnail"].as_str().or_else(|| {
+                        let native = self.draft["extends"]
+                            .as_str()
+                            .is_some_and(lom_core::character_profile::uses_native_affinity);
+                        if native {
+                            None
+                        } else {
+                            self.draft["files"]["main"].as_str()
+                        }
+                    }),
                     i if i >= 3 => self.draft[[
                         "combat_idle",
                         "combat_attack",
@@ -632,23 +660,34 @@ impl ContentPanel {
                 let asset = format!("{}{name}", key.strip_suffix("content.json").unwrap_or(""));
                 if let Some(bytes) = self.files.get(name).or_else(|| project.assets.get(&asset)) {
                     let cache = format!("{asset}:{}", bytes.len());
-                    if self.preview.as_ref().is_none_or(|(k, _)| *k != cache) {
-                        if let Ok(image) = image::load_from_memory(bytes) {
-                            let pixels = image.thumbnail(1024, 1024).to_rgba8();
-                            let texture = ui.ctx().load_texture(
-                                &cache,
-                                egui::ColorImage::from_rgba_unmultiplied(
-                                    [pixels.width() as usize, pixels.height() as usize],
-                                    pixels.as_raw(),
-                                ),
-                                egui::TextureOptions::LINEAR,
-                            );
-                            self.preview = Some((cache, texture));
-                        }
+                    if self.preview.as_ref().is_none_or(|(k, _, _)| *k != cache) {
+                        self.preview = if lom_core::gif_image::is_gif(bytes) {
+                            lom_core::gif_image::decode(bytes, Some(512)).ok().map(|decoded| {
+                                let gif = crate::gif_preview::Player::new(decoded);
+                                let texture = ui.ctx().load_texture(&cache, egui::ImageData::Color(gif.first()), egui::TextureOptions::LINEAR);
+                                (cache, texture, Some(gif))
+                            })
+                        } else {
+                            image::load_from_memory(bytes).ok().map(|image| {
+                                let pixels = image.thumbnail(1024, 1024).to_rgba8();
+                                let texture = ui.ctx().load_texture(
+                                    &cache,
+                                    egui::ColorImage::from_rgba_unmultiplied(
+                                        [pixels.width() as usize, pixels.height() as usize],
+                                        pixels.as_raw(),
+                                    ),
+                                    egui::TextureOptions::LINEAR,
+                                );
+                                (cache, texture, None)
+                            })
+                        };
                     }
-                    if let Some((_, texture)) = &self.preview {
+                    if let Some((_, texture, gif)) = &mut self.preview {
+                        if let Some(pixels) = gif.as_mut().and_then(|gif| gif.update(ui.ctx())) {
+                            texture.set(egui::ImageData::Color(pixels), egui::TextureOptions::LINEAR);
+                        }
                         ui.add(
-                            egui::Image::new(texture)
+                            egui::Image::new(&*texture)
                                 .max_width(ui.available_width())
                                 .max_height(300.0),
                         );
@@ -1373,13 +1412,13 @@ pub(crate) fn portrait_files(
             && path
                 .extension()
                 .and_then(|s| s.to_str())
-                .is_some_and(|s| ["png", "jpg", "jpeg"].contains(&s.to_ascii_lowercase().as_str()))
+                .is_some_and(|s| lom_core::content::IMAGE_EXTENSIONS.contains(&s.to_ascii_lowercase().as_str()))
         {
             paths.push(path);
         }
     }
     paths.sort();
-    anyhow::ensure!(!paths.is_empty(), "文件夹中没有匹配前缀的 PNG/JPG 图片");
+    anyhow::ensure!(!paths.is_empty(), "文件夹中没有匹配前缀的 PNG/JPEG/GIF 图片");
     Ok(paths)
 }
 

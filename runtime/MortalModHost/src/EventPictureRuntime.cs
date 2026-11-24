@@ -55,7 +55,7 @@ namespace MortalModHost
                     {
                         ReleaseCachedPicture();
                         _texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
-                        if (!_texture.LoadImage(content.Bytes, true))
+                        if (!GifImageRuntime.Load(_texture, content.Bytes, true))
                             throw new InvalidOperationException("事件图片解码失败：" + key);
                         _texture.wrapMode = TextureWrapMode.Clamp;
                         _texture.filterMode = FilterMode.Bilinear;

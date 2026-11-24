@@ -247,6 +247,7 @@ impl Catalog {
         self.data["user_supports"] = json!([]);
         self.data["user_skills"] = json!([]);
         self.data["user_consumables"] = json!([]);
+        self.data["story_profiles"] = json!([]);
         for (path, bytes) in assets {
             if !path.ends_with("/content.json") {
                 continue;
@@ -269,6 +270,14 @@ impl Catalog {
             let key = match meta["type"].as_str().unwrap_or("") {
                 "character" => {
                     if meta["extends"].as_str().is_some_and(|s| !s.is_empty()) {
+                        if lom_core::character_profile::has_profile(&meta) {
+                            if let Some(reference) = lom_core::character_profile::affinity_reference(&meta)
+                                .filter(|id| id.starts_with(lom_core::content::STORY_AFFINITY_PREFIX))
+                            {
+                                self.data["story_profiles"].as_array_mut().unwrap()
+                                    .push(json!({"id":reference,"name":meta["name"]}));
+                            }
+                        }
                         if meta["extends"] == "player" {
                             if let Some(portraits) = meta["portraits"].as_object() {
                                 let beauty = self.data["player_appearance_portraits"]["beautified"]
@@ -402,6 +411,7 @@ impl Catalog {
                         .as_str()
                         .is_some_and(|id| id.starts_with("user:"))
                 })
+                .chain(self.data["story_profiles"].as_array().into_iter().flatten())
                 .cloned()
                 .collect();
             return localized_rows(&json!(characters), "characters");

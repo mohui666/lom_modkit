@@ -1,8 +1,8 @@
-# Windows 快速开始 · 1.6.8
+# Windows 快速开始 · 1.6.11
 
 ## 下载并打开
 
-下载 `lom-editor.exe` 后双击即可使用。AI 创作所需的接口、skill、文档和示例可通过 `lom-editor.exe --cli sdk -o sdk --json` 导出。 [国内下载](https://toolbox.mahui.site/downloads/lom-modkit/v1.6.8/lom-editor.exe) · [GitHub 发布页](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.8)
+下载 `lom-editor.exe` 后双击即可使用。AI 创作所需的接口、skill、文档和示例可通过 `lom-editor.exe --cli sdk -o sdk --json` 导出。 [国内下载](https://toolbox.mahui.site/downloads/lom-modkit/v1.6.11/lom-editor.exe) · [GitHub 发布页](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.11)
 
 运行只需要编辑器 exe；授权说明已内置到组件缓存。
 
@@ -17,7 +17,7 @@
 
 1. 可通过“检查更新 → 更新并重启”升级；也可保存作品、退出编辑器后手动替换新版 `lom-editor.exe`。
 2. 使用新版编辑器打开自己的项目。
-3. 退出游戏后启动新版编辑器，已安装的 Host 会自动同步。在“游戏与 MOD”核对编辑器与内置 Host 为 1.6.8；已配置过游戏时可点击“重新配置游戏环境”，再重启游戏。较新 Host 会被保留，旧 Host 不能降级覆盖它。后台视频使用当前编辑器内置的 Host。
+3. 退出游戏后启动新版编辑器，已安装的 Host 会自动同步。在“游戏与 MOD”核对编辑器与内置 Host 为 1.6.11；已配置过游戏时可点击“重新配置游戏环境”，再重启游戏。较新 Host 会被保留，旧 Host 不能降级覆盖它。后台视频使用当前编辑器内置的 Host。
 4. 给原版人物追加图片时，从“素材管理 → 作品素材 → 为原版人物添加立绘…”导入；预览缺图时再从游戏预览素材中提取。
 
 编辑器内的“检查更新 → 更新并重启”更新编辑器、编译器及随包的两个游戏接入文件。游戏目录中的接入组件通过上述第三步更新。
@@ -78,7 +78,7 @@ Windows 可只下载 `lom-editor.exe` 运行，提取器、音频解码器、Hos
 
 ## 本版功能与验证范围
 
-原版整章结构化编辑、路线连线、四语界面和旧格式导入见 [软件使用](software_usage.md)。本版变化见 [1.6.8 Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.8)，验证范围见 [测试入口](test_matrix.md)。路线图从“文件 → 原版剧情 → 原版路线图…”打开，游戏中按 `Ctrl+F6` 标记后，可用“打开最近游戏标记”定位。
+原版整章结构化编辑、路线连线、四语界面和旧格式导入见 [软件使用](software_usage.md)。本版变化见 [1.6.11 Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.11)，验证范围见 [测试入口](test_matrix.md)。路线图从“文件 → 原版剧情 → 原版路线图…”打开，游戏中按 `Ctrl+F6` 标记后，可用“打开最近游戏标记”定位。
 
 编辑器二维预览、离线模拟、原生视频和实际游戏试玩分别覆盖不同范围，不能用模拟通过代替画面检查。功能限制见 [当前能力](current_capabilities.md)。
 

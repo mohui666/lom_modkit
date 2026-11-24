@@ -13,6 +13,10 @@ use std::{char::REPLACEMENT_CHARACTER, mem::size_of, slice};
 
 pub mod archive_path;
 pub mod audio_mix;
+mod gif_decode;
+#[allow(dead_code)]
+#[path = "../../lom-core/src/gif_image.rs"]
+mod gif_image;
 pub mod json;
 pub mod json_write;
 pub mod ogg_decode;

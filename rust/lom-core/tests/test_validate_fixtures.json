@@ -1513,7 +1513,7 @@
       "valid": false,
       "warnings": [],
       "test": "test_goto_scene_image_rules (tests.test_lomc.TestNewNodeValidationErrors)",
-      "input_json": "{\"story_schema\": 2, \"id\": \"main\", \"title\": \"测试剧情\", \"start\": \"n1\", \"nodes\": [{\"id\": \"n1\", \"type\": \"goto_scene\", \"scene\": \"End\", \"key\": \"920047\", \"image\": \"assets/ending.gif\"}, {\"id\": \"nend\", \"type\": \"end\"}]}"
+      "input_json": "{\"story_schema\": 2, \"id\": \"main\", \"title\": \"测试剧情\", \"start\": \"n1\", \"nodes\": [{\"id\": \"n1\", \"type\": \"goto_scene\", \"scene\": \"End\", \"key\": \"920047\", \"image\": \"assets/ending.webp\"}, {\"id\": \"nend\", \"type\": \"end\"}]}"
     },
     {
       "kind": "story",

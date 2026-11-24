@@ -2145,7 +2145,7 @@ checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
 
 [[package]]
 name = "lom-assets"
-version = "1.6.9"
+version = "1.6.11"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -2163,7 +2163,7 @@ dependencies = [
 
 [[package]]
 name = "lom-core"
-version = "1.6.9"
+version = "1.6.11"
 dependencies = [
  "anyhow",
  "crc32fast",
@@ -2182,7 +2182,7 @@ dependencies = [
 
 [[package]]
 name = "lom-editor"
-version = "1.6.9"
+version = "1.6.11"
 dependencies = [
  "anyhow",
  "eframe",
@@ -2209,9 +2209,10 @@ dependencies = [
 
 [[package]]
 name = "lom-host-native"
-version = "1.6.9"
+version = "1.6.11"
 dependencies = [
  "hmac",
+ "image",
  "lewton",
  "sha2",
  "symphonia 0.5.5",
@@ -2219,7 +2220,7 @@ dependencies = [
 
 [[package]]
 name = "lomc"
-version = "1.6.9"
+version = "1.6.11"
 dependencies = [
  "anyhow",
  "lom-core",

@@ -9,6 +9,7 @@ namespace MortalModHost
         internal int Width, Height, Fps;
         internal double ChoiceHold, MaxSeconds;
         internal string Encoder, Speed;
+        internal string EntryStory, EntryNode, EndNode;
         internal readonly Dictionary<string, int> Choices = new Dictionary<string, int>(StringComparer.Ordinal);
         internal readonly HashSet<string> Terminals = new HashSet<string>(StringComparer.Ordinal);
         internal readonly HashSet<string> Cards = new HashSet<string>(StringComparer.Ordinal);
@@ -22,12 +23,17 @@ namespace MortalModHost
         internal static VideoRenderRequest Read(string directory, PreviewRequest preview)
         {
             var root = MiniJson.Parse(File.ReadAllText(Path.Combine(directory, "request.json"))) as Dictionary<string, object>;
-            if (root == null || Number(root, "format") != 1) throw new FormatException("视频请求格式无效");
+            if (root == null) throw new FormatException("视频请求格式无效");
+            int format = Integer(root, "format");
+            if ((format != 1 && format != 2) || (format == 2) != root.ContainsKey("end_node"))
+                throw new FormatException("视频请求格式与录制范围不匹配");
             var result = new VideoRenderRequest
             {
                 Width = Integer(root, "width"), Height = Integer(root, "height"),
                 Fps = Integer(root, "fps"), ChoiceHold = Number(root, "choice_hold"),
-                MaxSeconds = Number(root, "max_seconds"), Encoder = Text(root, "encoder"), Speed = Text(root, "auto_speed")
+                MaxSeconds = Number(root, "max_seconds"), Encoder = Text(root, "encoder"), Speed = Text(root, "auto_speed"),
+                EntryStory = Text(root, "entry_story"), EntryNode = Text(root, "entry_node"),
+                EndNode = format == 2 ? PreviewRequest.RequiredId(root, "end_node") : null
             };
             if (!((result.Width == 1280 && result.Height == 720) || (result.Width == 1920 && result.Height == 1080))
                 || result.Fps != 30 && result.Fps != 60) throw new FormatException("视频分辨率或帧率无效");
@@ -38,7 +44,7 @@ namespace MortalModHost
             if (!Path.IsPathRooted(result.Encoder) || !File.Exists(result.Encoder)
                 || !string.Equals(Path.GetFileName(result.Encoder), "ffmpeg.exe", StringComparison.OrdinalIgnoreCase))
                 throw new FormatException("找不到视频编码器");
-            if (Text(root, "entry_story") != preview.ScriptId || Text(root, "entry_node") != preview.NodeId)
+            if (result.EntryStory != preview.ScriptId || result.EntryNode != preview.NodeId)
                 throw new FormatException("视频任务与试玩入口不匹配");
             object choices;
             var routes = root.TryGetValue("choices", out choices) ? choices as Dictionary<string, object> : null;

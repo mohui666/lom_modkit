@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Linq;
 using HarmonyLib;
 using Mortal.Core;
+using OBB.Framework.Extensions;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -55,7 +56,9 @@ namespace MortalModHost
         private static bool HasCharacters(ModPackage package)
         {
             foreach (UserContent content in package.UserContents.Values)
-                if (content.Type == "character" && string.IsNullOrEmpty(content.Extends)) return true;
+                if (CustomProfileRuntime.HasCustomRow(content)
+                    || content.Type == "character" && (content.HasProfile && content.BiographyPages.Count > 0
+                        || !string.IsNullOrEmpty(content.SocialThumbnailFile))) return true;
             return false;
         }
 
@@ -75,6 +78,13 @@ namespace MortalModHost
             if (button.Data == null || !Entries.TryGetValue(button.Data, out entry)) return false;
             if (active) entry.Panel.CharacterButtonOnActive(entry.Data);
             return true;
+        }
+
+        internal static void RestoreThumbnailAfterInit(SocialCharacterButton button)
+        {
+            if (button.Data == null || IsCustomData(button.Data)) return;
+            var controller = button.GetComponentInParent<CustomSocialPanelController>(true);
+            if (controller != null) controller.ApplyNativeThumbnail(button);
         }
 
         internal static bool Render(SocialStatPanel panel, bool resetScroll)
@@ -157,14 +167,14 @@ namespace MortalModHost
             var data = fields.Field("_currentData").GetValue<RelationshipStat>();
             if (data == null || !Entries.TryGetValue(data, out entry)) return false;
             fields.Field("_currentInfoIndex").SetValue(page-1);
-            RenderBiography(panel,entry,page,CustomAffinityRuntime.Value(entry.Package,"user:"+entry.Content.Id));
+            RenderBiography(panel,entry,page,CustomAffinityRuntime.Value(entry.Package,entry.Reference));
             fields.Field("_descScrollView").GetValue<ScrollRect>().verticalNormalizedPosition = 1f;
             return true;
         }
 
         internal static void EnableSocialButton(PlayerStatusPanel panel)
         {
-            if (AllowedPackages().Count == 0) return;
+            if (!AllowedPackages().Any(package => package.UserContents.Values.Any(CustomProfileRuntime.HasCustomRow))) return;
             var button = Traverse.Create(panel).Field("_socialButton").GetValue<MenuToggleButton>();
             button.SetActive(true);
             button.Init();
@@ -182,6 +192,8 @@ namespace MortalModHost
             private SocialStatPanel _panel;
             private SocialCharacterButton[] _original;
             private readonly List<Entry> _entries = new List<Entry>();
+            private readonly Dictionary<SocialCharacterButton, UserContent> _nativeThumbnails =
+                new Dictionary<SocialCharacterButton, UserContent>();
             private List<ModPackage> _packages = new List<ModPackage>();
             private readonly List<ModPackage> _candidates = new List<ModPackage>();
             private string _slot;
@@ -211,6 +223,18 @@ namespace MortalModHost
                 _customDetails=false;
             }
 
+            internal void ApplyNativeThumbnail(SocialCharacterButton button)
+            {
+                if (_nativeThumbnails.TryGetValue(button, out var content))
+                    SetIcons(button, CustomAffinityRuntime.SocialThumbnail(content));
+            }
+
+            private static void SetIcons(SocialCharacterButton button, Sprite sprite)
+            {
+                foreach (var icon in Traverse.Create(button).Field("_icons").GetValue<Image[]>())
+                    icon.sprite = sprite;
+            }
+
             internal void Rebuild(List<ModPackage> packages)
             {
                 ClearEntries(false);
@@ -219,24 +243,41 @@ namespace MortalModHost
                 var all = new List<SocialCharacterButton>(_original);
                 if (packages.Count > 0 && _original.Length == 0)
                     throw new InvalidOperationException("原版人物状态页缺少可克隆的人物按钮");
+                if (packages.Count > 0)
+                {
+                    foreach (var button in _original)
+                    {
+                        if (button == null || button.Data == null) continue;
+                        string id = button.Data.Type.GetStringValue();
+                        foreach (ModPackage package in packages)
+                        {
+                            if (!package.CharacterExtensions.TryGetValue(id, out var content)
+                                || string.IsNullOrEmpty(content.SocialThumbnailFile)) continue;
+                            _nativeThumbnails[button] = content;
+                            ApplyNativeThumbnail(button);
+                            break;
+                        }
+                    }
+                }
                 foreach (ModPackage package in packages)
                 foreach (UserContent content in package.UserContents.Values.OrderBy(content => content.Id, StringComparer.Ordinal))
                 {
-                    if (content.Type != "character" || !string.IsNullOrEmpty(content.Extends)) continue;
+                    if (!CustomProfileRuntime.HasCustomRow(content)) continue;
                     var original = _original[0];
                     var root = UnityEngine.Object.Instantiate(original.gameObject, original.transform.parent, false);
                     root.name = "lom_social_" + package.Id + "_" + content.Id;
                     var button = root.GetComponent<SocialCharacterButton>();
                     var data = ScriptableObject.CreateInstance<RelationshipStat>();
                     data.name = root.name;
-                    int value = CustomAffinityRuntime.Value(package, "user:" + content.Id);
+                    string reference = CustomProfileRuntime.Reference(content);
+                    int value = CustomAffinityRuntime.Value(package, reference);
                     data.SetValue(value);
                     var fields = Traverse.Create(data);
-                    fields.Field("_headIcon").SetValue(CustomAffinityRuntime.Avatar(content));
+                    fields.Field("_headIcon").SetValue(CustomAffinityRuntime.SocialThumbnail(content));
                     fields.Field("_icon").SetValue(CustomAffinityRuntime.Avatar(content));
                     Traverse.Create(button).Field("_data").SetValue(data);
                     var icons=Traverse.Create(button).Field("_icons").GetValue<Image[]>();
-                    var entry = new Entry { Package = package, Content = content, Reference="user:"+content.Id, Panel = _panel, Button = button, Data = data,
+                    var entry = new Entry { Package = package, Content = content, Reference=reference, Panel = _panel, Button = button, Data = data,
                         IconColors=icons.Select(icon=>icon.color).ToArray() };
                     Entries.Add(data, entry);
                     _entries.Add(entry);
@@ -259,6 +300,9 @@ namespace MortalModHost
                 RestoreNativeDetails();
                 if (selectedCustom) fields.Field("_currentData").SetValue(null);
                 fields.Field("_characterButtons").SetValue(_original);
+                foreach (var button in _nativeThumbnails.Keys)
+                    if (button != null && button.Data != null) SetIcons(button, button.Data.HeadIcon);
+                _nativeThumbnails.Clear();
                 foreach (Entry entry in _entries)
                 {
                     Entries.Remove(entry.Data);
@@ -321,6 +365,12 @@ namespace MortalModHost
         }
     }
 
+    [HarmonyPatch(typeof(SocialCharacterButton), nameof(SocialCharacterButton.InitData))]
+    internal static class CustomSocialThumbnailPatch
+    {
+        private static void Postfix(SocialCharacterButton __instance) { CustomSocialRuntime.RestoreThumbnailAfterInit(__instance); }
+    }
+
     [HarmonyPatch(typeof(SocialStatPanel), "OnPanelOpen")]
     internal static class CustomSocialOpenPatch
     {
@@ -337,12 +387,19 @@ namespace MortalModHost
     internal static class CustomSocialInfoPatch
     {
         private static bool Prefix(SocialStatPanel __instance) { return !CustomSocialRuntime.Render(__instance, true); }
+        private static void Postfix(SocialStatPanel __instance, bool __runOriginal)
+        {
+            if (__runOriginal) NativeBiographyRuntime.Render(__instance, 1);
+        }
     }
 
     [HarmonyPatch(typeof(SocialStatPanel), "CharacterInfoOnActive")]
     internal static class CustomSocialBiographyPatch
     {
-        private static bool Prefix(SocialStatPanel __instance,int index) { return !CustomSocialRuntime.Biography(__instance,index); }
+        private static bool Prefix(SocialStatPanel __instance,int index)
+        {
+            return !CustomSocialRuntime.Biography(__instance,index) && !NativeBiographyRuntime.Render(__instance,index);
+        }
     }
 
     [HarmonyPatch(typeof(PlayerStatusPanel), "SetSocialButtonActive")]

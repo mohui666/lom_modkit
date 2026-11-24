@@ -158,7 +158,7 @@ namespace MortalModHost
             return selected;
         }
 
-        private static string RequiredId(Dictionary<string, object> root, string key)
+        internal static string RequiredId(Dictionary<string, object> root, string key)
         {
             object value;
             var text = root.TryGetValue(key, out value) ? value as string : null;

@@ -322,7 +322,7 @@ class CharacterAsset(Asset):
     @classmethod
     def from_folder(cls, *, id, name, folder, prefix="", **settings):
         paths = sorted(p for p in Path(folder).iterdir() if p.is_file() and p.name.startswith(prefix)
-                       and p.suffix.lower() in (".png", ".jpg", ".jpeg"))
+                       and p.suffix.lower() in (".png", ".jpg", ".jpeg", ".gif"))
         if not paths:
             raise ValueError("No matching portraits in folder")
         portraits = {}

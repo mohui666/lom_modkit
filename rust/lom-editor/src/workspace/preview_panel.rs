@@ -53,10 +53,7 @@ impl App {
         if !self.apply_pending_drafts() {
             return;
         }
-        if !self.check_before_run_or_export() {
-            return;
-        }
-        if cfg!(windows) {
+        if cfg!(windows) && !self.tools_panel.ready_to_play() {
             self.tools_panel.refresh_game();
             if !self.tools_panel.ready_to_play() {
                 self.open_tool_page(ToolPage::Game);
@@ -68,13 +65,7 @@ impl App {
         self.audio.stop();
         self.flush();
         let node = self.playtest_node(from_start);
-        match self
-            .tools_panel
-            .play_from_current(&self.project, &self.current, &node)
-        {
-            Ok(status) => self.status = status,
-            Err(e) => self.error = Some(crate::error_ui::capture(e)),
-        }
+        self.tools_panel.play_from_current(&self.project, &self.current, &node);
     }
     pub(super) fn playtest_node(&self, from_start: bool) -> String {
         let story = self.story();

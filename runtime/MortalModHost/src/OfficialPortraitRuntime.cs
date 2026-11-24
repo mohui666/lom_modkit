@@ -58,7 +58,7 @@ namespace MortalModHost
                 if (content.Files == null || !content.Files.TryGetValue(filename, out bytes))
                     throw new InvalidOperationException("包内缺少扩展立绘：" + content.Id + "/" + filename);
                 Texture2D texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
-                if (!texture.LoadImage(bytes))
+                if (!GifImageRuntime.Load(texture, bytes))
                 {
                     UnityEngine.Object.Destroy(texture);
                     throw new InvalidOperationException("扩展立绘解码失败：" + content.Id + "/" + filename);

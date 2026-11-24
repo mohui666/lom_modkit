@@ -13,8 +13,8 @@ namespace MortalModHost
     // Values belong to the current package's save sidecar, never to official RelationshipStat assets.
     internal static class CustomAffinityRuntime
     {
-        private static readonly Dictionary<UserContent, Sprite> Avatars = new Dictionary<UserContent, Sprite>();
-        private static readonly Dictionary<UserContent, Sprite> Portraits = new Dictionary<UserContent, Sprite>();
+        private static readonly Dictionary<(UserContent, string), Sprite> ContentSprites =
+            new Dictionary<(UserContent, string), Sprite>();
         private static readonly Dictionary<string, AsyncOperationHandle<Sprite>> StoryPortraits =
             new Dictionary<string, AsyncOperationHandle<Sprite>>(StringComparer.Ordinal);
 
@@ -96,37 +96,38 @@ namespace MortalModHost
 
         internal static Sprite Avatar(UserContent content)
         {
-            Sprite sprite;
-            if (Avatars.TryGetValue(content, out sprite) && sprite != null) return sprite;
             string file = string.IsNullOrEmpty(content.AvatarFile) ? content.MainFile : content.AvatarFile;
-            sprite = LoadSprite(content, file);
-            Avatars[content] = sprite;
-            return sprite;
+            return ContentSprite(content, file);
         }
 
         internal static Sprite Portrait(UserContent content)
         {
-            if (string.IsNullOrEmpty(content.AvatarFile) || content.AvatarFile == content.MainFile) return Avatar(content);
-            Sprite sprite;
-            if (Portraits.TryGetValue(content, out sprite) && sprite != null) return sprite;
-            sprite = LoadSprite(content, content.MainFile);
-            Portraits[content] = sprite;
-            return sprite;
+            return ContentSprite(content, content.MainFile);
         }
 
-        private static Sprite LoadSprite(UserContent content, string file)
+        internal static Sprite SocialThumbnail(UserContent content)
         {
+            string file = string.IsNullOrEmpty(content.SocialThumbnailFile) ? content.MainFile : content.SocialThumbnailFile;
+            return ContentSprite(content, file);
+        }
+
+        private static Sprite ContentSprite(UserContent content, string file)
+        {
+            var key = (content, file);
+            if (ContentSprites.TryGetValue(key, out var sprite) && sprite != null) return sprite;
             byte[] bytes;
             if (content.Files == null || !content.Files.TryGetValue(file, out bytes) || bytes == null)
-                throw new InvalidOperationException("人物头像文件缺失：" + content.Id + "/" + file);
+                throw new InvalidOperationException("人物图片文件缺失：" + content.Id + "/" + file);
             var texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
-            if (!texture.LoadImage(bytes))
+            if (!GifImageRuntime.Load(texture, bytes))
             {
                 UnityEngine.Object.Destroy(texture);
-                throw new InvalidOperationException("人物头像图片无法解码：" + content.Id + "/" + file);
+                throw new InvalidOperationException("人物图片无法解码：" + content.Id + "/" + file);
             }
             texture.wrapMode = TextureWrapMode.Clamp;
-            return Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(.5f, .5f));
+            sprite = Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(.5f, .5f));
+            ContentSprites[key] = sprite;
+            return sprite;
         }
 
         internal static Sprite MessageAvatar(RelationshipStat relationship)
@@ -146,20 +147,13 @@ namespace MortalModHost
             foreach (var handle in StoryPortraits.Values)
                 if (handle.IsValid()) Addressables.Release(handle);
             StoryPortraits.Clear();
-            foreach (Sprite sprite in Portraits.Values)
+            foreach (Sprite sprite in ContentSprites.Values)
                 if (sprite != null)
                 {
                     UnityEngine.Object.Destroy(sprite.texture);
                     UnityEngine.Object.Destroy(sprite);
                 }
-            Portraits.Clear();
-            foreach (Sprite sprite in Avatars.Values)
-                if (sprite != null)
-                {
-                    UnityEngine.Object.Destroy(sprite.texture);
-                    UnityEngine.Object.Destroy(sprite);
-                }
-            Avatars.Clear();
+            ContentSprites.Clear();
         }
     }
 

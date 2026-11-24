@@ -1,0 +1,8 @@
+{
+  "schema": 1,
+  "content_schema": 1,
+  "id": "showcase.gif_lantern",
+  "type": "image",
+  "name": "提灯微光 GIF",
+  "files": { "main": "lantern.gif" }
+}

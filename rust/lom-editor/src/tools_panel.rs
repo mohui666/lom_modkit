@@ -198,11 +198,24 @@ impl ToolsPanel {
         project: &Project,
         script: &str,
         node: &str,
-    ) -> anyhow::Result<String> {
-        // Workspace::play has just checked this same in-memory project and
-        // shown any diagnostics. Do not write/recheck its complete asset set
-        // a second time before preparing the preview package.
-        play_preflighted_project(project, script, node, &self.game, &self.runtime)
+    ) {
+        if self.job.is_some() {
+            self.report_title = self.job_title.clone();
+            self.report_open = true;
+            return;
+        }
+        let project = project.clone();
+        let script = script.to_owned();
+        let node = node.to_owned();
+        let game = self.game.clone();
+        let runtime = self.runtime.clone();
+        self.background("剧情试玩", move || {
+            if game.join("Mortal.exe").is_file() {
+                game_tools::matching_installed_mod(&game, &project.manifest)?;
+            }
+            play_project_request(&project, &script, &node, &game, &runtime, None)
+        });
+        self.report_open = false;
     }
     pub(crate) fn render_video(
         &mut self,
@@ -478,11 +491,15 @@ impl ToolsPanel {
                         self.refresh_after_job = false;
                         self.refresh_game();
                     }
-                    self.report_open =
-                        self.job_title != "同步游戏 Host" || !self.report["error"].is_null();
+                    self.report_open = !matches!(self.job_title.as_str(), "同步游戏 Host" | "剧情试玩")
+                        || !self.report["error"].is_null();
                     if !self.report_open {
                         self.notification = Some((
-                            crate::i18n::key("usability.status.host_synced"),
+                            if self.job_title == "剧情试玩" {
+                                self.report["message"].as_str().unwrap_or("").to_owned()
+                            } else {
+                                crate::i18n::key("usability.status.host_synced")
+                            },
                             std::time::Instant::now(),
                         ));
                     }
@@ -1843,21 +1860,6 @@ fn settings_path() -> PathBuf {
         .unwrap()
         .join("settings.json")
 }
-fn play_preflighted_project(
-    project: &Project,
-    script: &str,
-    node: &str,
-    game: &std::path::Path,
-    runtime: &std::path::Path,
-) -> anyhow::Result<String> {
-    Ok(
-        send_project_preview(project, script, node, game, runtime, None)?["message"]
-            .as_str()
-            .unwrap_or("")
-            .to_owned(),
-    )
-}
-
 pub(crate) fn play_project_tracked(
     project: &Project,
     script: &str,
@@ -2009,9 +2011,8 @@ fn send_project_preview(
     runtime: &std::path::Path,
     request_id: Option<&str>,
 ) -> anyhow::Result<Value> {
-    // Both callers have completed preflight: the workspace UI before calling
-    // play_preflighted_project, and standalone automation above. Export and
-    // installation still perform their package and ownership checks.
+    // The caller has completed preflight. Export and installation still
+    // perform their package and ownership checks.
     anyhow::ensure!(
         cfg!(windows),
         "游戏接入仅支持 Windows；当前 Mac 可编辑、编译和预览"

@@ -4,7 +4,7 @@
 
 **所有组件（编辑器 / 编译器 / 运行时插件）以本文档为准。** 改动需同步更新本文档。
 
-1.6.8 继续使用 **package_format=3 / story_schema=2 / content_schema=1**。决斗与战役支持单场配乐。临时试玩请求的 format 与包格式是两套协议。[GitHub Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.8)
+1.6.11 继续使用 **package_format=3 / story_schema=2 / content_schema=1**。包可包含 GIF 文件及原版人物扩展资料，并按实际使用的字段和素材设置最低 Host 版本。[GitHub Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.11)
 
 Host 1.6.9 支持 `story:<原版剧情人物 ID>` 作为好感目标，例如 `story:special830`。使用原有好感增减、检定和事件字段，数值按作品及存档槽记录，初始值为 0，范围为 0～100。导出会提高最低 Host 版本。原版人物 ID 与 `user:` 独立人物 ID 沿用各自已有的好感来源。
 
@@ -36,7 +36,7 @@ assets/                # 可选，自定义资源
 - `<id>` 规则：`[a-zA-Z0-9_\-]{1,64}`，包内唯一，即"剧情脚本 id"。
 - 导出（打包）时必须重新编译：story/*.json → lua/*.lua，二者同名。
 - `story-lua.sha256` 使用 `lom-story-lua-sha256-v1`：每行以 TAB 记录 Story 路径/原始字节 SHA-256 与对应默认或 locale Lua 路径/原始字节 SHA-256。Runtime 对 v3 包强制逐项核对；v1/v2 包缺少稳定战役身份，1.0.1 不再导入或加载，必须明确设置 `campaign_id` 后重新导出。
-- 运行时执行 `lua/`，同时读取清单、文本、可选本地化与素材，并校验 Story／Lua 配对完整性记录；Story 也用于原版来源分类缓存。编辑器回读／再编辑时由 Rust 复编译检查源码／Lua 一致性。编译器只打入剧情明确引用的 PNG/JPG（单张 ≤8MB）、明确引用的 `user:` 音频，以及明确引用的自定义角色立绘。导出的 `.lommod` 自包含，玩家机器不需要编辑器仓库。
+- 运行时执行 `lua/`，同时读取清单、文本、可选本地化与素材，并校验 Story／Lua 配对完整性记录。Story 也用于原版来源分类缓存。编辑器回读、再编辑时由 Rust 复编译检查源码与 Lua 的一致性。PNG、JPEG、GIF 图片单张最多 8 MB。GIF 解码后所有 RGBA 帧合计最多 256 MiB，包中保留 GIF 原文件并要求 Host 1.6.11。导出的 `.lommod` 自包含，玩家机器不需要编辑器仓库。
 - texts.json 由打包时自动生成：收集每个 story 的全部 **say** 节点文本，key 与 lua 里 `GetStoryText` 的 key 一一对应；运行时注册进 LeanLocalization（见 §4/§6）。**death 文本不进 texts.json**：由 codegen 发射 `mod_set_death_text(<标题>, <文本>)` 两参 lua_str 字面量（见 §3.1/§6）。
 - 运行时先拒绝物理文件超过 160 MiB 的包，再从读取该包的同一个文件句柄计算最终 `.lommod` **全部原始字节**的 SHA-256，保存完整 64 个十六进制字符。1.6.0 不在画面显示或隐藏嵌入该身份信息；包指纹与会话校验仍执行。重新压缩、修改任一字节都会改变指纹；改文件名或逐字节复制不会改变。该指纹用于核对具体包，不是作者签名或官方认证。编辑器安装器同样以 160 MiB / 4 MiB 分别限制包文件与 `manifest.json`。
 - 解压后单条目上限为 32 MiB，文本条目通常为 4 MiB。Host 1.4.11 起，严格匹配 `story/<id>.json` 的章节源文件使用 32 MiB 上限，以容纳整章结构化指令。包内解压总量仍以 128 MiB 为上限。
@@ -609,7 +609,9 @@ Host 1.5.10 支持人物可选 `avatar`（同目录头像文件名）、`initial
 
 独立人物另可设置 `initially_known`（布尔，默认false）及 `biography_pages`（0～4个 `{ "text":"正文", "unlock_level":0 }`，等级为0～10整数，按数组顺序编号1～4）。未认识时显示黑色剪影且资料不公开；认识后按当前好感等级开放各页。旧 `biography` 在没有非空分页时继续作为0级单页使用；两种非空文稿并存时保留可编辑原稿，导出明确要求合并。填写这些资料的独立人物会随包收集。
 
-`character_profile` 节点仅操作本包独立自定义人物：`character` 使用 `user:` 引用，`op` 为 `meet`／`forget`／`unlock_biography`／`lock_biography`。认识与隐藏不填写 `page`；页操作必须填写已配置的1～4页码整数。手动页状态覆盖等级条件，认识与隐藏不改好感或清除已有解锁，状态存入所属作品的隔离存档。该节点要求Host 1.5.10，旧节点生成结果及v3包格式保持不变。
+Host 1.6.10 起，带 `extends` 的原版人物扩展也可使用 `biography` 或 `biography_pages`。已有原版好感的角色使用原版数值和认识状态，填入的页面显示在原有条目。采用作品好感的剧情人物使用 `story:` 目标。可选 `social_thumbnail` 指定同目录的人际页缩略图文件名，对独立人物和原版扩展均生效，要求 Host 1.6.10。
+
+`character_profile` 节点可操作本包独立自定义人物和配置资料的作品好感人物。`character` 使用 `user:` 或 `story:` 引用，`op` 为 `meet`／`forget`／`unlock_biography`／`lock_biography`。认识与隐藏不填写 `page`；页操作必须填写已配置的1～4页码整数。手动页状态覆盖等级条件，认识与隐藏不改好感或清除已有解锁，状态存入所属作品的隔离存档。独立人物的资料操作要求 Host 1.5.10，作品好感人物的资料操作要求 Host 1.6.10。
 
 - `type`：`audio` / `character` / `image`。`image` 是背景、CG、Overlay 共用的统一图片内容，不建立三个独立仓库。
 - `background.image` 只保存 `user:` 稳定引用；编辑器提供缩略图、缺失诊断与 F5 舞台重建，发布包只收集实际引用的图片。
