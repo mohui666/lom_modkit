@@ -10,6 +10,7 @@ namespace MortalModHost
     internal sealed class ContentRef
     {
         public const string UserPrefix = "user:";
+        public const string StoryAffinityPrefix = "story:";
         public const string PackageUserRoot = "assets/user";
         public const long MaxAudioBytes = 20L * 1024 * 1024;
         public const long MaxImageBytes = 8L * 1024 * 1024;
@@ -39,6 +40,19 @@ namespace MortalModHost
         public static bool IsUserRef(string value)
         {
             return !string.IsNullOrEmpty(value) && value.StartsWith(UserPrefix, StringComparison.Ordinal);
+        }
+
+        internal static bool IsStoryAffinityRef(string value)
+        {
+            return value != null && value.StartsWith(StoryAffinityPrefix, StringComparison.Ordinal);
+        }
+
+        internal static bool IsAffinityKey(string value)
+        {
+            if (IsUserRef(value)) return value.Length <= 128;
+            if (!IsStoryAffinityRef(value)) return false;
+            return Regex.IsMatch(value.Substring(StoryAffinityPrefix.Length),
+                @"\A[A-Za-z0-9_-]{1,64}\z", RegexOptions.CultureInvariant);
         }
 
         public static bool TryParse(string value, out ContentRef parsed, out string error)

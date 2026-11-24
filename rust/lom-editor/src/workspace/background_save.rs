@@ -43,12 +43,14 @@ enum TaskKind {
         revision: u64,
         pending_content: bool,
     },
+    ClearRecovery,
     ClearCheckpoints,
 }
 
 enum Completion {
     Save(Result<SavedProject, String>),
     Recovery(recovery::WrittenRecovery),
+    ClearRecovery(Result<(), String>),
     ClearCheckpoints(Result<usize, String>),
 }
 
@@ -162,11 +164,41 @@ impl App {
     }
 
     pub(super) fn defer_recovery_clear(&mut self) -> bool {
-        if self.background_save.active.is_some() {
-            self.background_save.clear_recovery = true;
+        if let Some(task) = &self.background_save.active {
+            self.background_save.clear_recovery |= !matches!(task.kind, TaskKind::ClearRecovery);
             true
         } else {
             false
+        }
+    }
+
+    fn start_recovery_clear(&mut self) -> bool {
+        self.reset_recovery_tracking();
+        let directory = self.recovery_dir.clone();
+        let repaint = self.background_save.repaint.clone();
+        let (send, result) = mpsc::channel();
+        match std::thread::Builder::new()
+            .name("clear-recovery".into())
+            .spawn(move || {
+                let result =
+                    recovery::remove_recovery_files(&directory).map_err(|error| error.to_string());
+                let _ = send.send(Completion::ClearRecovery(result));
+                if let Some(ctx) = repaint {
+                    ctx.request_repaint();
+                }
+            }) {
+            Ok(_) => {
+                self.background_save.active = Some(Task {
+                    generation: self.background_save.project_generation,
+                    kind: TaskKind::ClearRecovery,
+                    result,
+                });
+                true
+            }
+            Err(error) => {
+                self.status = format!("无法启动恢复副本清理。{error}");
+                false
+            }
         }
     }
 
@@ -340,8 +372,12 @@ impl App {
             Err(TryRecvError::Disconnected) => None,
         };
         let task = self.background_save.active.take().unwrap();
+        let mut clear_recovery = std::mem::take(&mut self.background_save.clear_recovery);
         let mut save_failed = false;
-        if task.generation == self.background_save.project_generation {
+        // The recovery folder belongs to the tab, even after replacing a project.
+        if task.generation == self.background_save.project_generation
+            || matches!(task.kind, TaskKind::ClearRecovery)
+        {
             match task.kind {
                 TaskKind::Save {
                     mut snapshot,
@@ -367,6 +403,7 @@ impl App {
                                     self.project.paths.insert(id.clone(), filename.clone());
                                 }
                             }
+                            let source_changed = self.project.source != metadata.source;
                             self.project.source = metadata.source;
                             self.checkpoint_entries = None;
                             self.project.has_manifest = metadata.has_manifest;
@@ -375,9 +412,11 @@ impl App {
                             self.saved = snapshot;
                             self.document_dirty = self.last != self.saved;
                             self.last_auto_save = Instant::now();
-                            self.remember_source();
+                            if !automatic || source_changed {
+                                self.remember_source();
+                            }
                             if !self.dirty() {
-                                self.clear_recovery();
+                                clear_recovery = true;
                             } else {
                                 // A new save location also changes recovery's
                                 // source metadata for the subsequent edits.
@@ -445,6 +484,16 @@ impl App {
                     }
                     _ => self.status = "自动恢复副本写入失败。后台任务中断。".into(),
                 },
+                TaskKind::ClearRecovery => match result {
+                    Some(Completion::ClearRecovery(Ok(()))) => {
+                        self.recovery_paths.clear();
+                        self.recovery_assets.clear();
+                    }
+                    Some(Completion::ClearRecovery(Err(error))) => {
+                        self.status = format!("恢复副本清理失败。{error}");
+                    }
+                    _ => self.status = "恢复副本清理失败。后台任务中断。".into(),
+                },
                 TaskKind::ClearCheckpoints => {
                     self.checkpoint_entries = None;
                     let result = match result {
@@ -473,13 +522,16 @@ impl App {
                 }
             }
         }
-        if std::mem::take(&mut self.background_save.clear_recovery) {
-            self.clear_recovery();
-        }
         if save_failed {
             self.background_save.queued.clear();
             self.background_save.continuing = false;
             self.background_save.discard = false;
+            if clear_recovery {
+                self.clear_recovery();
+            }
+            return;
+        }
+        if clear_recovery && self.start_recovery_clear() {
             return;
         }
         if let Some(request) = self.background_save.queued.pop_front() {

@@ -6,6 +6,8 @@
 
 1.6.8 继续使用 **package_format=3 / story_schema=2 / content_schema=1**。决斗与战役支持单场配乐。临时试玩请求的 format 与包格式是两套协议。[GitHub Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.8)
 
+Host 1.6.9 支持 `story:<原版剧情人物 ID>` 作为好感目标，例如 `story:special830`。使用原有好感增减、检定和事件字段，数值按作品及存档槽记录，初始值为 0，范围为 0～100。导出会提高最低 Host 版本。原版人物 ID 与 `user:` 独立人物 ID 沿用各自已有的好感来源。
+
 2026-10-24 工作区扩展：Host ≥1.1.3 支持 `play_mode=addon/sandbox` 与独立的 `scenario.json`。事件、任务和结果动作使用[事件与任务配置](events_and_tasks.md)契约，旧作品继续兼容。
 
 Host 1.5.10 增加 `scenario.events[].trigger="story_entry"`：必填 `target` 为原版目标章节 ID，可选 `from` 限制来源章节。两者使用原版章节 ID 的既有安全规则，不能指向 `MOD_` 注册名；其他事件类型不能填写这两个字段。时间条件继续使用 `all/any/not` 与 `time.year/month/stage`，普通结束后继续进入原目标章节。导出使用该入口的作品会自动提高最低 Host 版本，包格式及故事格式保持 v3／2，旧事件模式工程继续兼容。
@@ -145,7 +147,7 @@ Story 的 `vanilla_patch` 包含 `target` 与 `edits`。每项修改含 `find`�
 
 整章导入使用 `vanilla_import`，其中 `schema=1`、`target` 和有序 `origins` 保存原生语句及对应基准节点。每个原始节点的 `_editor.vanilla_origin` 为来源序号，复制步骤移除该序号。来源代码在原 Lua 作用域中执行，改写和新增节点复用普通编译器。`say.inherit_dialog=true` 沿用原生发言人与对白选项，`end.resume_original=true` 接回本段后续原版步骤。新增跳转限于同一逻辑段或紧邻的原生逻辑入口，新增 Combat/Battle 切场景续接会校验报错。
 
-新整章导入使用 `vanilla_import.schema=2`，需 Host ≥1.4.11。`origins[].operations` 保存已解析的原版表达式和调用，节点字段保存当前编辑值；来源 `code` 仅用于原文校验。`native_action.operations` 是调用、赋值或返回的结构化数组；表达式包含字面值、名称、局部变量引用、成员、索引、列表、调用及运算。局部变量具有独立符号，嵌套分支中的同名变量保持各自作用域。`native_branch.condition` 保存条件表达式，`success/failure` 指向成立和不成立的节点；每条路径通过显式去向汇合。执行使用步骤分发表，章节长度不增加 Lua 局部函数数量。
+新整章导入使用 `vanilla_import.schema=2`，需 Host ≥1.4.11。`origins[].operations` 保存已解析的原版表达式和调用，节点字段保存当前编辑值。来源 `code` 用于原文校验。`native_action.operations` 是调用、赋值或返回的结构化数组。表达式包含字面值、名称、局部变量引用、成员、索引、列表、调用及运算。局部变量具有独立符号，嵌套分支中的同名变量保持各自作用域。`native_branch.condition` 保存条件表达式，`success/failure` 按节点 ID 指向成立和不成立的步骤。普通步骤可以省略 `goto`，按当前列表顺序过渡到下一步。插入时，编辑器重接相关跳转，沿用原有节点 ID。执行使用步骤分发表，章节长度不增加 Lua 局部函数数量。
 
 `end.resume_node` 可在 schema 2 的 `resume_original=true` 时指定返回步骤，用于在分支尾插入内容后继续该分支原本的后继。普通剧情不使用此字段。旧散装 MOD 导入设置 `vanilla_import.external=true`，表示来源为玩家文件，始终按 MOD 内容标记。旧 schema 1 的原生作用域执行仍可读取和编译。
 

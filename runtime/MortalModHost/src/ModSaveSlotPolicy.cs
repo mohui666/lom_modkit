@@ -118,6 +118,14 @@ namespace MortalModHost
             return root + "_s" + index.ToString("000");
         }
 
+        internal static bool IsOfficialManualSlot(string slot)
+        {
+            return slot != null && slot.Length == 3 && slot != "000"
+                && slot[0] >= '0' && slot[0] <= '9'
+                && slot[1] >= '0' && slot[1] <= '9'
+                && slot[2] >= '0' && slot[2] <= '9';
+        }
+
         internal static string OfficialManualLabel(int index)
         {
             if (index < 1 || index > OfficialManualCount)

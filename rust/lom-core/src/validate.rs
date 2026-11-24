@@ -5,7 +5,7 @@ use anyhow::{ensure, Context, Result};
 use regex::Regex;
 use serde_json::{json, Map, Value};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
-use std::sync::OnceLock;
+use std::sync::{LazyLock, OnceLock};
 
 pub const EFFECT_CONTROL_FIELDS: &[&str] = &[
     "space",
@@ -61,10 +61,19 @@ pub fn validate_story_with_content_root(
     let extensions = crate::content::character_extensions_at(root)?;
     validate_story_with_catalog(story, &extend_portrait_catalog(&extensions))
 }
-const SCRIPT_ID: &str = r"^[a-zA-Z0-9_\-]{1,64}$";
-const MOD_ID: &str = r"^[a-z0-9_\-]{1,64}$";
-const NODE_ID: &str = r"^[a-zA-Z0-9_]+$";
-const USER_ID: &str = r"^[a-z][a-z0-9_]{0,31}\.[a-z0-9][a-z0-9_]{0,47}$";
+static SCRIPT_ID: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^[a-zA-Z0-9_\-]{1,64}$").expect("script ID pattern"));
+static MOD_ID: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^[a-z0-9_\-]{1,64}$").expect("MOD ID pattern"));
+static NODE_ID: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^[a-zA-Z0-9_]+$").expect("node ID pattern"));
+static USER_ID: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^[a-z][a-z0-9_]{0,31}\.[a-z0-9][a-z0-9_]{0,47}$").expect("user content ID pattern")
+});
+static CHARACTER_LABEL: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^.+（[a-zA-Z0-9_\-]+）$").expect("character display label"));
+static PORTRAIT_ID: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^[A-Za-z][A-Za-z0-9_]{0,31}$").expect("portrait ID pattern"));
 const DICE_GOTOS: [&str; 3] = ["goto_大成功", "goto_成功", "goto_失败"];
 fn matches(pattern: &str, s: &str) -> bool {
     Regex::new(pattern).expect("constant regex").is_match(s)
@@ -137,7 +146,7 @@ fn user(v: &Value) -> bool {
 fn user_ref(v: &Value, label: &str) -> Result<()> {
     ensure!(user(v), "{label}: 必须是 user: 用户内容引用");
     ensure!(
-        matches(USER_ID, &string(v)[5..]),
+        USER_ID.is_match(&string(v)[5..]),
         "{label}: 用户内容引用不合法，必须是小写命名空间.名称，不能含路径字符"
     );
     Ok(())
@@ -155,7 +164,7 @@ fn type_valid(tag: &str, v: &Value) -> bool {
         "expr" => v.is_object(),
         "talent_level" => v.as_f64().is_some_and(|n| n == 1.0 || n == -1.0),
         "save_button" => v.as_f64().is_some_and(|n| n == 0.0 || n == 1.0),
-        "script_id" => v.as_str().is_some_and(|x| matches(SCRIPT_ID, x)),
+        "script_id" => v.as_str().is_some_and(|x| SCRIPT_ID.is_match(x)),
         "dialogue_mood_icon" => v.is_null() || v.as_str() == Some("") || enumeration(tag, v),
         _ => enumeration(tag, v),
     }
@@ -287,7 +296,7 @@ fn manifest_inner(m: &Value) -> Result<()> {
             "{label}未填写。请在作品设置中填写，例如 my_story_01"
         );
         ensure!(
-            matches(MOD_ID, s(m, field)),
+            MOD_ID.is_match(s(m, field)),
             "{label}格式不合法。只能使用小写英文字母、数字、下划线（_）或短横线（-），长度为 1～64 个字符"
         );
     }
@@ -333,7 +342,7 @@ fn manifest_inner(m: &Value) -> Result<()> {
         for (target, id) in overrides {
             ensure!(
                 crate::vanilla_patch::valid_target(target)
-                    && id.as_str().is_some_and(|id| matches(SCRIPT_ID, id)),
+                    && id.as_str().is_some_and(|id| SCRIPT_ID.is_match(id)),
                 "原版章节补丁编号无效"
             );
         }
@@ -362,7 +371,7 @@ fn manifest_inner(m: &Value) -> Result<()> {
         );
     }
     ensure!(
-        matches(SCRIPT_ID, s(m, "entry")),
+        SCRIPT_ID.is_match(s(m, "entry")),
         "缺少必填字段 \"entry\"（入口剧情脚本 id）"
     );
     let campaign = &m["campaign"];
@@ -432,7 +441,7 @@ fn manifest_inner(m: &Value) -> Result<()> {
             "{label}: 字段 \"position\" 必须是合法位置 id"
         );
         ensure!(
-            matches(SCRIPT_ID, s(trig, "script")),
+            SCRIPT_ID.is_match(s(trig, "script")),
             "{label}: 字段 \"script\" 必须是合法的同包脚本 id"
         );
         for field in ["when_flag_set", "when_flag_clear"] {
@@ -549,7 +558,7 @@ fn talents(node: &Value, field: &str, catalog: &Value) -> Result<()> {
         let label = format!("第 {} 条 {field}", index + 1);
         allowed(talent, &["key", "level"], &label)?;
         let key = s(talent, "key");
-        ensure!(matches(SCRIPT_ID, key), "{label} key 无效");
+        ensure!(SCRIPT_ID.is_match(key), "{label} key 无效");
         ensure!(seen.insert(key), "{field} {key} 不得重复");
         let absent = json!({});
         let meta = if catalog["combat_talents"].is_null() {
@@ -603,7 +612,7 @@ fn combat(n: &Value, catalog: &Value) -> Result<()> {
         user_ref(character, "character")?;
     } else {
         ensure!(
-            matches(SCRIPT_ID, string(character)),
+            SCRIPT_ID.is_match(string(character)),
             "character 必须是官方人物 id 或合法 user: 引用"
         );
     }
@@ -737,7 +746,7 @@ fn battle(n: &Value) -> Result<()> {
             let label = format!("{field} 第 {} 项", index + 1);
             allowed(faction, &["id", "people"], &label)?;
             let id = s(faction, "id");
-            ensure!(matches(SCRIPT_ID, id), "{label} id 必须是安全的原版阵营 id");
+            ensure!(SCRIPT_ID.is_match(id), "{label} id 必须是安全的原版阵营 id");
             ensure!(
                 member("battle_factions", id),
                 "{label} {id:?} 没有对应的原版 BattleLevel"
@@ -1044,7 +1053,7 @@ fn extra(n: &Value, ntype: &str, catalog: &Value, check_effect_names: bool) -> R
     let c_used = !(ntype == "intro" && text(n, "intro_source", "official") == "custom");
     if c_used {
         ensure!(
-            !matches(r"^.+（[a-zA-Z0-9_\-]+）$", string(c).trim()),
+            !CHARACTER_LABEL.is_match(string(c).trim()),
             "人物必须保存内部 ID，不能使用下拉显示文字 {c}；请重新选择该人物（例如 chicken1）"
         );
     }
@@ -1052,10 +1061,7 @@ fn extra(n: &Value, ntype: &str, catalog: &Value, check_effect_names: bool) -> R
         let portrait = s(n, "portrait");
         if user(c) {
             user_ref(c, "character")?;
-            ensure!(
-                matches(r"^[A-Za-z][A-Za-z0-9_]{0,31}$", portrait),
-                "portrait 必须是合法表情 id"
-            );
+            ensure!(PORTRAIT_ID.is_match(portrait), "portrait 必须是合法表情 id");
         } else if let Some(meta) = array(&catalog["characters"])
             .iter()
             .find(|v| s(v, "id") == string(c))
@@ -1219,7 +1225,7 @@ fn extra(n: &Value, ntype: &str, catalog: &Value, check_effect_names: bool) -> R
         }
         "overlay" => {
             ensure!(
-                matches(SCRIPT_ID, s(n, "slot")),
+                SCRIPT_ID.is_match(s(n, "slot")),
                 "slot 必须是 [A-Za-z0-9_-]+ 的非空槽位 id"
             );
             range(n, "fade", 0.0, f64::INFINITY)?;
@@ -1489,12 +1495,12 @@ fn extra(n: &Value, ntype: &str, catalog: &Value, check_effect_names: bool) -> R
             }
         }
         "mod_quest" | "quest_check" => ensure!(
-            matches(SCRIPT_ID, s(n, "quest")),
+            SCRIPT_ID.is_match(s(n, "quest")),
             "quest 必须符合 [A-Za-z0-9_-]{{1,64}}"
         ),
         "persistent_var" | "persistent_check" => {
             ensure!(
-                matches(SCRIPT_ID, s(n, "key")),
+                SCRIPT_ID.is_match(s(n, "key")),
                 "key 必须符合 [A-Za-z0-9_-]{{1,64}}"
             );
             ensure!(
@@ -1782,7 +1788,7 @@ fn story_inner(story: &Value, catalog: &Value, check_effect_names: bool) -> Resu
         );
     }
     ensure!(
-        matches(SCRIPT_ID, s(story, "id")),
+        SCRIPT_ID.is_match(s(story, "id")),
         "缺少必填字段 \"id\"（剧情脚本 id，规则 [a-zA-Z0-9_-]{{1,64}}）"
     );
     if has(story, "title") {
@@ -1807,7 +1813,7 @@ fn story_inner(story: &Value, catalog: &Value, check_effect_names: bool) -> Resu
         object(node, &format!("第 {} 个节点", index + 1))?;
         let id = s(node, "id");
         ensure!(
-            matches(NODE_ID, id),
+            NODE_ID.is_match(id),
             "第 {} 个节点: 节点 id 必须是 [a-zA-Z0-9_]+（会拼进 Lua 函数名 node_<id>）",
             index + 1
         );
@@ -1864,7 +1870,13 @@ fn story_inner(story: &Value, catalog: &Value, check_effect_names: bool) -> Resu
             !(member("no_goto_types", kind) && has(node, "goto")),
             "{label}: 该类型节点不允许显式 \"goto\"（流转由分支/跳转决定）"
         );
-        ensure!(!(Some(index)==last&&!member("terminal_types",kind)&&!has(node,"goto")),"{label}: 是最后一个节点且没有显式 goto，脚本无法正常结束（请改用 end/goto_scene/raw 节点或显式 goto）");
+        ensure!(
+            Some(index) != last
+                || member("terminal_types", kind)
+                || has(node, "goto")
+                || crate::analysis::implicit_original_ending(story, index),
+            "{label}: 是最后一个节点且没有显式 goto，脚本无法正常结束（请改用 end/goto_scene/raw 节点或显式 goto）"
+        );
         if kind == "branch" && Some(index) == last {
             ensure!(branch_covered(node),"{label}: 是最后一个节点且存在未覆盖的返回值，else 没有落点（请把它移到最后之前，或补齐 value 1 和 2 两个 case）");
         }

@@ -8,6 +8,7 @@ impl App {
             && self.chapter_dialog.is_none()
             && self.project_choice.is_none()
             && self.delete_chapter_dialog.is_none()
+            && self.step_delete_dialog.is_none()
             && self.rename_dialog.is_none()
             && self.asset_import_dialog.is_none()
             && self.video_dialog.is_none()
@@ -205,6 +206,7 @@ impl App {
             && self.pending.is_none()
             && self.chapter_dialog.is_none()
             && self.delete_chapter_dialog.is_none()
+            && self.step_delete_dialog.is_none()
             && self.rename_dialog.is_none()
             && self.asset_import_dialog.is_none()
             && self.recovery_candidates.is_empty()
@@ -545,6 +547,10 @@ impl App {
                         Some(crate::error_ui::capture(error));
                 }
             }
+            return;
+        }
+        if self.step_delete_dialog.is_some() {
+            self.show_step_deletion(ctx, return_pressed, escape_pressed);
             return;
         }
         if let Some(chapter) = self

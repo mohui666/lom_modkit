@@ -716,7 +716,7 @@ impl Catalog {
             "item" => "items",
             _ => "",
         };
-        let result = localized_rows(
+        let mut result = localized_rows(
             &self.data[key],
             if key == "affinity_characters" {
                 "characters"
@@ -724,6 +724,23 @@ impl Catalog {
                 key
             },
         );
+        if key == "affinity_characters" {
+            let existing: std::collections::BTreeSet<_> =
+                result.iter().map(|(id, _)| id.as_str()).collect();
+            let story_affinity: Vec<_> = localized_rows(&self.data["characters"], "characters")
+                .into_iter()
+                .filter(|(id, name)| {
+                    id != name && !id.starts_with("user:") && !existing.contains(id.as_str())
+                })
+                .map(|(id, name)| {
+                    (
+                        format!("{}{id}", lom_core::content::STORY_AFFINITY_PREFIX),
+                        crate::i18n::message("editor.form.story_affinity", &[("name", name)]),
+                    )
+                })
+                .collect();
+            result.extend(story_affinity);
+        }
         if kind == "mode" && result.is_empty() {
             return vec![
                 ("character".into(), "对话".into()),
@@ -1196,13 +1213,13 @@ impl Catalog {
         {
             return false;
         }
-        let only = self.staged_characters_only.get();
+        let mut only = self.staged_characters_only.get();
         if ui
-            .add(egui::Button::new(crate::i18n::key("editor.form.staged_only")).selected(only))
+            .checkbox(&mut only, crate::i18n::key("editor.form.staged_only"))
             .on_hover_text(crate::i18n::key("editor.form.staged_only_hint"))
-            .clicked()
+            .changed()
         {
-            self.staged_characters_only.set(!only);
+            self.staged_characters_only.set(only);
             return true;
         }
         false
@@ -4899,8 +4916,8 @@ mod tests {
     }
 
     #[test]
-    fn staged_character_button_filters_the_list_without_rewriting_the_selection() {
-        use egui::accesskit::Role;
+    fn staged_character_checkbox_filters_the_list_without_rewriting_the_selection() {
+        use egui::accesskit::{Role, Toggled};
         let mut catalog = Catalog::new();
         catalog.data["characters"] = json!([
             {"id":"onstage", "name":"场上甲"},
@@ -4919,8 +4936,22 @@ mod tests {
             "character",
             vec![],
         );
-        let button = crate::i18n::key("editor.form.staged_only");
-        let events = click(&output, Role::Button, &button);
+        let checkbox = crate::i18n::key("editor.form.staged_only");
+        let checked = |output: &egui::FullOutput| {
+            output
+                .platform_output
+                .accesskit_update
+                .as_ref()
+                .unwrap()
+                .nodes
+                .iter()
+                .find(|(_, node)| {
+                    node.role() == Role::CheckBox && node.label() == Some(checkbox.as_str())
+                })
+                .and_then(|(_, node)| node.toggled())
+        };
+        assert_eq!(checked(&output), Some(Toggled::False));
+        let events = click(&output, Role::CheckBox, &checkbox);
         let (output, changed) = field_frame(
             &catalog,
             &context,
@@ -4931,6 +4962,7 @@ mod tests {
         );
         assert!(!changed);
         assert_eq!(node, before);
+        assert_eq!(checked(&output), Some(Toggled::True));
         let has_option = |output: &egui::FullOutput, name: &str| {
             output
                 .platform_output
@@ -4944,7 +4976,7 @@ mod tests {
         assert!(has_option(&output, "场上甲"));
         assert!(has_option(&output, "自创人物"));
         assert!(!has_option(&output, "场下乙"));
-        let events = click(&output, Role::Button, &button);
+        let events = click(&output, Role::CheckBox, &checkbox);
         let (output, changed) = field_frame(
             &catalog,
             &context,
@@ -4955,6 +4987,7 @@ mod tests {
         );
         assert!(!changed);
         assert_eq!(node, before);
+        assert_eq!(checked(&output), Some(Toggled::False));
         assert!(has_option(&output, "场下乙"));
         assert_eq!(catalog.options("character", &node, &[], &[]).len(), 3);
         let events = click(&output, Role::Button, "场上甲");
@@ -5001,7 +5034,7 @@ mod tests {
         );
         let events = click(
             &output,
-            egui::accesskit::Role::Button,
+            egui::accesskit::Role::CheckBox,
             &crate::i18n::key("editor.form.staged_only"),
         );
         // Toggle off and back on to open the actual list with the filter enabled.
@@ -5015,7 +5048,7 @@ mod tests {
         );
         let events = click(
             &output,
-            egui::accesskit::Role::Button,
+            egui::accesskit::Role::CheckBox,
             &crate::i18n::key("editor.form.staged_only"),
         );
         let (output, _) = field_frame(
@@ -5050,7 +5083,7 @@ mod tests {
             );
             let events = click(
                 &output,
-                egui::accesskit::Role::Button,
+                egui::accesskit::Role::CheckBox,
                 &crate::i18n::key("editor.form.staged_only"),
             );
             field_frame(

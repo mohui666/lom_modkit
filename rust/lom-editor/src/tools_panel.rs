@@ -9,6 +9,9 @@ use std::sync::{
     mpsc, Arc,
 };
 
+#[path = "original_playtest.rs"]
+mod original_playtest;
+
 enum JobEvent {
     Progress(Value),
     Finished(Result<Value, String>),
@@ -712,7 +715,11 @@ impl ToolsPanel {
     }
     pub fn export_play_bundle(&mut self, project: &Project) {
         let directory = self.export_directory.clone();
-        let _ = self.export_play_bundle_in(project, directory.as_deref(), crate::play_bundle::Format::Zip);
+        let _ = self.export_play_bundle_in(
+            project,
+            directory.as_deref(),
+            crate::play_bundle::Format::Zip,
+        );
     }
     pub fn export_play_bundle_in(
         &mut self,
@@ -740,11 +747,13 @@ impl ToolsPanel {
                 .filter(|directory| directory.is_dir())
                 .or_else(|| crate::file_dialog::project_directory(project)),
         )
-        .set_title(crate::i18n::key(if format == crate::play_bundle::Format::Installer {
-            "usability.export.installer_title"
-        } else {
-            "common.tools.save_play_pack"
-        }));
+        .set_title(crate::i18n::key(
+            if format == crate::play_bundle::Format::Installer {
+                "usability.export.installer_title"
+            } else {
+                "common.tools.save_play_pack"
+            },
+        ));
         if let Some(output) = dialog
             .add_filter(extension.to_ascii_uppercase(), &[extension])
             .set_file_name(format!(
@@ -2078,23 +2087,24 @@ pub(crate) fn prepare_preview(
             .is_some_and(|ns| ns.iter().any(|n| n["id"] == node)),
         "节点不存在"
     );
-    if story.get("vanilla_patch").is_none()
-        && story.get("vanilla_import").is_none()
-        && story["start"] != node
-    {
-        let prelude = crate::preview::build_playtest_prelude(story, node);
-        story["start"] = json!(prelude
-            .first()
-            .and_then(|n| n["id"].as_str())
-            .unwrap_or(node));
-        story["nodes"].as_array_mut().unwrap().extend(prelude);
+    if story.get("vanilla_patch").is_none() && story["start"] != node {
+        if story.get("vanilla_import").is_some() {
+            original_playtest::start_at(story, node)?;
+        } else {
+            let prelude = crate::preview::build_playtest_prelude(story, node);
+            story["start"] = json!(prelude
+                .first()
+                .and_then(|n| n["id"].as_str())
+                .unwrap_or(node));
+            story["nodes"].as_array_mut().unwrap().extend(prelude);
+        }
     }
     preview.manifest = json!({"format":3,"package_format":3,"story_schema":2,"content_schema":1,"id":game_tools::PREVIEW_ID,"campaign_id":game_tools::PREVIEW_ID,"name":format!("编辑器临时试玩：{script}"),"version":"0.0.0-preview","author":"lom_modkit","description":format!("从 {script}/{node} 开始的临时测试包"),"entry":script,"campaign":{"new_game":true,"disable_official_events":true}});
     Ok(preview)
 }
 
 #[test]
-fn imported_chapter_preview_keeps_native_initialization_and_scopes() {
+fn imported_chapter_preview_jumps_without_changing_the_exported_chapter() {
     let fixture: Value = serde_json::from_str(include_str!(
         "../../lom-core/tests/fixtures/vanilla-import.json"
     ))
@@ -2103,10 +2113,84 @@ fn imported_chapter_preview_keeps_native_initialization_and_scopes() {
     let mut story = fixture["story"].clone();
     story["id"] = json!("main");
     project.stories.insert("main".into(), story.clone());
+    let start = story["start"].as_str().unwrap();
+    assert_eq!(
+        prepare_preview(&project, "main", start).unwrap().stories["main"],
+        story
+    );
     let preview = prepare_preview(&project, "main", "inserted").unwrap();
-    assert_eq!(preview.stories["main"], story);
+    let preview_story = &preview.stories["main"];
+    assert_eq!(project.stories["main"], story);
+    let upgraded = lom_core::native_upgrade::upgrade(&story).unwrap();
+    assert_eq!(preview_story["vanilla_import"], upgraded["vanilla_import"]);
+    assert!(preview_story["nodes"]
+        .as_array()
+        .unwrap()
+        .ends_with(upgraded["nodes"].as_array().unwrap()));
+    let path = crate::preview::route(preview_story, "inserted").unwrap();
+    assert!(path[..path.len() - 1]
+        .iter()
+        .all(|id| id.starts_with("zz_playtest_")));
+    assert!(preview_story["start"]
+        .as_str()
+        .unwrap()
+        .starts_with("zz_playtest_"));
     let temp = tempfile::tempdir().unwrap();
     preview.export(&temp.path().join("preview.lommod")).unwrap();
+}
+
+#[test]
+fn imported_chapter_jump_restores_path_locals_without_running_prior_changes() {
+    let source = r#"local options = {"first", "second"}
+local selected = choose(options)
+setsaydialog(saydialogs.narrative)
+if selected == 1 then
+    say("first")
+else
+    statmodifymanager.SetFlag("M20008", 1)
+    say("second")
+    if selected == 2 then
+        say("continuation")
+    end
+end
+"#;
+    let story =
+        lom_core::vanilla_import::import(source, "main", "test", "DEMO", &Default::default())
+            .unwrap();
+    let target = story["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|node| node["text"] == "second")
+        .unwrap()["id"]
+        .as_str()
+        .unwrap();
+    let mut project = Project::new_vanilla_patch("DEMO").unwrap();
+    project.stories.insert("main".into(), story.clone());
+    let preview = prepare_preview(&project, "main", target).unwrap();
+    let preview_story = &preview.stories["main"];
+    let prefix = preview_story["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|node| node["type"] == "native_action" && node["goto"] == target)
+        .unwrap();
+    let operations = prefix["operations"].as_array().unwrap();
+    assert!(operations
+        .iter()
+        .any(|op| op["target"]["name"] == "selected" && op["value"]["value"] == 2));
+    assert!(operations
+        .iter()
+        .any(|op| op["expression"]["function"]["name"] == "setsaydialog"));
+    let lua = lom_core::native_flow::operations(operations).unwrap();
+    assert!(!lua.contains("choose") && !lua.contains("SetFlag") && !lua.contains("say("));
+    let temp = tempfile::tempdir().unwrap();
+    let package = temp.path().join("preview.lommod");
+    preview.export(&package).unwrap();
+    assert_eq!(
+        Project::open(&package).unwrap().stories["main"],
+        *preview_story
+    );
 }
 fn copy_content_to_project(
     root: &std::path::Path,

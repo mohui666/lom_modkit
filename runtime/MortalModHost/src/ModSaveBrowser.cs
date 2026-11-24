@@ -41,7 +41,7 @@ namespace MortalModHost
         internal string CampaignId { get { return _package != null ? _package.CampaignId : null; } }
         internal bool Saving { get { return _saving; } }
 
-        private bool _saving, _addon, _fromTitle, _auto, _favorites, _recent = true;
+        private bool _saving, _addon, _fromTitle, _originalProgress, _auto, _favorites, _recent = true;
         private bool _closing, _busy, _resetScroll;
         private CommonPanel _host;
         private MonoBehaviour _owner;
@@ -138,6 +138,14 @@ namespace MortalModHost
             Create(saving, true, title, host, owner).Render();
         }
 
+        internal static void ShowAddonOriginal()
+        {
+            ModNativeSaveBrowser.Close();
+            ModSaveBrowser browser = Create(false, true, true, null, null);
+            browser._originalProgress = true;
+            browser.Render();
+        }
+
         internal static void ShowSave(SaveGamePanel owner, ModPackage package, bool addon)
         {
             ModSaveBrowser browser = Create(true, addon, false,
@@ -214,10 +222,12 @@ namespace MortalModHost
         {
             ClearArea();
             _selected = null;
-            _title.text = _addon ? "原版＋MOD · " + (_saving ? "保存进度" : "江湖存档")
+            _title.text = _originalProgress ? "原版＋MOD · 继续原版进度"
+                : _addon ? "原版＋MOD · " + (_saving ? "保存进度" : "江湖存档")
                 : _package == null ? "纯MOD · 选择作品"
                 : ModDisclosurePolicy.SafePackageName(_package) + " · " + (_saving ? "保存进度" : "江湖存档");
-            _subtitle.text = _addon ? "原版故事，加入附加剧情 · 这里的进度与纯原版分开保存"
+            _subtitle.text = _originalProgress ? "选择原版进度并读取，接下来的进度会保存到原版＋MOD的空栏位。"
+                : _addon ? "原版故事，加入附加剧情 · 这里的进度与纯原版分开保存"
                 : _package == null ? "选择一部作品，查看它的存档或开始新的冒险。"
                 : "纯MOD独立剧本 · " + ModDisclosurePolicy.SafePackageAuthor(_package)
                     + "  /  v" + (_package.Version ?? "");
@@ -237,8 +247,22 @@ namespace MortalModHost
             BuildSearch();
             BuildList();
             BuildDetailPane();
-            if (_fromTitle && !_saving)
+            if (_originalProgress)
             {
+                Button back = Button(_pane, "← 返回 MOD 存档", 1190, 98, 254, 34, delegate
+                {
+                    Close(false);
+                    VanillaModCampaignPanel.OpenAddonMenu();
+                });
+                back.name = "BodyBack";
+            }
+            else if (_fromTitle && !_saving)
+            {
+                if (_addon)
+                {
+                    Button resume = Button(_pane, "从原版存档继续", 936, 98, 236, 34, ShowAddonOriginal);
+                    resume.name = "BodyResumeOriginal";
+                }
                 Button fresh = Button(_pane, "＋ 新开一局", _addon ? 1190 : 1008, 98,
                     _addon ? 254 : 170, 34, delegate
                 {
@@ -287,7 +311,8 @@ namespace MortalModHost
 
         private void BuildTabs()
         {
-            string[] labels = _saving ? new[] { "手动存档", "收藏" } : new[] { "手动存档", "自动存档", "收藏" };
+            string[] labels = _originalProgress ? new[] { "手动存档", "自动存档" }
+                : _saving ? new[] { "手动存档", "收藏" } : new[] { "手动存档", "自动存档", "收藏" };
             for (int i = 0; i < labels.Length; i++)
             {
                 int tab = i;
@@ -394,17 +419,20 @@ namespace MortalModHost
                 bool automatic = autos || (allKinds && i >= ModSaveSlotPolicy.OfficialManualCount);
                 int index = automatic ? (allKinds ? i - ModSaveSlotPolicy.OfficialManualCount : i) : i;
                 string kind = automatic ? kinds[index] : null;
-                string slot = automatic
+                string slot = _originalProgress ? kind ?? ModSaveSlotPolicy.OfficialManualLabel(i + 1)
+                    : automatic
                     ? (_addon ? ModSaveSlotPolicy.AddonAutoSlot(kind)
                         : ModSaveSlotPolicy.IsolatedAutoSlotForCampaign(CampaignId, kind))
                     : (_addon ? ModSaveSlotPolicy.AddonManualSlot(i + 1)
                         : ModSaveSlotPolicy.IsolatedManualSlot(CampaignId, i + 1));
-                GameSave data = automatic ? saves.GetAutoSaveData(slot)?.GameSave : saves.GetSaveData(slot);
+                GameSave data = _originalProgress ? ReadOriginalProgress(saves, slot)
+                    : automatic ? saves.GetAutoSaveData(slot)?.GameSave : saves.GetSaveData(slot);
+                if (_originalProgress && data == null) continue;
                 var entry = new Entry
                 {
                     Slot = slot, AutoKind = kind, Index = i + 1, Data = data,
                     Label = automatic ? labels[index] : "手动 " + (i + 1).ToString("000"),
-                    Note = data != null ? ReadNote(slot) : new ModSaveNote()
+                    Note = data != null && !_originalProgress ? ReadNote(slot) : new ModSaveNote()
                 };
                 entry.Chapter = ChapterText(data);
                 entry.Lines = RecentLines(data);
@@ -434,7 +462,8 @@ namespace MortalModHost
             }
             Transform sort = _pane.Find("BodySort");
             if (sort != null) sort.GetComponentInChildren<Text>().text = _recent ? "最近保存 ↓" : "按栏位排序";
-            _status.text = "手动 20 栏 · 自动 3 栏 · " + (_addon ? "原版＋MOD专属进度" : "仅此作品的进度");
+            _status.text = _originalProgress ? "共 " + _entries.Count + " 份原版进度"
+                : "手动 20 栏 · 自动 3 栏 · " + (_addon ? "原版＋MOD专属进度" : "仅此作品的进度");
             _status.color = Muted;
         }
 
@@ -445,6 +474,17 @@ namespace MortalModHost
             {
                 PersistentModState.Log?.LogWarning("读取存档备注失败：" + ex.Message);
                 return new ModSaveNote();
+            }
+        }
+
+        private static GameSave ReadOriginalProgress(SaveSystem saves, string slot)
+        {
+            try { return AddonOriginalProgress.Read(saves, slot); }
+            catch (Exception ex) when (ex is IOException || ex is System.Runtime.Serialization.SerializationException
+                || ex is InvalidCastException)
+            {
+                PersistentModState.Log?.LogWarning("原版存档 " + slot + " 无法读取：" + ex.Message);
+                return null;
             }
         }
 
@@ -493,8 +533,9 @@ namespace MortalModHost
                     .alignment = TextAnchor.MiddleRight;
                 Label(row.transform, entry.Data == null ? (_fromTitle ? "可以从这里开始新的冒险" : "还没有保存进度")
                     : SaveDate(entry.Data) + "   ·   " + entry.Chapter, 16, Muted, 20, 46, 670, 23);
-                Label(row.transform, entry.Note.Text.Length == 0 ? "暂无备注" : entry.Note.Text,
-                    17, entry.Note.Text.Length == 0 ? Muted : Paper, 20, 72, 670, 24);
+                if (!_originalProgress)
+                    Label(row.transform, entry.Note.Text.Length == 0 ? "暂无备注" : entry.Note.Text,
+                        17, entry.Note.Text.Length == 0 ? Muted : Paper, 20, 72, 670, 24);
                 i++;
             }
             _rows.sizeDelta = new Vector2(730, Math.Max(454, i * 116));
@@ -527,14 +568,17 @@ namespace MortalModHost
                 return;
             }
             Label(_detail, entry.Label, 27, Gold, 26, 22, 430, 42);
-            _favorite = Button(_detail, entry.Note.Favorite ? "★ 已收藏" : "☆ 收藏", 480, 24, 148, 40, delegate
+            if (!_originalProgress)
             {
-                if (_selected == null || _selected.Data == null) return;
-                _selected.Note.Favorite = !_selected.Note.Favorite;
-                SaveNote();
-                RenderRows();
-            });
-            _favorite.interactable = entry.Data != null;
+                _favorite = Button(_detail, entry.Note.Favorite ? "★ 已收藏" : "☆ 收藏", 480, 24, 148, 40, delegate
+                {
+                    if (_selected == null || _selected.Data == null) return;
+                    _selected.Note.Favorite = !_selected.Note.Favorite;
+                    SaveNote();
+                    RenderRows();
+                });
+                _favorite.interactable = entry.Data != null;
+            }
             Label(_detail, entry.Data != null ? GameDate(entry.Data) : "新的冒险，从这里开始", 25, Paper, 26, 82, 574, 42);
             Label(_detail, entry.Data != null ? "保存于 " + SaveDate(entry.Data) : "此栏位还没有进度。", 17, Muted, 28, 132, 584, 28);
             Label(_detail, entry.Data != null ? entry.Chapter : (_saving ? "保存后可以从这里继续。" : "不会覆盖其他栏位。"),
@@ -544,18 +588,22 @@ namespace MortalModHost
             Text lines = Label(_detail, entry.Data == null ? "尚未留下故事" : entry.Lines,
                 21, Paper, 28, 272, 594, 134);
             lines.verticalOverflow = VerticalWrapMode.Truncate;
-            _note = Input(_detail, "备注 · 离开输入框时自动保存", 26, 423, 602, 57, true);
-            _note.characterLimit = ModSaveNotes.MaxLength;
-            _note.interactable = entry.Data != null;
-            _note.text = entry.Note.Text;
-            _note.onEndEdit.AddListener(delegate(string value)
+            if (!_originalProgress)
             {
-                if (!_closing && ReferenceEquals(_selected, entry)) SaveNoteValue(entry, value);
-            });
+                _note = Input(_detail, "备注 · 离开输入框时自动保存", 26, 423, 602, 57, true);
+                _note.characterLimit = ModSaveNotes.MaxLength;
+                _note.interactable = entry.Data != null;
+                _note.text = entry.Note.Text;
+                _note.onEndEdit.AddListener(delegate(string value)
+                {
+                    if (!_closing && ReferenceEquals(_selected, entry)) SaveNoteValue(entry, value);
+                });
+            }
             _primary = Button(_detail, PrimaryText(entry), 26, 502, 390, 46, Primary);
             _primary.name = "SavePrimary";
             _primary.image.color = new Color(.35f, .32f, .23f, 1f);
             _primary.interactable = !_busy && (_saving || entry.Data != null || (_fromTitle && entry.AutoKind == null));
+            if (_originalProgress) return;
             _delete = Button(_detail, "删除", 434, 502, 194, 46, delegate
             {
                 Confirm("删除「" + entry.Label + "」？", "只删除当前模式中的这一份进度，此操作无法撤销。", delegate
@@ -573,6 +621,7 @@ namespace MortalModHost
 
         private string PrimaryText(Entry entry)
         {
+            if (_originalProgress) return "以原版＋MOD继续";
             if (_saving) return entry.Data != null ? "覆盖此存档" : "保存到这里";
             return entry.Data != null ? "读取存档" : _fromTitle && entry.AutoKind == null ? "开始新的冒险" : "暂无存档";
         }
@@ -586,6 +635,13 @@ namespace MortalModHost
         {
             Entry entry = _selected;
             if (entry == null || _busy) return;
+            if (_originalProgress)
+            {
+                _busy = true;
+                Plugin.Instance.ContinueAddonFromOriginal(entry.Slot);
+                Close();
+                return;
+            }
             SaveNote();
             if (_saving)
             {
@@ -653,7 +709,7 @@ namespace MortalModHost
 
         private void SaveNote()
         {
-            if (_selected == null || _selected.Data == null) return;
+            if (_originalProgress || _selected == null || _selected.Data == null) return;
             SaveNoteValue(_selected, _note != null ? _note.text : _selected.Note.Text);
         }
 

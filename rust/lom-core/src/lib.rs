@@ -43,22 +43,24 @@ pub fn load_json(path: impl AsRef<std::path::Path>) -> Result<Value> {
 }
 
 pub fn stable_json(value: &Value) -> Result<Vec<u8>> {
-    fn sorted(value: &Value) -> Value {
-        match value {
-            Value::Object(map) => {
-                let mut keys: Vec<_> = map.keys().collect();
-                keys.sort();
-                Value::Object(
-                    keys.into_iter()
-                        .map(|key| (key.clone(), sorted(&map[key])))
-                        .collect(),
-                )
+    use serde::{Serialize, Serializer};
+
+    struct Sorted<'a>(&'a Value);
+    impl Serialize for Sorted<'_> {
+        fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
+            match self.0 {
+                Value::Object(map) => {
+                    let mut entries: Vec<_> = map.iter().collect();
+                    entries.sort_unstable_by(|a, b| a.0.cmp(b.0));
+                    serializer
+                        .collect_map(entries.into_iter().map(|(key, value)| (key, Sorted(value))))
+                }
+                Value::Array(values) => serializer.collect_seq(values.iter().map(Sorted)),
+                other => other.serialize(serializer),
             }
-            Value::Array(values) => Value::Array(values.iter().map(sorted).collect()),
-            other => other.clone(),
         }
     }
-    let mut bytes = serde_json::to_vec_pretty(&sorted(value))?;
+    let mut bytes = serde_json::to_vec_pretty(&Sorted(value))?;
     bytes.push(b'\n');
     Ok(bytes)
 }

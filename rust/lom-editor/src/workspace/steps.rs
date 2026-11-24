@@ -36,10 +36,12 @@ impl App {
                 node["inherit_dialog"] = json!(true);
             }
         }
-        let mut story = self.story().clone();
-        match insert_nodes_after(&mut story, self.selected, vec![node]) {
+        let Some(story) = self.project.stories.get_mut(&self.current) else {
+            self.error = Some("章节缺少步骤".into());
+            return;
+        };
+        match insert_nodes_after(story, self.selected, vec![node]) {
             Ok(at) => {
-                self.project.stories.insert(self.current.clone(), story);
                 self.selected = at;
                 self.multiselect.clear();
                 self.center = Center::Node;
@@ -72,7 +74,7 @@ impl App {
         }
         self.flush();
         let mut clones = self.clipboard.clone();
-        let mut story = self.story().clone();
+        let story = self.story();
         let imported = story.get("vanilla_import").is_some();
         if story["vanilla_import"]["schema"] != 2
             && clones.iter().any(|node| {
@@ -121,12 +123,15 @@ impl App {
             retarget(n, &map);
         }
         if story["vanilla_import"]["schema"] == 2 {
-            lom_core::native_flow::rebind_copied_locals(&mut clones, &story);
+            lom_core::native_flow::rebind_copied_locals(&mut clones, story);
         }
         let count = clones.len();
-        match insert_nodes_after(&mut story, self.selected, clones) {
+        let Some(story) = self.project.stories.get_mut(&self.current) else {
+            self.error = Some("章节缺少步骤".into());
+            return;
+        };
+        match insert_nodes_after(story, self.selected, clones) {
             Ok(at) => {
-                self.project.stories.insert(self.current.clone(), story);
                 self.selected = at;
                 self.multiselect = (at..at + count).collect();
             }
@@ -134,15 +139,12 @@ impl App {
         }
     }
     pub(super) fn delete(&mut self) {
-        let selected: BTreeSet<_> = self.selected_indices().into_iter().collect();
-        let old_nodes = self.story()["nodes"]
+        let selected = self.selected_indices();
+        let original = self.story();
+        let old_nodes = original["nodes"]
             .as_array()
-            .cloned()
+            .map(Vec::as_slice)
             .unwrap_or_default();
-        let old_ids: Vec<String> = old_nodes
-            .iter()
-            .filter_map(|n| n["id"].as_str().map(str::to_owned))
-            .collect();
         if old_nodes.len() <= selected.len() {
             self.error = Some("每个章节至少需要保留一个节点。".into());
             return;
@@ -151,24 +153,50 @@ impl App {
             .iter()
             .filter_map(|i| old_nodes.get(*i)?.get("id")?.as_str().map(str::to_owned))
             .collect();
-        let mut story = self.story().clone();
-        story["nodes"]
-            .as_array_mut()
-            .unwrap()
-            .retain(|n| !removed.contains(n["id"].as_str().unwrap_or("")));
-        let reconnect = if story["vanilla_import"]["schema"] == 2 {
-            reconnect_deleted_structured(&mut story, &old_nodes, &removed)
+        if original["vanilla_import"]["schema"] == 2 {
+            let plan = step_deletion::StepDeletion::plan(original, removed, &self.catalog);
+            if plan.needs_confirmation() {
+                self.step_delete_dialog = Some(plan);
+            } else {
+                self.finish_step_deletion(plan);
+            }
         } else {
-            reconnect_deleted_offsets(&mut story, &old_nodes, &removed)
-        };
-        if let Err(error) = reconnect {
-            self.error = Some(crate::error_ui::capture(error));
-            return;
+            let mut story = without_steps(original, &removed);
+            if let Err(error) = reconnect_deleted_offsets(&mut story, old_nodes, &removed) {
+                self.error = Some(crate::error_ui::capture(error));
+                return;
+            }
+            self.apply_step_deletion(story, &removed);
         }
+    }
+    pub(super) fn confirm_step_deletion(&mut self) {
+        if self
+            .step_delete_dialog
+            .as_ref()
+            .is_some_and(step_deletion::StepDeletion::ready)
+        {
+            let plan = self.step_delete_dialog.take().unwrap();
+            self.finish_step_deletion(plan);
+        }
+    }
+    fn finish_step_deletion(&mut self, plan: step_deletion::StepDeletion) {
+        let original = self.story();
+        let removed = plan.removed.clone();
+        let mut story = without_steps(original, &removed);
+        plan.apply(original, &mut story);
+        self.apply_step_deletion(story, &removed);
+    }
+    fn apply_step_deletion(&mut self, mut story: Value, removed: &BTreeSet<String>) {
+        let old_ids: Vec<String> = self.story()["nodes"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|n| n["id"].as_str().map(str::to_owned))
+            .collect();
         if removed.contains(story["start"].as_str().unwrap_or("")) {
             story["start"] = story["nodes"][0]["id"].clone();
         }
-        repair_deleted_metadata(&mut story, &old_ids, &removed);
+        repair_deleted_metadata(&mut story, &old_ids, removed);
         self.flush();
         self.project.stories.insert(self.current.clone(), story);
         self.selected = self.selected.min(
@@ -336,27 +364,50 @@ pub(super) fn insert_nodes_after(
     selected: usize,
     mut inserted: Vec<Value>,
 ) -> anyhow::Result<usize> {
+    if !inserted.is_empty() && story["vanilla_import"]["schema"] == 2 {
+        lom_core::native_flow::normalize_linear_link(story, selected);
+    }
     let original = story["nodes"]
         .as_array()
         .ok_or_else(|| anyhow::anyhow!("章节缺少步骤"))?;
     let at = (selected + 1).min(original.len());
     if story["vanilla_import"]["schema"] == 2 && !inserted.is_empty() && selected < original.len() {
         let mut anchor = original[selected].clone();
-        let fallback = lom_core::analysis::successors(story, selected);
-        let linear = !lom_core::validate::node_schema()["no_goto_types"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|value| value == &anchor["type"])
-            || anchor["type"] == "end" && anchor["resume_original"] == true;
-        let edge = primary_insertion_edge(&mut anchor)
-            .ok_or_else(|| anyhow::anyhow!("这个步骤结束当前流程，请在它之前或分支内部插入。"))?;
-        let continuation = edge
-            .as_str()
-            .filter(|value| !value.is_empty())
-            .map(str::to_owned)
-            .or_else(|| (linear && fallback.len() == 1).then(|| fallback[0].clone()));
-        *edge = inserted[0]["id"].clone();
+        let successors = lom_core::analysis::successors(story, selected);
+        let physical_next = original.get(at).and_then(|node| node["id"].as_str());
+        let inserted_id = inserted[0]["id"].as_str().expect("inserted step id");
+        let continuation = if lom_core::analysis::follows_next(&anchor) {
+            physical_next.map(str::to_owned)
+        } else {
+            let resume = anchor["type"] == "end" && anchor["resume_original"] == true;
+            let edge = primary_insertion_edge(&mut anchor).ok_or_else(|| {
+                anyhow::anyhow!("这个步骤结束当前流程，请在它之前或分支内部插入。")
+            })?;
+            let previous = edge
+                .as_str()
+                .filter(|value| !value.is_empty())
+                .map(str::to_owned)
+                .or_else(|| resume.then(|| successors.first().cloned()).flatten());
+            *edge = json!(inserted_id);
+            if successors.is_empty() {
+                retarget(
+                    &mut anchor,
+                    &BTreeMap::from([(String::new(), inserted_id.to_owned())]),
+                );
+            }
+            previous
+        };
+        if let Some(target) = continuation
+            .as_ref()
+            .filter(|target| successors.len() == 1 && successors.first() == Some(*target))
+        {
+            // Both outcomes of a new check often still point to the same
+            // continuation. Inserting here keeps the shared path shared.
+            retarget(
+                &mut anchor,
+                &BTreeMap::from([(target.clone(), inserted_id.to_owned())]),
+            );
+        }
         if let Some(continuation) = continuation {
             let ids: BTreeSet<_> = inserted
                 .iter()
@@ -377,18 +428,16 @@ pub(super) fn insert_nodes_after(
                     redirects.insert(target.to_owned(), continuation.clone());
                 }
             }
+            let external_jump = physical_next != Some(continuation.as_str());
             for index in 0..inserted.len() {
-                let next = inserted
-                    .get(index + 1)
-                    .map(|node| node["id"].clone())
-                    .unwrap_or(json!(continuation));
+                let inner_next = inserted.get(index + 1).map(|node| node["id"].clone());
                 let node = &mut inserted[index];
                 retarget(node, &redirects);
                 if node["type"] == "end"
                     && node["resume_original"] == true
                     && node["resume_node"].is_null()
                 {
-                    node["resume_node"] = next;
+                    node["resume_node"] = inner_next.unwrap_or_else(|| json!(continuation));
                 } else if !lom_core::validate::node_schema()["no_goto_types"]
                     .as_array()
                     .unwrap()
@@ -396,10 +445,28 @@ pub(super) fn insert_nodes_after(
                     .any(|kind| kind == &node["type"])
                     && node["goto"].is_null()
                 {
-                    node["goto"] = next;
+                    if inner_next.is_none() && external_jump {
+                        node["goto"] = json!(continuation);
+                    } else {
+                        node.as_object_mut().unwrap().remove("goto");
+                    }
                 }
             }
+            if external_jump
+                && inserted.last().is_some_and(|node| {
+                    node["type"] == "branch" && lom_core::analysis::follows_next(node)
+                })
+            {
+                let mut used = ids;
+                used.extend(
+                    original
+                        .iter()
+                        .filter_map(|node| node["id"].as_str().map(str::to_owned)),
+                );
+                inserted.push(continuation_step(&mut used, &continuation));
+            }
         }
+        lom_core::native_flow::preserve_rewired_action(story, selected, &anchor);
         story["nodes"][selected] = anchor;
     }
     story["nodes"]
@@ -408,63 +475,20 @@ pub(super) fn insert_nodes_after(
         .splice(at..at, inserted);
     Ok(at)
 }
-pub(super) fn reconnect_deleted_structured(
-    story: &mut Value,
-    old_nodes: &[Value],
-    removed: &BTreeSet<String>,
-) -> anyhow::Result<()> {
-    let mut original = story.clone();
-    original["nodes"] = json!(old_nodes);
-    let indices: BTreeMap<_, _> = old_nodes
-        .iter()
-        .enumerate()
-        .filter_map(|(index, node)| Some((node["id"].as_str()?, index)))
-        .collect();
-    let mut redirects = BTreeMap::new();
-    for id in removed {
-        let mut current = id.as_str();
-        let mut visited = BTreeSet::new();
-        while removed.contains(current) {
-            anyhow::ensure!(
-                visited.insert(current),
-                "步骤“{id}”的删除范围形成循环，请先连接保留的后续步骤。"
-            );
-            let next = lom_core::analysis::successors(&original, indices[current]);
-            anyhow::ensure!(
-                next.len() <= 1,
-                "步骤“{current}”有多个不同后继，请先选择并连接要保留的分支，再删除。"
-            );
-            let Some(target) = next.first() else { break };
-            if !removed.contains(target) {
-                redirects.insert(id.clone(), target.clone());
-                break;
-            }
-            current = old_nodes[indices[target.as_str()]]["id"].as_str().unwrap();
-        }
-    }
-    let forbidden: BTreeMap<_, _> = removed
-        .iter()
-        .map(|id| (id.clone(), String::new()))
-        .collect();
-    for node in story["nodes"].as_array_mut().unwrap() {
-        retarget(node, &redirects);
-        let mut probe = node.clone();
-        retarget(&mut probe, &forbidden);
-        anyhow::ensure!(
-            probe == *node,
-            "步骤“{}”仍指向没有明确后继的删除步骤，请先连接保留的后续步骤。",
-            node["id"].as_str().unwrap_or("")
-        );
-    }
-    if let Some(start) = story["start"]
-        .as_str()
-        .filter(|start| removed.contains(*start))
-    {
-        story["start"] = json!(redirects
-            .get(start)
-            .ok_or_else(|| anyhow::anyhow!("入口步骤没有明确后继，请先设置保留的入口。"))?);
-    }
-    Ok(())
+pub(super) fn continuation_step(used: &mut BTreeSet<String>, target: &str) -> Value {
+    let id = (1..)
+        .map(|index| format!("reconnect{index}"))
+        .find(|id| used.insert(id.clone()))
+        .unwrap();
+    json!({"id":id,"type":"native_action","operations":[],"goto":target})
+}
+fn without_steps(original: &Value, removed: &BTreeSet<String>) -> Value {
+    let mut story = original.clone();
+    story["nodes"]
+        .as_array_mut()
+        .unwrap()
+        .retain(|node| !removed.contains(node["id"].as_str().unwrap_or("")));
+    story
 }
 pub(super) fn reconnect_deleted_offsets(
     story: &mut Value,

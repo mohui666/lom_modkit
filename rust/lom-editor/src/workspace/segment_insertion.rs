@@ -130,14 +130,11 @@ pub(super) fn insert_segment(
             node.as_object_mut().unwrap().remove("event_result");
             node["resume_original"] = json!(true);
             node["resume_node"] = json!(continuation);
-        } else if !no_goto.iter().any(|kind| kind == &node["type"])
+        } else if index + 1 == originals.len()
+            && !no_goto.iter().any(|kind| kind == &node["type"])
             && node["goto"].as_str().unwrap_or("").is_empty()
         {
-            node["goto"] = json!(originals
-                .get(index + 1)
-                .and_then(|node| node["id"].as_str())
-                .map(|id| mapping[id].clone())
-                .unwrap_or_else(|| continuation.clone()));
+            node["goto"] = json!(continuation);
         }
     }
     // Preserve the authored entry even when it is not the first physical node.
@@ -225,7 +222,12 @@ mod tests {
             .position(|node| node["text"] == "原版甲")
             .unwrap();
         let anchor = nodes[at]["id"].as_str().unwrap();
-        let successor = nodes[at]["goto"].clone();
+        let successor = json!(lom_core::analysis::successors(&original, at)[0]);
+        let incoming = &nodes[at - 1]["id"];
+        assert_eq!(
+            lom_core::analysis::successors(&original, at - 1),
+            [anchor.to_owned()]
+        );
         let other = nodes
             .iter()
             .find(|node| node["type"] == "native_branch")
@@ -236,7 +238,11 @@ mod tests {
                 insert_segment(original.clone(), &source, anchor, before).unwrap();
             assert_eq!(count, 6);
             let copied = &inserted["nodes"].as_array().unwrap()[start..start + count];
-            assert_eq!(copied[0]["goto"], copied[1]["id"]);
+            assert!(copied[0].get("goto").is_none());
+            assert_eq!(
+                lom_core::analysis::successors(&inserted, start),
+                [copied[1]["id"].as_str().unwrap().to_owned()]
+            );
             assert_eq!(copied[1]["options"][0]["goto"], copied[2]["id"]);
             assert_eq!(copied[1]["options"][1]["goto"], copied[3]["id"]);
             assert_eq!(copied[2]["goto"], copied[4]["id"]);
@@ -260,20 +266,19 @@ mod tests {
                 .find(|node| node["type"] == "native_branch")
                 .unwrap();
             assert_eq!(branch["failure"], other);
-            let incoming = nodes.iter().find(|node| node["goto"] == anchor).unwrap()["id"].clone();
             let incoming = inserted["nodes"]
                 .as_array()
                 .unwrap()
                 .iter()
-                .find(|node| node["id"] == incoming)
+                .position(|node| &node["id"] == incoming)
                 .unwrap();
             assert_eq!(
-                incoming["goto"],
-                if before {
-                    copied[0]["id"].clone()
+                lom_core::analysis::successors(&inserted, incoming),
+                [if before {
+                    copied[0]["id"].as_str().unwrap().to_owned()
                 } else {
-                    json!(anchor)
-                }
+                    anchor.to_owned()
+                }]
             );
             assert_eq!(
                 lom_core::vanilla_import::parse(&inserted)

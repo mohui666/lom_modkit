@@ -15,7 +15,7 @@ fn registry() -> &'static Value {
         serde_json::from_str(include_str!("../data/native-api-labels.json")).unwrap()
     })
 }
-fn raw_name(value: &Value) -> String {
+pub(crate) fn raw_name(value: &Value) -> String {
     match value["kind"].as_str().unwrap_or("") {
         "name" | "local" => value["name"].as_str().unwrap_or("").into(),
         "member" => format!(
@@ -35,7 +35,7 @@ fn raw_expression(value: &Value) -> String {
     }
     lom_core::native_flow::expression(value).unwrap_or_else(|_| value.to_string())
 }
-fn call_name(value: &Value) -> String {
+pub(crate) fn call_name(value: &Value) -> String {
     raw_name(&value["function"])
 }
 fn argument_spec(function: &str, index: usize) -> &'static Value {
@@ -149,8 +149,16 @@ pub fn summary(node: &Value) -> String {
     match node["type"].as_str().unwrap_or("") {
         "native_branch" => {
             let descriptor = &node["_editor"]["native_condition"];
+            let expression = &node["condition"];
+            let op = expression["op"].as_str().unwrap_or("");
+            // Historic captions lacked the operator. Read it from the actual
+            // predicate even when reopening a project with an older caption.
             match descriptor["kind"].as_str() {
-                Some("choice") => {
+                Some("choice")
+                    if matches!(op, "==" | "~=")
+                        && expression["right"]["value"].to_string()
+                            == descriptor["index"].as_str().unwrap_or("") =>
+                {
                     let labels = descriptor["labels"]
                         .as_array()
                         .into_iter()
@@ -159,21 +167,31 @@ pub fn summary(node: &Value) -> String {
                         .collect::<Vec<_>>()
                         .join(" / ");
                     message(
-                        "native.condition.choice",
+                        if op == "~=" {
+                            "native.condition.choice_not"
+                        } else {
+                            "native.condition.choice"
+                        },
                         &[
                             ("number", descriptor["index"].as_str().unwrap_or("").into()),
                             ("text", labels),
                         ],
                     )
                 }
-                Some("check") => message(
-                    "native.condition.check",
-                    &[
-                        ("name", descriptor["key"].as_str().unwrap_or("").into()),
-                        ("result", descriptor["result"].as_str().unwrap_or("").into()),
-                    ],
-                ),
-                _ => expression_summary(&node["condition"]),
+                Some("check")
+                    if matches!(op, "==" | "~=" | ">" | ">=" | "<" | "<=")
+                        && expression["right"]["kind"] == "literal" =>
+                {
+                    message(
+                        "native.condition.check_compare",
+                        &[
+                            ("name", descriptor["key"].as_str().unwrap_or("").into()),
+                            ("operator", operator_label(op)),
+                            ("result", expression["right"]["value"].to_string()),
+                        ],
+                    )
+                }
+                _ => expression_summary(expression),
             }
         }
         "native_action" => {
@@ -1357,8 +1375,29 @@ mod tests {
             {"kind":"assign","target":{"kind":"local","name":"choice_option_001","symbol":"v1"},"value":{"kind":"call","function":{"kind":"name","name":"choose"},"args":[{"kind":"local","name":"option_001","symbol":"v0"}]}}
         ]});
         assert_eq!(summary(&group), "显示原版选项 · 已配置 2 项");
-        let descriptor = json!({"type":"native_branch","condition":{"kind":"literal","value":true},"_editor":{"native_condition":{"kind":"choice","index":"2","labels":["向右"]}}});
+        let mut descriptor = json!({
+            "type":"native_branch",
+            "condition":{"kind":"binary","op":"==","left":{"kind":"local","name":"choice","symbol":"v1"},
+                         "right":{"kind":"literal","value":2}},
+            "_editor":{"native_condition":{"kind":"choice","index":"2","labels":["向右"]}}
+        });
         assert_eq!(summary(&descriptor), "选择第 2 项 · 向右");
+        descriptor["condition"]["op"] = json!("~=");
+        assert_eq!(summary(&descriptor), "未选择第 2 项 · 向右");
+        descriptor["_editor"]["native_condition"] =
+            json!({"kind":"check","key":"flag","result":"2"});
+        descriptor["condition"]["op"] = json!(">=");
+        assert_eq!(
+            summary(&descriptor),
+            message(
+                "native.condition.check_compare",
+                &[
+                    ("name", "flag".into()),
+                    ("operator", operator_label(">=")),
+                    ("result", "2".into())
+                ]
+            )
+        );
         for locale in crate::i18n::LOCALES {
             let output = crate::i18n::message_for_locale(
                 "native.condition.choice",

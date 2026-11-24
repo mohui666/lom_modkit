@@ -30,7 +30,7 @@ namespace MortalModHost
     {
         public const string GUID = "com.mohui666.mortalmodhost";
         public const string NAME = "MortalModHost";
-        public const string VERSION = "1.6.8";
+        public const string VERSION = "1.6.9";
 
         internal static Plugin Instance { get; private set; }
 
@@ -1708,13 +1708,26 @@ namespace MortalModHost
             NavigateAddon(null, autoKind, false);
         }
 
-        private void NavigateAddon(string slot, string autoKind, bool newGame)
+        internal void ContinueAddonFromOriginal(string originalSlot)
+        {
+            SaveSystem saves = SaveSystem.Instance;
+            SceneController scenes = SceneController.Instance;
+            if (!_runtimeReady || saves == null || !IsSceneReadyForModNavigation(scenes)
+                || scenes.CurrentScene != "Title" || ModPlayModeSession.Selected != ModPlayModeKind.Addon)
+                throw new InvalidOperationException("请从标题画面的原版＋MOD读档页选择原版进度。");
+            GameSave snapshot = AddonOriginalProgress.Read(saves, originalSlot);
+            AddonOriginalProgress.ValidateSnapshot(snapshot);
+            NavigateAddon(AddonOriginalProgress.FindEmptySlot(saves, originalSlot), null, false, snapshot);
+        }
+
+        private void NavigateAddon(string slot, string autoKind, bool newGame, GameSave original = null)
         {
             SaveSystem saves = SaveSystem.Instance;
             SceneController scenes = SceneController.Instance;
             if (!_runtimeReady || saves == null || !IsSceneReadyForModNavigation(scenes))
                 throw new InvalidOperationException("存档或场景系统尚未就绪");
             string saveSlot = slot;
+            GameSave selectedSave = original;
             if (autoKind != null)
             {
                 saveSlot = ModSaveSlotPolicy.AddonAutoSlot(autoKind);
@@ -1722,16 +1735,20 @@ namespace MortalModHost
                 if (automatic == null || automatic.GameSave == null)
                     throw new InvalidOperationException("附加 MOD 自动档不存在或已损坏");
                 slot = automatic.Slot;
+                selectedSave = automatic.GameSave;
             }
             if (!ModSaveSlotPolicy.IsAddonManualSlot(slot))
                 throw new InvalidOperationException("存档不属于原版＋MOD模式");
-            if (!newGame && autoKind == null && saves.GetSaveData(slot) == null)
-                throw new InvalidOperationException("附加 MOD 存档不存在或已损坏");
-            if (!newGame)
+            long? originalBattleTick = original != null && AddonOriginalProgress.IsBattle(original)
+                ? original.TimeTick : (long?)null;
+            if (!newGame && original == null)
             {
+                if (autoKind == null) selectedSave = saves.GetSaveData(slot);
+                if (selectedSave == null)
+                    throw new InvalidOperationException("附加 MOD 存档不存在或已损坏");
                 if (!AddonSaveDependencies.HasRecord(saveSlot))
                     throw new InvalidOperationException("此存档缺少所需 MOD 的记录，无法确认内容完整，未读取。");
-                List<string> missing = AddonSaveDependencies.Missing(saveSlot, LoadedMods);
+                List<string> missing = AddonSaveDependencies.Missing(saveSlot, LoadedMods, out originalBattleTick);
                 if (missing.Count != 0)
                     throw new InvalidOperationException("此存档缺少 MOD：" + string.Join("、", missing)
                         + "。请重新安装或启用后再读取，原存档已保留。");
@@ -1750,14 +1767,17 @@ namespace MortalModHost
                 saves.SetSlot(slot);
                 ModCampaignState.Clear();
                 ModQuestSession.Reset();
-                if (newGame)
+                if (newGame || original != null)
                 {
                     foreach (ModPackage package in LoadedMods)
                     {
                         if (!ModPlayModeSession.Allows(package)) continue;
                         PersistentModState.BeginNewCampaign(package);
-                        GameplayCheckpointStore.Clear(package, slot);
+                        if (newGame) GameplayCheckpointStore.Clear(package, slot);
                     }
+                }
+                if (newGame)
+                {
                     NewGameDataPatch.PendingCampaign = null;
                     saves.NewGameData();
                     PersistentModState.FlushCurrent();
@@ -1766,6 +1786,13 @@ namespace MortalModHost
                 }
                 else
                 {
+                    if (original != null)
+                        AddonOriginalProgress.Commit(saves, slot, original, () =>
+                        {
+                            GameplayCheckpointStore.ClearAddonManualSlot(slot);
+                            PersistentModState.FlushCurrent();
+                            AddonSaveDependencies.Record(slot, LoadedMods, originalBattleTick);
+                        });
                     if (SoundManager.Instance != null) SoundManager.Instance.StopMusic();
                     if (autoKind == null) saves.LoadGameData();
                     else saves.AutoLoadGameData(saveSlot);
@@ -1779,13 +1806,15 @@ namespace MortalModHost
                     else
                     {
                         string loadedScene = PlayerStatManagerData.Instance.CurrentScene;
-                        if (loadedScene == "Combat" || loadedScene == "Battle")
+                        bool nativeBattle = originalBattleTick.HasValue && selectedSave.TimeTick == originalBattleTick.Value
+                            && AddonOriginalProgress.IsBattle(selectedSave);
+                        if ((loadedScene == "Combat" || loadedScene == "Battle") && !nativeBattle)
                             throw new InvalidOperationException("战斗存档缺少附加 MOD 上下文");
                     }
                     scenes.LoadCurrentScene();
                 }
                 _showMenu = false;
-                Logger.LogInfo("原版＋MOD：" + (newGame ? "新游戏 " : "读取 ") + saveSlot);
+                Logger.LogInfo("原版＋MOD：" + (newGame ? "新游戏 " : original != null ? "继续原版进度 " : "读取 ") + saveSlot);
             }
             catch
             {

@@ -118,6 +118,7 @@ internal class ModNativeSaveBrowser : MonoBehaviour
     private Scope _scope;
     private CommonPanel _host;
     private Text _ownerLabel;
+    private Button _resumeOriginal;
     private bool _navigating, _detaching;
     private static int _sortOrder;
     private readonly Dictionary<CanvasGroup, (float Alpha, bool Interactable, bool Blocks)> _hidden =
@@ -229,6 +230,17 @@ internal class ModNativeSaveBrowser : MonoBehaviour
             _ownerLabel.resizeTextMaxSize = 23;
         }
         _ownerLabel.text = _scope.Addon ? "原版＋MOD · 独立存档" : "纯MOD · " + ModDisclosurePolicy.SafePackageName(_scope.Package) + " · v" + _scope.Package.Version;
+        if (_resumeOriginal == null || _resumeOriginal.transform.parent != _root)
+        {
+            _resumeOriginal = TextButton(_root, "从原版存档继续");
+            _resumeOriginal.name = "MortalModHost_ResumeOriginalProgress";
+            var rect = (RectTransform)_resumeOriginal.transform;
+            rect.anchorMin = rect.anchorMax = rect.pivot = Vector2.one;
+            rect.anchoredPosition = new Vector2(-56, -100);
+            rect.sizeDelta = new Vector2(260, 42);
+            _resumeOriginal.onClick.AddListener(ModSaveBrowser.ShowAddonOriginal);
+        }
+        _resumeOriginal.gameObject.SetActive(_scope.Addon && _scope.FromTitle && _isLoad);
     }
 
     private void CheckSlot(string slot, bool saving)

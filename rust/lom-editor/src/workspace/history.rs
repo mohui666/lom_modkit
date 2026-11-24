@@ -18,62 +18,232 @@ pub(super) struct StepSearch {
     revision: u64,
     results: Arc<Vec<(String, usize)>>,
 }
-#[derive(Clone, Debug, PartialEq, Eq)]
+type SnapshotBlocks = Arc<Vec<Arc<Vec<Value>>>>;
+
+#[derive(Clone, Debug)]
 pub(super) struct StorySnapshot {
-    fields: Value,
-    nodes: Option<Arc<Vec<Arc<Vec<Value>>>>>,
+    fields: Arc<Value>,
+    nodes: Option<SnapshotBlocks>,
+    origins: Option<SnapshotBlocks>,
 }
+
+fn same_block(old: &[Value], current: &[Value]) -> bool {
+    old.len() == current.len() && old.iter().zip(current).all(|(a, b)| same_json(a, b))
+}
+
+fn capture_blocks(nodes: &[Value], old: &[Arc<Vec<Value>>]) -> Vec<Arc<Vec<Value>>> {
+    let mut start = 0;
+    if old.iter().map(|block| block.len()).sum::<usize>() == nodes.len() {
+        return old
+            .iter()
+            .map(|block| {
+                let current = &nodes[start..start + block.len()];
+                start += block.len();
+                if same_block(block, current) {
+                    block.clone()
+                } else {
+                    Arc::new(current.to_vec())
+                }
+            })
+            .collect();
+    }
+
+    // An insertion shifts the remaining indices. Match the untouched suffix
+    // from the end so history still shares its original blocks.
+    let prefix = old
+        .iter()
+        .take_while(|block| {
+            let next = start + block.len();
+            let matched = nodes
+                .get(start..next)
+                .is_some_and(|current| same_block(block, current));
+            if matched {
+                start = next;
+            }
+            matched
+        })
+        .count();
+    let mut end = nodes.len();
+    let suffix = old[prefix..]
+        .iter()
+        .rev()
+        .take_while(|block| {
+            let Some(next) = end.checked_sub(block.len()).filter(|&next| next >= start) else {
+                return false;
+            };
+            if same_block(block, &nodes[next..end]) {
+                end = next;
+                true
+            } else {
+                false
+            }
+        })
+        .count();
+    old[..prefix]
+        .iter()
+        .cloned()
+        .chain(
+            nodes[start..end]
+                .chunks(SNAPSHOT_BLOCK)
+                .map(|chunk| Arc::new(chunk.to_vec())),
+        )
+        .chain(old[old.len() - suffix..].iter().cloned())
+        .collect()
+}
+
+impl PartialEq for StorySnapshot {
+    fn eq(&self, other: &Self) -> bool {
+        if !Arc::ptr_eq(&self.fields, &other.fields) && !same_json(&self.fields, &other.fields) {
+            return false;
+        }
+        same_blocks(self.nodes.as_ref(), other.nodes.as_ref())
+            && same_blocks(self.origins.as_ref(), other.origins.as_ref())
+    }
+}
+
+fn same_blocks(a: Option<&SnapshotBlocks>, b: Option<&SnapshotBlocks>) -> bool {
+    match (a, b) {
+        (Some(a), Some(b)) if Arc::ptr_eq(a, b) => true,
+        (Some(a), Some(b)) => {
+            if a.iter().map(|block| block.len()).sum::<usize>()
+                != b.iter().map(|block| block.len()).sum::<usize>()
+            {
+                return false;
+            }
+            if a.len() == b.len() && a.iter().zip(b.iter()).all(|(a, b)| a.len() == b.len()) {
+                return a
+                    .iter()
+                    .zip(b.iter())
+                    .all(|(a, b)| Arc::ptr_eq(a, b) || same_block(a, b));
+            }
+            a.iter()
+                .flat_map(|block| block.iter())
+                .eq(b.iter().flat_map(|block| block.iter()))
+        }
+        (None, None) => true,
+        _ => false,
+    }
+}
+
+fn share_blocks(values: &[Value], old: Option<&SnapshotBlocks>) -> SnapshotBlocks {
+    let next = capture_blocks(values, old.map_or(&[], |blocks| blocks.as_slice()));
+    if let Some(old) = old.filter(|old| {
+        old.len() == next.len() && old.iter().zip(&next).all(|(a, b)| Arc::ptr_eq(a, b))
+    }) {
+        return old.clone();
+    }
+    Arc::new(next)
+}
+
+fn same_array(blocks: &SnapshotBlocks, values: &[Value]) -> bool {
+    blocks.iter().map(|block| block.len()).sum::<usize>() == values.len()
+        && blocks
+            .iter()
+            .flat_map(|block| block.iter())
+            .zip(values)
+            .all(|(a, b)| same_json(a, b))
+}
+
+fn materialize_blocks(blocks: &SnapshotBlocks) -> Value {
+    Value::Array(
+        blocks
+            .iter()
+            .flat_map(|block| block.iter().cloned())
+            .collect(),
+    )
+}
+
+fn equal_fields_except(a: &Value, b: &Value, excluded: &str) -> bool {
+    let (Some(a), Some(b)) = (a.as_object(), b.as_object()) else {
+        return false;
+    };
+    a.len() == b.len()
+        && a.iter().all(|(key, value)| {
+            key == excluded || b.get(key).is_some_and(|other| same_json(value, other))
+        })
+}
+
+impl Eq for StorySnapshot {}
 
 impl StorySnapshot {
     pub(super) fn capture(story: &Value, previous: Option<&Self>) -> Self {
         let Some(nodes) = story.get("nodes").and_then(Value::as_array) else {
             return Self {
-                fields: story.clone(),
+                fields: Arc::new(story.clone()),
                 nodes: None,
+                origins: None,
             };
         };
-        let fields = Value::Object(
-            story
-                .as_object()
-                .unwrap()
-                .iter()
-                .map(|(key, value)| {
-                    (
-                        key.clone(),
-                        if key == "nodes" {
-                            Value::Null
-                        } else {
-                            value.clone()
-                        },
-                    )
-                })
-                .collect(),
-        );
-        let old = previous.and_then(|old| old.nodes.as_ref());
-        let next: Vec<_> = nodes
-            .chunks(SNAPSHOT_BLOCK)
-            .enumerate()
-            .map(|(index, block)| {
-                old.and_then(|nodes| nodes.get(index))
-                    .filter(|old| {
-                        old.len() == block.len()
-                            && old.iter().zip(block).all(|(a, b)| same_json(a, b))
-                    })
-                    .cloned()
-                    .unwrap_or_else(|| Arc::new(block.to_vec()))
+        let origins = story["vanilla_import"]["origins"].as_array();
+        let fields = previous
+            .filter(|old| {
+                old.nodes.is_some()
+                    && old.origins.is_some() == origins.is_some()
+                    && old.same_fields(story)
             })
-            .collect();
-        let nodes = if let Some(old) = old.filter(|old| {
-            old.len() == next.len() && old.iter().zip(&next).all(|(a, b)| Arc::ptr_eq(a, b))
-        }) {
-            old.clone()
-        } else {
-            Arc::new(next)
-        };
+            .map(|old| old.fields.clone())
+            .unwrap_or_else(|| {
+                Arc::new(Value::Object(
+                    story
+                        .as_object()
+                        .unwrap()
+                        .iter()
+                        .map(|(key, value)| {
+                            (
+                                key.clone(),
+                                match key.as_str() {
+                                    "nodes" => Value::Null,
+                                    "vanilla_import" if origins.is_some() => Value::Object(
+                                        value
+                                            .as_object()
+                                            .unwrap()
+                                            .iter()
+                                            .map(|(key, value)| {
+                                                (
+                                                    key.clone(),
+                                                    if key == "origins" {
+                                                        Value::Null
+                                                    } else {
+                                                        value.clone()
+                                                    },
+                                                )
+                                            })
+                                            .collect(),
+                                    ),
+                                    _ => value.clone(),
+                                },
+                            )
+                        })
+                        .collect(),
+                ))
+            });
         Self {
             fields,
-            nodes: Some(nodes),
+            nodes: Some(share_blocks(
+                nodes,
+                previous.and_then(|old| old.nodes.as_ref()),
+            )),
+            origins: origins.map(|origins| {
+                share_blocks(origins, previous.and_then(|old| old.origins.as_ref()))
+            }),
         }
+    }
+
+    fn same_fields(&self, story: &Value) -> bool {
+        let (Some(fields), Some(current)) = (self.fields.as_object(), story.as_object()) else {
+            return false;
+        };
+        fields.len() == current.len()
+            && fields.iter().all(|(key, value)| {
+                key == "nodes"
+                    || current.get(key).is_some_and(|current| {
+                        if key == "vanilla_import" && self.origins.is_some() {
+                            equal_fields_except(value, current, "origins")
+                        } else {
+                            same_json(value, current)
+                        }
+                    })
+            })
     }
 
     fn same(&self, story: &Value) -> bool {
@@ -83,32 +253,22 @@ impl StorySnapshot {
         let Some(current) = story.get("nodes").and_then(Value::as_array) else {
             return false;
         };
-        let Some(fields) = story.as_object() else {
-            return false;
-        };
-        fields.len() == self.fields.as_object().unwrap().len()
-            && self.fields.as_object().unwrap().iter().all(|(key, value)| {
-                key == "nodes"
-                    || fields
-                        .get(key)
-                        .is_some_and(|current| same_json(value, current))
-            })
-            && nodes.len() == current.len().div_ceil(SNAPSHOT_BLOCK)
-            && nodes
-                .iter()
-                .zip(current.chunks(SNAPSHOT_BLOCK))
-                .all(|(a, b)| a.len() == b.len() && a.iter().zip(b).all(|(a, b)| same_json(a, b)))
+        self.same_fields(story)
+            && same_array(nodes, current)
+            && match (&self.origins, story["vanilla_import"]["origins"].as_array()) {
+                (Some(blocks), Some(current)) => same_array(blocks, current),
+                (None, None) => true,
+                _ => false,
+            }
     }
 
     pub(super) fn to_value(&self) -> Value {
-        let mut story = self.fields.clone();
+        let mut story = (*self.fields).clone();
         if let Some(nodes) = &self.nodes {
-            story["nodes"] = Value::Array(
-                nodes
-                    .iter()
-                    .flat_map(|block| block.iter().cloned())
-                    .collect(),
-            );
+            story["nodes"] = materialize_blocks(nodes);
+        }
+        if let Some(origins) = &self.origins {
+            story["vanilla_import"]["origins"] = materialize_blocks(origins);
         }
         story
     }
@@ -118,6 +278,36 @@ impl crate::persistence::StoryBaseline for Arc<StorySnapshot> {
     fn saved_story(&self) -> std::borrow::Cow<'_, Value> {
         std::borrow::Cow::Owned(self.to_value())
     }
+}
+
+#[test]
+fn insert_snapshots_share_source_and_unchanged_blocks_across_shifted_indices() {
+    let mut story = json!({
+        "id":"main","start":"n0","vanilla_import":{"schema":2,"target":"chapter","origins":
+            (0..96).map(|n| json!({"code":format!("original source {n}"),"node":{"goto":format!("n{}",n+1)}})).collect::<Vec<_>>()
+        },
+        "nodes": (0..96).map(|n| json!({"id":format!("n{n}"), "type":"say"})).collect::<Vec<_>>()
+    });
+    let original = StorySnapshot::capture(&story, None);
+    story["nodes"]
+        .as_array_mut()
+        .unwrap()
+        .insert(35, json!({"id":"inserted","type":"say"}));
+    story["vanilla_import"]["origins"][34]["node"]["goto"] = json!("inserted");
+    let inserted = StorySnapshot::capture(&story, Some(&original));
+    assert!(Arc::ptr_eq(&original.fields, &inserted.fields));
+    assert!(Arc::ptr_eq(
+        original.nodes.as_ref().unwrap().last().unwrap(),
+        inserted.nodes.as_ref().unwrap().last().unwrap(),
+    ));
+    assert!(Arc::ptr_eq(
+        original.origins.as_ref().unwrap().last().unwrap(),
+        inserted.origins.as_ref().unwrap().last().unwrap(),
+    ));
+    assert_eq!(inserted.to_value(), story);
+    story["nodes"].as_array_mut().unwrap().remove(35);
+    story["vanilla_import"]["origins"][34]["node"]["goto"] = json!("n35");
+    assert_eq!(StorySnapshot::capture(&story, Some(&inserted)), original);
 }
 
 fn changed_stories(
@@ -159,11 +349,18 @@ impl App {
         }
         let mut results = Vec::new();
         for (id, story) in &self.project.stories {
-            for (index, node) in story["nodes"].as_array().into_iter().flatten().enumerate() {
-                if node.to_string().to_lowercase().contains(query) {
-                    results.push((id.clone(), index));
-                }
-            }
+            let Some(nodes) = story["nodes"].as_array() else {
+                continue;
+            };
+            let flag_hits: BTreeSet<_> =
+                crate::game_flags::find_steps(&self.catalog.data, nodes, query)
+                    .into_iter()
+                    .map(|(index, _, _, _)| index)
+                    .collect();
+            results.extend(nodes.iter().enumerate().filter_map(|(index, node)| {
+                (flag_hits.contains(&index) || node.to_string().to_lowercase().contains(query))
+                    .then(|| (id.clone(), index))
+            }));
         }
         let results = Arc::new(results);
         self.step_search = Some(StepSearch {

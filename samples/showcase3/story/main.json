@@ -659,6 +659,20 @@
       "type": "affinity"
     },
     {
+      "character": "story:special830",
+      "delta": 7,
+      "id": "story_affinity_up",
+      "show_message": true,
+      "type": "affinity"
+    },
+    {
+      "character": "story:special830",
+      "delta": -4,
+      "id": "story_affinity_down",
+      "show_message": true,
+      "type": "affinity"
+    },
+    {
       "character": "user:showcase.lin_deng",
       "id": "custom_biography",
       "intro_source": "character",

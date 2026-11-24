@@ -212,8 +212,13 @@ fn structured_elseif_paths_rejoin_without_falling_through_the_other_dialogue() {
     .unwrap();
     let nodes = story["nodes"].as_array().unwrap();
     let left = nodes.iter().find(|n| n["text"] == "left").unwrap();
-    let right = nodes.iter().find(|n| n["text"] == "right").unwrap();
-    assert_eq!(left["goto"], right["goto"]);
+    let right_index = nodes.iter().position(|n| n["text"] == "right").unwrap();
+    let right = &nodes[right_index];
+    assert!(right.get("goto").is_none());
+    assert_eq!(
+        lom_core::analysis::successors(&story, right_index),
+        [left["goto"].as_str().unwrap().to_owned()]
+    );
     let branches: Vec<_> = nodes
         .iter()
         .filter(|n| n["type"] == "native_branch")

@@ -176,9 +176,12 @@ impl Cache {
     }
 
     pub(super) fn synchronize(&mut self, story: &Value, revision: Option<u64>) -> bool {
-        if self.story.as_ref().is_some_and(|cached| {
-            revision.is_some() && revision == self.revision || crate::json::same(cached, story)
-        }) {
+        if revision.is_some() && revision == self.revision
+            || self
+                .story
+                .as_ref()
+                .is_some_and(|cached| crate::json::same(cached, story))
+        {
             self.revision = revision;
             return false;
         }
@@ -202,8 +205,12 @@ impl Cache {
                 return true;
             }
         }
+        // A tracked import already has a document revision. Its checkpoints
+        // rebuild on changes, so copying all the immutable source AST here
+        // buys nothing and delays every edit on a large original chapter.
+        let remember_story = revision.is_none() || story.get("vanilla_import").is_none();
         *self = Self {
-            story: Some(story.clone()),
+            story: remember_story.then(|| story.clone()),
             revision,
             routes: Routes::new(story),
             has_effects,

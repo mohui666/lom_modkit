@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -26,7 +27,8 @@ namespace MortalModHost
         }
 
         // The caller supplies its actual enabled package collection, not every installed ZIP.
-        internal static void Record(string slot, IEnumerable<ModPackage> enabledPackages)
+        internal static void Record(string slot, IEnumerable<ModPackage> enabledPackages,
+            long? originalBattleTick = null)
         {
             string target = PathFor(slot);
             var packages = EnabledAddons(enabledPackages);
@@ -41,7 +43,11 @@ namespace MortalModHost
                     .Append(",\"name\":").Append(Quote(string.IsNullOrWhiteSpace(package.Name) ? package.Id : package.Name))
                     .Append(",\"version\":").Append(Quote(package.Version ?? "")).Append('}');
             }
-            byte[] payload = new UTF8Encoding(false, true).GetBytes(text.Append("]}").ToString());
+            text.Append(']');
+            if (originalBattleTick.HasValue)
+                text.Append(",\"original_battle_tick\":")
+                    .Append(Quote(originalBattleTick.Value.ToString(CultureInfo.InvariantCulture)));
+            byte[] payload = new UTF8Encoding(false, true).GetBytes(text.Append('}').ToString());
             if (payload.Length > MaxBytes) throw new InvalidDataException("MOD 依赖记录超过 256 KiB");
             Directory.CreateDirectory(_root);
             string temporary = target + ".tmp." + Guid.NewGuid().ToString("N");
@@ -63,6 +69,12 @@ namespace MortalModHost
 
         internal static List<string> Missing(string slot, IEnumerable<ModPackage> enabledPackages)
         {
+            return Missing(slot, enabledPackages, out _);
+        }
+
+        internal static List<string> Missing(string slot, IEnumerable<ModPackage> enabledPackages,
+            out long? originalBattleTick)
+        {
             string path = PathFor(slot);
             if (!File.Exists(path))
                 throw new InvalidDataException("此存档没有 MOD 依赖记录，无法确认依赖是否齐全；请先核对原存档使用的 MOD");
@@ -76,6 +88,14 @@ namespace MortalModHost
                 throw new InvalidDataException("MOD 依赖记录格式必须为 1");
             if (!data.TryGetValue("slot", out value) || value as string != slot)
                 throw new InvalidDataException("MOD 依赖记录的存档归属不匹配");
+            originalBattleTick = null;
+            if (data.TryGetValue("original_battle_tick", out value))
+            {
+                long tick;
+                if (!long.TryParse(value as string, NumberStyles.None, CultureInfo.InvariantCulture, out tick))
+                    throw new InvalidDataException("原版战斗存档时间记录无效");
+                originalBattleTick = tick;
+            }
             if (!data.TryGetValue("mods", out value) || !(value is IList<object>))
                 throw new InvalidDataException("MOD 依赖记录缺少 mods 列表");
             var rows = (IList<object>)value;

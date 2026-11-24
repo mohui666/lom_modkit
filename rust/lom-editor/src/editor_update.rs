@@ -1437,6 +1437,101 @@ mod tests {
     }
 
     #[test]
+    fn release_notes_paint_linked_png_inside_the_dialog_width() {
+        use std::{
+            io::{BufRead, BufReader, Cursor, Write},
+            net::TcpListener,
+        };
+
+        let mut png = Cursor::new(Vec::new());
+        image::DynamicImage::ImageRgb8(image::RgbImage::from_pixel(
+            640,
+            80,
+            image::Rgb([32, 64, 128]),
+        ))
+        .write_to(&mut png, image::ImageFormat::Png)
+        .unwrap();
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let uri = format!("http://{}/example.png", listener.local_addr().unwrap());
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let server = thread::spawn(move || {
+            let mut stream = loop {
+                match listener.accept() {
+                    Ok((stream, _)) => break stream,
+                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                        assert!(
+                            Instant::now() < deadline,
+                            "release notes did not request the image"
+                        );
+                        thread::sleep(Duration::from_millis(10));
+                    }
+                    Err(error) => panic!("{error}"),
+                }
+            };
+            stream
+                .set_read_timeout(Some(Duration::from_secs(2)))
+                .unwrap();
+            let mut request = BufReader::new(&mut stream);
+            let mut line = String::new();
+            loop {
+                assert!(request.read_line(&mut line).unwrap() > 0);
+                if line == "\r\n" {
+                    break;
+                }
+                line.clear();
+            }
+            let bytes = png.into_inner();
+            write!(stream, "HTTP/1.1 200 OK\r\nContent-Type: image/png\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", bytes.len()).unwrap();
+            stream.write_all(&bytes).unwrap();
+        });
+        let mut release = parse_release(&single_release()).unwrap();
+        release.version = "99.0.0".into();
+        release.notes = format!("1. 更新示例\n\n   ![示意图]({uri})");
+        let mut updater = Updater::default();
+        updater.release = Some(release);
+        let ctx = egui::Context::default();
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(900.0, 800.0),
+            )),
+            ..Default::default()
+        };
+        let painted_width = loop {
+            let output = ctx.run(input.clone(), |ctx| {
+                updater.dialog(ctx);
+            });
+            if let Some((texture, _)) = output
+                .textures_delta
+                .set
+                .iter()
+                .find(|(_, update)| update.image.size() == [640, 80])
+            {
+                let shapes = ctx.tessellate(output.shapes, output.pixels_per_point);
+                if let Some(width) = shapes.into_iter().find_map(|shape| match shape.primitive {
+                    egui::epaint::Primitive::Mesh(mesh) if mesh.texture_id == *texture => {
+                        Some(mesh.calc_bounds().width())
+                    }
+                    _ => None,
+                }) {
+                    break width;
+                }
+            }
+            assert!(
+                Instant::now() < deadline,
+                "PNG was not painted in the release notes"
+            );
+            thread::sleep(Duration::from_millis(10));
+        };
+        server.join().unwrap();
+        assert!(
+            painted_width > 0.0 && painted_width <= 480.0,
+            "{painted_width}"
+        );
+    }
+
+    #[test]
     fn same_version_check_detects_missing_and_mixed_components_without_downgrading() {
         let temp = tempfile::tempdir().unwrap();
         let root = temp.path().canonicalize().unwrap();

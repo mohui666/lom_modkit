@@ -14,6 +14,7 @@ namespace MortalModHost
     /// </summary>
     internal static class GameplaySceneTransition
     {
+        internal const string ModCombatKey = "MORTALMODHOST_RUNTIME";
         private const float TimeoutSeconds = 30f;
         private static bool _pending;
 
@@ -68,7 +69,7 @@ namespace MortalModHost
                 bool combat = string.Equals(kind, "combat", StringComparison.Ordinal);
                 string scene = combat ? "Combat" : "Battle";
                 // Combat 使用 Host 即时组装的隔离关卡，不再借用任何固定原版 CL。
-                string key = combat ? "MORTALMODHOST_RUNTIME" : "0000";
+                string key = combat ? ModCombatKey : "0000";
                 LuaManagerPatch.Log?.LogInfo(
                     "原版 Story 读取遮罩已结束，开始安全切换到 " + scene);
                 manager.ChangeScene(scene, key, "Story");

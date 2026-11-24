@@ -421,7 +421,7 @@ impl App {
                         ui.separator();
                         ui.add(
                             egui::TextEdit::singleline(&mut self.search)
-                                .hint_text(tr("搜索所有章节 · ID / 台词 / 角色")),
+                                .hint_text(crate::i18n::key("flow_graph.search_steps")),
                         );
                     });
                 });
@@ -469,10 +469,10 @@ impl App {
                             .add(
                                 egui::TextEdit::singleline(&mut self.search)
                                     .id(egui::Id::new("story-step-search"))
-                                    .hint_text(tr("搜索所有章节 · ID / 台词 / 角色"))
+                                    .hint_text(crate::i18n::key("flow_graph.search_steps"))
                                     .desired_width(ui.available_width()),
                             )
-                            .on_hover_text(tr("搜索所有章节 · ID / 台词 / 角色"));
+                            .on_hover_text(crate::i18n::key("flow_graph.search_steps"));
                         if ctx
                             .data_mut(|data| {
                                 data.remove_temp::<bool>(egui::Id::new("step-search-focus"))
@@ -577,6 +577,14 @@ impl App {
                                 for (sid, index) in &results[range] {
                                     let s = &self.project.stories[sid];
                                     let node = &s["nodes"][*index];
+                                    let detail = if matches!(
+                                        node["type"].as_str(),
+                                        Some("native_action" | "native_branch")
+                                    ) {
+                                        crate::native_forms::summary(node)
+                                    } else {
+                                        node["text"].as_str().unwrap_or("").to_owned()
+                                    };
                                     if ui
                                         .selectable_label(
                                             self.current == *sid && self.selected == *index,
@@ -586,7 +594,7 @@ impl App {
                                                 index + 1,
                                                 self.catalog
                                                     .label(node["type"].as_str().unwrap_or("")),
-                                                short(node["text"].as_str().unwrap_or(""), 22)
+                                                short(&detail, 22)
                                             ),
                                         )
                                         .on_hover_text(format!(

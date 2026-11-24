@@ -2110,10 +2110,12 @@ mod tests {
         assert_eq!(story["nodes"][0]["options"][1]["goto"], "other");
         assert_eq!(story["nodes"][1]["character"], "player");
         assert_eq!(story["nodes"][1]["inherit_dialog"], false);
-        assert_eq!(story["nodes"][1]["goto"], "say3");
+        assert!(story["nodes"][1].get("goto").is_none());
+        assert_eq!(lom_core::analysis::successors(story, 1), ["say3"]);
         assert_eq!(story["nodes"][2]["mode"], "narrative");
         assert!(story["nodes"][2].get("character").is_none());
-        assert_eq!(story["nodes"][2]["goto"], "say1");
+        assert!(story["nodes"][2].get("goto").is_none());
+        assert_eq!(lom_core::analysis::successors(story, 2), ["say1"]);
         assert_eq!(app.undo.len(), 1);
         app.undo();
         assert!(snapshot(&app.project) == before);

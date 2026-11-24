@@ -43,7 +43,17 @@ namespace MortalModHost
                     // the installed resource names so a result can be opened directly.
                     var assets = Resources.LoadAll<TextAsset>("Story/ChineseTraditional");
                     if (assets.Length == 0) throw new InvalidOperationException(I18n.MenuT("dev.story_missing"));
-                    var index = new DevelopmentStoryIndex();
+                    var flags = new Dictionary<string, string>(StringComparer.Ordinal);
+                    foreach (var collection in MissionManagerData.Instance.FlagsCollection)
+                        foreach (var flag in collection.List)
+                            if (flag != null && !flags.ContainsKey(flag.name)) flags.Add(flag.name, flag.DevNote);
+                    var missions = _catalog.Entries.GroupBy(row => (row.IsMain ? "main" : row.Series) + "/" + row.Key)
+                        .ToDictionary(group => group.Key, group => string.Join(" · ", group.Select(row => row.Title).Distinct()));
+                    var index = new DevelopmentStoryIndex(
+                        id => flags.TryGetValue(id, out string note) ? note : "",
+                        (series, key) => missions.TryGetValue(
+                            (series.Equals("main", StringComparison.OrdinalIgnoreCase) ? "main" : series) + "/" + key,
+                            out string note) ? note : "");
                     var strings = LocalizationManager.Instance.LocaleResolver;
                     foreach (var item in LibrarySystem.Instance.Dead.List)
                     {
@@ -52,6 +62,8 @@ namespace MortalModHost
                         string picture = item.Picture == null ? "" : "\nCG · " + item.Picture.name;
                         index.AddDeath(item.name, (title + "\n" + desc).Trim() + picture);
                     }
+                    foreach (var item in LibrarySystem.Instance.EndGame.List)
+                        index.AddEnding(item.name, strings.GetString(item.GetTitleKey()));
                     _storyIndex = index;
                     _storyAssets = assets;
                     _storyLocale = locale;
@@ -136,16 +148,23 @@ namespace MortalModHost
                 if (i < _storyEventHits.Count)
                 {
                     var row = _storyEventHits[i];
-                    if (SearchRow(width, ref y, Display(row.Title), row.Script + " · " + DisplayWhen(row))) Select(row);
+                    string eventLocation = (row.Script.Length == 0 ? I18n.MenuT("dev.no_script") : row.Script) + " · " + DisplayWhen(row);
+                    if (SearchRow(width, ref y, Display(row.Title), eventLocation)) Select(row);
                     continue;
                 }
                 var hit = _storyHits[i - _storyEventHits.Count];
-                string location = hit.Chapter.Length == 0 ? hit.Key : hit.Chapter + ":" + hit.Line + "    " + hit.Key;
-                string text = hit.Text.Replace('\n', ' ');
+                string location = StoryLocation(hit);
+                string text = (hit.Line == 0 && hit.Chapter.Length != 0 ? I18n.MenuT("dev.chapter_section") : hit.Text).Replace('\n', ' ');
                 if (text.Length > 64) text = text.Substring(0, 64) + "…";
                 if (SearchRow(width, ref y, text, location))
                 { _storyHit = hit; _detailScroll = Vector2.zero; }
             }
+        }
+
+        private static string StoryLocation(DevelopmentStoryIndex.Site hit)
+        {
+            if (hit.Chapter.Length == 0) return hit.Key;
+            return hit.Line == 0 ? hit.Chapter : hit.Chapter + ":" + hit.Line + "    " + hit.Key;
         }
 
         private static bool SearchRow(float width, ref float y, string title, string location)
@@ -164,7 +183,7 @@ namespace MortalModHost
             if (GUI.Button(new Rect(0, y, width, 32), I18n.MenuT("dev.story_back"), ModMenuTheme.Link))
             { _storyHit = null; _detailScroll = Vector2.zero; }
             y += 41;
-            string location = hit.Chapter.Length == 0 ? hit.Key : hit.Chapter + ":" + hit.Line + "    " + hit.Key;
+            string location = StoryLocation(hit);
             Field(ref y, width, location, hit.Text);
             if (hit.Chapter.Length == 0)
             {

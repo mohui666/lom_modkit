@@ -54,6 +54,47 @@ pub(crate) fn matches(row: &Value, query: &str) -> bool {
         .all(|term| haystack.contains(term))
 }
 
+pub(crate) fn original_chapter_matches(id: &str, title: &str, query: &str) -> bool {
+    if query.is_empty() {
+        return true;
+    }
+    static REFERENCES: std::sync::OnceLock<std::collections::BTreeMap<String, String>> =
+        std::sync::OnceLock::new();
+    let references = REFERENCES.get_or_init(|| {
+        let mut entries = std::collections::BTreeMap::<String, String>::new();
+        for row in lom_core::validate::editor_data()["game_flags"]
+            .as_array()
+            .into_iter()
+            .flatten()
+        {
+            let note = i18n::simplified_label(&format!(
+                "{} {} {}",
+                text(row, "id"),
+                text(row, "name"),
+                text(row, "description")
+            ))
+            .to_lowercase();
+            for id in row["scripts"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(Value::as_str)
+            {
+                let terms = entries.entry(id.to_ascii_lowercase()).or_default();
+                terms.push(' ');
+                terms.push_str(&note);
+            }
+        }
+        entries
+    });
+    let id = id.to_ascii_lowercase();
+    let title = i18n::simplified_label(title).to_lowercase();
+    let notes = references.get(&id).map(String::as_str).unwrap_or("");
+    query
+        .split_whitespace()
+        .all(|term| id.contains(term) || title.contains(term) || notes.contains(term))
+}
+
 fn advanced(row: &Value) -> bool {
     row["temporary"] == true || text(row, "name").is_empty() || row["name"] == row["id"]
 }
@@ -66,6 +107,89 @@ pub(crate) fn node_flag(node: &Value) -> Option<&str> {
     } else {
         None
     }
+}
+
+pub(crate) fn step_uses(node: &Value) -> Vec<(&str, &'static str)> {
+    fn collect<'a>(value: &'a Value, uses: &mut Vec<(&'a str, &'static str)>) {
+        let argument = &value["args"][0];
+        let usage = if let Some(id) = node_flag(value) {
+            let kind = match (text(value, "type"), text(value, "op")) {
+                ("game_flag", "add") => "game_flags.context_add",
+                ("game_flag", _) => "game_flags.context_set",
+                _ => "game_flags.context_read",
+            };
+            Some((id, kind))
+        } else if value["kind"] == "call" && argument["kind"] == "literal" {
+            let kind = match crate::native_forms::call_name(value).as_str() {
+                "statmodifymanager.SetFlag" => Some("game_flags.context_set"),
+                "statmodifymanager.AddFlag" => Some("game_flags.context_add"),
+                "luamanager.GetFlagData" => Some("game_flags.context_read"),
+                _ => None,
+            };
+            argument["value"].as_str().zip(kind)
+        } else {
+            None
+        };
+        if let Some(usage) = usage.filter(|(id, _)| !id.is_empty()) {
+            if !uses.contains(&usage) {
+                uses.push(usage);
+            }
+        }
+        match value {
+            Value::Array(items) => items.iter().for_each(|item| collect(item, uses)),
+            Value::Object(fields) => fields.values().for_each(|item| collect(item, uses)),
+            _ => {}
+        }
+    }
+    let mut uses = Vec::new();
+    collect(node, &mut uses);
+    uses
+}
+
+pub(crate) fn find_steps<'a>(
+    data: &'a Value,
+    nodes: &'a [Value],
+    query: &str,
+) -> Vec<(usize, &'a str, &'static str, Option<&'a Value>)> {
+    let mut flags = std::collections::BTreeMap::new();
+    let mut hits = Vec::new();
+    for (index, node) in nodes.iter().enumerate() {
+        for (id, usage) in step_uses(node) {
+            let (metadata, matched) = *flags.entry(id).or_insert_with(|| {
+                let metadata = row(data, id);
+                (
+                    metadata,
+                    metadata.map_or_else(
+                        || id.to_lowercase().contains(query),
+                        |row| matches(row, query),
+                    ),
+                )
+            });
+            if matched {
+                hits.push((index, id, usage, metadata));
+            }
+        }
+    }
+    hits
+}
+
+#[test]
+fn find_steps_locates_structured_flag_reads_and_writes_by_purpose() {
+    let story = lom_core::vanilla_import::import(
+        "statmodifymanager.SetFlag('M20008', 1)\nif luamanager.GetFlagData('M20008') == 1 then\nsay('test')\nend\ncheckpointmanager.Switch('M20008')",
+        "main",
+        "test",
+        "DEMO",
+        &Default::default(),
+    )
+    .unwrap();
+    let data = json!({"game_flags":[{"id":"M20008","name":"路线开关","description":"试验标记"}]});
+    let nodes = story["nodes"].as_array().unwrap();
+    let hits = find_steps(&data, nodes, "试验标记");
+    assert_eq!(hits.len(), 2);
+    assert_eq!(hits[0].2, "game_flags.context_set");
+    assert_eq!(hits[1].2, "game_flags.context_read");
+    assert_eq!(hits, find_steps(&data, nodes, "m20008"));
 }
 
 pub(crate) fn field(

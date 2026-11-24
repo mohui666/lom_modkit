@@ -2327,6 +2327,7 @@ fn story_to_lua_impl(
     if nodes.iter().any(|node| s(node, "type") == "parallel") {
         lines.push(include_str!("../data/parallel.lua").into());
     }
+    let character_scaling = uses_character_scaling(story);
     for (i, node) in nodes.iter().enumerate() {
         let nid = s(node, "id");
         let kind = s(node, "type");
@@ -2345,7 +2346,7 @@ fn story_to_lua_impl(
             previous_shock_wait,
             previous_parallel_shock,
             character_layout,
-            character_scaling: uses_character_scaling(story),
+            character_scaling,
             parallel_transform: false,
             managed_effects,
         };
@@ -2433,6 +2434,7 @@ fn imported_story_to_lua(
         lua.push_str(include_str!("../data/parallel.lua"));
         lua.push('\n');
     }
+    let character_scaling = uses_character_scaling(story);
     let mut start = 0;
     while start < nodes.len() {
         if crate::vanilla_import::Imported::native_raw(origins[start], &nodes[start]) {
@@ -2482,7 +2484,7 @@ fn imported_story_to_lua(
                     previous_shock_wait,
                     previous_parallel_shock,
                     character_layout: true,
-                    character_scaling: uses_character_scaling(story),
+                    character_scaling,
                     parallel_transform: false,
                     managed_effects: true,
                 };
@@ -2619,6 +2621,7 @@ fn structured_import_to_lua(
     }
     let preamble_end = lua.len();
     let mut preview_stage_default = false;
+    let character_scaling = uses_character_scaling(story);
     for (index, node) in nodes.iter().enumerate() {
         let kind = s(node, "type");
         let next = node["goto"]
@@ -2639,7 +2642,7 @@ fn structured_import_to_lua(
             previous_shock_wait,
             previous_parallel_shock,
             character_layout: true,
-            character_scaling: uses_character_scaling(story),
+            character_scaling,
             parallel_transform: false,
             managed_effects: true,
         };

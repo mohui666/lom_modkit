@@ -126,8 +126,7 @@ namespace MortalModHost
         internal void SetCharacterAffinity(ModPackage package, string slot, string character, int value)
         {
             Bind(package, slot);
-            if (string.IsNullOrEmpty(character) || !character.StartsWith("user:", StringComparison.Ordinal)
-                || character.Length > 128 || value < 0 || value > 100)
+            if (!ContentRef.IsAffinityKey(character) || value < 0 || value > 100)
                 throw new ArgumentException("自定义人物好感标识或数值无效（0～100）");
             _characterAffinities[character] = value;
             _dirty = true;
@@ -347,7 +346,7 @@ namespace MortalModHost
                 foreach (var pair in affinities)
                 {
                     int value = ToInt32(pair.Value, "character_affinities." + pair.Key);
-                    if (!pair.Key.StartsWith("user:", StringComparison.Ordinal) || pair.Key.Length > 128 || value < 0 || value > 100)
+                    if (!ContentRef.IsAffinityKey(pair.Key) || value < 0 || value > 100)
                         throw new InvalidDataException("人物好感存档字段无效：" + pair.Key);
                     _characterAffinities.Add(pair.Key, value);
                 }

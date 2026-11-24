@@ -269,6 +269,38 @@ fn structured_branch_app() -> App {
     app.install(project);
     app
 }
+
+#[test]
+fn original_negated_choice_routes_match_the_compiled_condition() {
+    let mut project = Project::new_vanilla_patch("DEMO").unwrap();
+    let story = lom_core::vanilla_import::import(
+        "local options = {}\noptions[2] = \"向右\"\nlocal choice = choose(options)\nif choice ~= 2 then\nsay(\"未选向右\")\nelse\nsay(\"选了向右\")\nend\n",
+        "main",
+        "选项否定判断",
+        "DEMO",
+        &BTreeMap::new(),
+    ).unwrap();
+    let gate = story["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|node| node["type"] == "native_branch")
+        .unwrap();
+    assert_eq!(crate::native_forms::summary(gate), "未选择第 2 项 · 向右");
+    let id = |field: &str| gate[field].as_str().unwrap().to_owned();
+    let edges = crate::preview::edges(&story);
+    for (field, label) in [("success", "条件成立"), ("failure", "条件不成立")] {
+        assert!(edges.contains(&(id("id"), id(field), label.into())));
+    }
+    project.stories.insert("main".into(), story.clone());
+    let lua = compile_with_assets(&project, &story).unwrap();
+    assert!(lua.contains(&format!(
+        "if {} then return \"{}\" else return \"{}\" end",
+        lom_core::native_flow::expression(&gate["condition"]).unwrap(),
+        id("success"),
+        id("failure")
+    )));
+}
 #[test]
 fn structured_additions_follow_the_true_branch_and_resume_its_original_target() {
     let mut app = structured_branch_app();
@@ -290,7 +322,11 @@ fn structured_additions_follow_the_true_branch_and_resume_its_original_target() 
         app.story().clone()["nodes"][branch_index]["failure"],
         before["failure"]
     );
-    assert_eq!(added["goto"], before["success"]);
+    assert!(added.get("goto").is_none());
+    assert_eq!(
+        lom_core::analysis::successors(app.story(), app.selected),
+        vec![before["success"].as_str().unwrap().to_owned()]
+    );
     app.project.stories.get_mut("main").unwrap()["nodes"][app.selected]["text"] =
         json!("新增真支对白");
 
@@ -315,6 +351,80 @@ fn structured_additions_follow_the_true_branch_and_resume_its_original_target() 
     compile_with_assets(&app.project, &app.story().clone()).unwrap();
 }
 #[test]
+fn legacy_original_links_are_normalized_in_batch_and_spliced_without_renumbering() {
+    let mut app = structured_branch_app();
+    let chapter = app.current.clone();
+    let story = app.project.stories.get_mut(&chapter).unwrap();
+    let nodes = story["nodes"].as_array().unwrap();
+    let index = nodes
+        .windows(2)
+        .position(|pair| {
+            lom_core::analysis::follows_next(&pair[0])
+                && lom_core::vanilla_import::origin_index(&pair[0]).is_some()
+        })
+        .unwrap();
+    let anchor = nodes[index]["id"].clone();
+    let next = nodes[index + 1]["id"].clone();
+    let origin = lom_core::vanilla_import::origin_index(&nodes[index]).unwrap();
+    story["nodes"][index]["goto"] = next.clone();
+    story["vanilla_import"]["origins"][origin]["node"]["goto"] = next.clone();
+    let mut second = story.clone();
+    second["id"] = json!("second");
+    second["vanilla_import"]["target"] = json!("SECOND");
+    app.project.stories.insert("second".into(), second);
+    app.track();
+    app.flush();
+    let baseline = snapshot(&app.project);
+    let originals = app.project.stories.clone();
+    let before = compile_with_assets(&app.project, app.story()).unwrap();
+
+    app.normalize_original_links();
+    for story in app.project.stories.values() {
+        assert!(story["nodes"][index].get("goto").is_none());
+        assert_eq!(story["nodes"][index]["id"], anchor);
+        assert_eq!(story["nodes"][index + 1]["id"], next);
+        let original = &originals[story["id"].as_str().unwrap()];
+        for i in 0..story["nodes"].as_array().unwrap().len() {
+            assert_eq!(
+                lom_core::analysis::successors(story, i),
+                lom_core::analysis::successors(original, i)
+            );
+        }
+    }
+    assert_eq!(before, compile_with_assets(&app.project, app.story()).unwrap());
+    app.undo();
+    assert!(snapshot(&app.project) == baseline);
+
+    let mut edited = app.story().clone();
+    let old_nodes = edited["nodes"].as_array().unwrap().clone();
+    let at = crate::workspace::steps::insert_nodes_after(
+        &mut edited,
+        index,
+        vec![json!({"id":"batch_insert","type":"say","mode":"narrative","text":"插入验证"})],
+    )
+    .unwrap();
+    assert_eq!(at, index + 1);
+    assert_eq!(lom_core::analysis::successors(&edited, index), ["batch_insert"]);
+    assert_eq!(
+        lom_core::analysis::successors(&edited, at),
+        [next.as_str().unwrap()]
+    );
+    let retained: Vec<_> = edited["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|node| node["id"] != "batch_insert")
+        .map(|node| &node["id"])
+        .collect();
+    assert_eq!(
+        retained,
+        old_nodes.iter().map(|node| &node["id"]).collect::<Vec<_>>()
+    );
+    lom_core::validate::validate_story(&edited).unwrap();
+    compile_with_assets(&app.project, &edited).unwrap();
+}
+
+#[test]
 fn structured_paste_preserves_internal_links_and_reconnects_the_external_exit() {
     let mut app = structured_branch_app();
     app.selected = app.story().clone()["nodes"]
@@ -337,11 +447,44 @@ fn structured_paste_preserves_internal_links_and_reconnects_the_external_exit() 
     assert_eq!(first["goto"], last["id"]);
     assert_eq!(last["goto"], continuation);
     assert!(first["_editor"].get("vanilla_origin").is_none());
+    let imported = lom_core::vanilla_import::parse(&story).unwrap().unwrap();
+    let nodes = story["nodes"].as_array().unwrap();
+    let origins = imported.associations(nodes);
+    assert!(lom_core::vanilla_import::Imported::unchanged(
+        origins[anchor].unwrap(), &nodes[anchor]
+    ));
     lom_core::validate::validate_story(&story).unwrap();
     compile_with_assets(&app.project, &story).unwrap();
 }
+
 #[test]
-fn structured_delete_reconnects_single_successors_and_keeps_ambiguous_branches() {
+fn pasted_condition_default_rejoins_a_nonadjacent_original_destination() {
+    let mut app = structured_branch_app();
+    app.selected = app.story()["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .position(|node| node["text"] == "真支原文")
+        .unwrap();
+    let destination = app.story()["nodes"][app.selected]["goto"].clone();
+    app.clipboard = vec![
+        json!({"id":"condition","type":"branch","source":"mod","flag":"mark",
+               "cases":[{"value":1,"goto":"another_chapter_step"}]}),
+    ];
+    app.paste();
+    assert!(app.error.is_none(), "{:?}", app.error);
+    let story = app.story();
+    let condition = &story["nodes"][app.selected];
+    let fallback = &story["nodes"][app.selected + 1];
+    assert_eq!(condition["cases"][0]["goto"], destination);
+    assert_eq!(fallback["goto"], destination);
+    let successors = lom_core::analysis::successors(story, app.selected);
+    assert!(successors.iter().any(|id| fallback["id"] == *id));
+    compile_with_assets(&app.project, story).unwrap();
+}
+
+#[test]
+fn structured_delete_reconnects_a_single_successor_or_prompts_to_choose_a_branch() {
     let mut app = structured_branch_app();
     app.selected = app.story().clone()["nodes"]
         .as_array()
@@ -370,9 +513,140 @@ fn structured_delete_reconnects_single_successors_and_keeps_ambiguous_branches()
 
     app.selected = branch;
     let before = snapshot(&app.project);
+    let gate = story["nodes"][branch]["id"].as_str().unwrap();
+    let otherwise = story["nodes"][branch]["failure"].as_str().unwrap();
     app.delete();
     assert!(snapshot(&app.project) == before);
-    assert!(app.error.as_ref().unwrap().contains("多个不同后继"));
+    assert!(app.error.is_none());
+    app.confirm_step_deletion();
+    assert!(snapshot(&app.project) == before);
+    app.step_delete_dialog
+        .as_mut()
+        .unwrap()
+        .choose(gate, otherwise);
+    app.confirm_step_deletion();
+    assert!(app.step_delete_dialog.is_none());
+    let after = app.story();
+    assert_eq!(
+        lom_core::analysis::successors(after, branch - 1),
+        vec![otherwise.to_owned()]
+    );
+    assert!(after["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|n| n["text"] == "假支原文"));
+    assert!(after["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|n| n["text"] == "汇合原文"));
+    compile_with_assets(&app.project, after).unwrap();
+}
+
+#[test]
+fn deleting_the_entry_branch_keeps_both_bodies_and_connects_to_the_chosen_path() {
+    let mut app = structured_branch_app();
+    app.selected = 0;
+    app.delete();
+    assert!(app.step_delete_dialog.is_none());
+    assert_eq!(app.story()["nodes"][0]["type"], "native_branch");
+    let gate = app.story()["nodes"][0]["id"].as_str().unwrap().to_owned();
+    let otherwise = app.story()["nodes"][0]["failure"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    app.delete();
+    app.step_delete_dialog
+        .as_mut()
+        .unwrap()
+        .choose(&gate, &otherwise);
+    app.confirm_step_deletion();
+    let story = app.story();
+    assert_eq!(story["start"], story["nodes"][0]["id"]);
+    assert_eq!(lom_core::analysis::successors(story, 0), [otherwise]);
+    assert!(story["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|n| n["text"] == "真支原文"));
+    assert!(story["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|n| n["text"] == "假支原文"));
+    compile_with_assets(&app.project, story).unwrap();
+}
+
+#[test]
+fn deleting_an_active_ending_in_the_middle_reconnects_the_surviving_steps() {
+    let mut app = structured_branch_app();
+    let anchor = app.selected;
+    let continuation = app.story()["nodes"][anchor + 1]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    app.add_node("end");
+    let index = app.selected;
+    let ending = &mut app.project.stories.get_mut("main").unwrap()["nodes"][index];
+    ending.as_object_mut().unwrap().remove("resume_original");
+    ending.as_object_mut().unwrap().remove("resume_node");
+    let ending_id = ending["id"].clone();
+    app.track();
+    app.delete();
+    assert!(app.step_delete_dialog.is_some());
+    app.confirm_step_deletion();
+    assert!(app.step_delete_dialog.is_none());
+    assert!(!app.story()["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|n| n["id"] == ending_id));
+    assert_eq!(
+        lom_core::analysis::successors(app.story(), anchor),
+        [continuation]
+    );
+    compile_with_assets(&app.project, app.story()).unwrap();
+}
+
+#[test]
+fn structured_delete_chapter_end_leaves_the_final_linear_step_valid() {
+    let mut app = structured_branch_app();
+    app.selected = app.story()["nodes"].as_array().unwrap().len() - 2;
+    app.add_node("hide_all");
+    assert!(app.error.is_none());
+    let end_index = app.story()["nodes"].as_array().unwrap().len() - 1;
+    let end = app.story()["nodes"][end_index]["id"].clone();
+    app.project.stories.get_mut("main").unwrap()["nodes"][end_index - 1]["goto"] = end;
+    app.track();
+    app.flush();
+    let before = app.story().clone();
+    assert_eq!(before["nodes"][end_index]["type"], "end");
+    assert_eq!(
+        before["nodes"][end_index - 1]["goto"],
+        before["nodes"][end_index]["id"]
+    );
+    app.selected = end_index;
+    app.delete();
+    assert!(app.error.is_none(), "{:?}", app.error);
+    let after = app.story().clone();
+    let tail = after["nodes"].as_array().unwrap().last().unwrap();
+    assert_eq!(tail["type"], "hide_all");
+    assert!(tail.get("goto").is_none());
+    lom_core::validate::validate_story(&after).unwrap();
+    let analysis = lom_core::analysis::analyze_project(&app.project.stories, &app.project.manifest);
+    assert!(!analysis["issues"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|issue| issue["severity"] == "error"));
+
+    let folder = tempfile::tempdir().unwrap();
+    let package = folder.path().join("ending.lommod");
+    app.project.export(&package).unwrap();
+    assert_eq!(Project::open(&package).unwrap().stories["main"], after);
+    app.undo();
+    assert_eq!(*app.story(), before);
 }
 #[test]
 fn structured_template_insertion_reuses_the_connected_paste_path() {

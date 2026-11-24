@@ -40,6 +40,17 @@ namespace MortalModHost
                 }
                 AddonSaveDependencies.Record(slot, new[] { first });
                 Check(AddonSaveDependencies.Missing(slot, new[] { first }).Count == 0, "成功新存档可替换依赖列表");
+                Check(ModSaveSlotPolicy.IsOfficialManualSlot("001") && ModSaveSlotPolicy.IsOfficialManualSlot("021")
+                    && !ModSaveSlotPolicy.IsOfficialManualSlot("000") && !ModSaveSlotPolicy.IsOfficialManualSlot("auto")
+                    && !ModSaveSlotPolicy.IsOfficialManualSlot(slot), "原版手动栏位和 MOD 栏位分开");
+                long? originalBattleTick;
+                const long recordedTick = 638996330000000001L;
+                AddonSaveDependencies.Record(slot, new[] { first }, recordedTick);
+                Check(AddonSaveDependencies.Missing(slot, new[] { first, second }, out originalBattleTick).Count == 0
+                    && originalBattleTick == recordedTick, "原版战斗档标记保留完整时间精度");
+                AddonSaveDependencies.Record(slot, new[] { first });
+                AddonSaveDependencies.Missing(slot, new[] { first }, out originalBattleTick);
+                Check(!originalBattleTick.HasValue, "再次保存后清除导入的原版战斗标记");
                 AddonSaveDependencies.Record(ModSaveSlotPolicy.AddonManualSlot(3), new ModPackage[0]);
                 Check(AddonSaveDependencies.Missing(ModSaveSlotPolicy.AddonManualSlot(3), new ModPackage[0]).Count == 0, "明确无依赖与缺少记录不同");
                 string legacy = ModSaveSlotPolicy.AddonManualSlot(20);

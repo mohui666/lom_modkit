@@ -2519,6 +2519,18 @@
     "ja": "選択肢{number}を選ぶ · {text}",
     "ko": "선택지 {number} 선택 · {text}"
   },
+  "native.condition.choice_not": {
+    "chs": "未选择第 {number} 项 · {text}",
+    "cht": "未選擇第 {number} 項 · {text}",
+    "ja": "選択肢{number}を選ばなかった · {text}",
+    "ko": "선택지 {number} 미선택 · {text}"
+  },
+  "native.condition.check_compare": {
+    "chs": "检定 {name} · 结果 {operator} {result}",
+    "cht": "檢定 {name} · 結果 {operator} {result}",
+    "ja": "判定{name} · 結果 {operator} {result}",
+    "ko": "판정 {name} · 결과 {operator} {result}"
+  },
   "native.condition.check": {
     "chs": "检定 {name} · 结果 {result}",
     "cht": "檢定 {name} · 結果 {result}",

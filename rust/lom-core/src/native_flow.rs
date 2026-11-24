@@ -3,7 +3,7 @@ use crate::vanilla_import::{Imported, Origin};
 use crate::vanilla_patch::Token;
 use anyhow::{bail, ensure, Context, Result};
 use serde_json::{json, Value};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 fn name(value: &str) -> bool {
     !value.is_empty()
@@ -14,6 +14,112 @@ fn name(value: &str) -> bool {
 }
 fn text<'a>(v: &'a Value, key: &str) -> &'a str {
     v[key].as_str().unwrap_or("")
+}
+
+/// Drop explicit links whose destination is already the next physical step.
+/// The original operation and the explicit destinations of branches still
+/// belong to their stable IDs.
+pub fn normalize_linear_links(story: &mut Value) -> usize {
+    normalize_links(story, None)
+}
+
+pub fn normalize_linear_link(story: &mut Value, index: usize) {
+    if story["nodes"][index]["goto"].is_string()
+        && story["nodes"][index]["goto"] == story["nodes"][index + 1]["id"]
+    {
+        normalize_links(story, Some(index));
+    }
+}
+
+/// Inserting on an explicit edge only changes where the original action
+/// continues. Retain its native presentation and original Lua operations.
+pub fn preserve_rewired_action(story: &mut Value, index: usize, rewired: &Value) {
+    let node = &story["nodes"][index];
+    if story["vanilla_import"]["schema"] != 2
+        || !node["goto"].is_string()
+        || node["goto"] == rewired["goto"]
+    {
+        return;
+    }
+    let Some(origin) = crate::vanilla_import::origin_index(node) else {
+        return;
+    };
+    if story["nodes"].as_array().unwrap()[..index]
+        .iter()
+        .any(|other| crate::vanilla_import::origin_index(other) == Some(origin))
+    {
+        return;
+    }
+    let mut old_shape = crate::vanilla_import::comparable(rewired);
+    old_shape["goto"] = node["goto"].clone();
+    let old_baseline = &story["vanilla_import"]["origins"][origin]["node"];
+    if old_shape == crate::vanilla_import::comparable(node)
+        && old_shape == crate::vanilla_import::comparable(old_baseline)
+    {
+        story["vanilla_import"]["origins"][origin]["node"]["goto"] = rewired["goto"].clone();
+    }
+}
+
+fn normalize_links(story: &mut Value, only: Option<usize>) -> usize {
+    if story["vanilla_import"]["schema"] != 2 {
+        return 0;
+    }
+    let Some(nodes) = story["nodes"].as_array() else {
+        return 0;
+    };
+    let Some(origins) = story["vanilla_import"]["origins"].as_array() else {
+        return 0;
+    };
+    let no_goto = crate::validate::node_schema()["no_goto_types"]
+        .as_array()
+        .unwrap();
+    let mut seen_origins = BTreeSet::new();
+    let mut changes = Vec::new();
+    let limit = only.map_or(nodes.len(), |index| index.saturating_add(1));
+    for (index, pair) in nodes.windows(2).take(limit).enumerate() {
+        let node = &pair[0];
+        let origin = crate::vanilla_import::origin_index(node)
+            .filter(|&origin| origin < origins.len() && seen_origins.insert(origin));
+        let next = text(&pair[1], "id");
+        if only.is_some_and(|only| only != index)
+            || next.is_empty()
+            || text(node, "goto") != next
+            || no_goto.contains(&node["type"])
+            || node["type"] == "raw"
+        {
+            continue;
+        }
+        let mut update_origin = None;
+        if let Some(origin) = origin {
+            let baseline = &origins[origin]["node"];
+            if baseline["goto"] == node["goto"] {
+                // Keep the original operation eligible for native playback.
+                update_origin = Some(origin);
+            } else if baseline.get("goto").is_none() {
+                let mut without_goto = crate::vanilla_import::comparable(node);
+                without_goto.as_object_mut().unwrap().remove("goto");
+                if without_goto == crate::vanilla_import::comparable(baseline) {
+                    // An explicit author edit already selected generated playback.
+                    // Leave this edge alone so sorting the links cannot switch it.
+                    continue;
+                }
+            }
+        }
+        changes.push((index, update_origin));
+    }
+    for &(index, origin) in &changes {
+        story["nodes"][index]
+            .as_object_mut()
+            .unwrap()
+            .remove("goto");
+        if let Some(origin) = origin {
+            story["vanilla_import"]["origins"][origin]["node"]
+                .as_object_mut()
+                .unwrap()
+                .remove("goto");
+        }
+    }
+    changes.len()
 }
 
 /// Emit only the parsed expression grammar. No source-code strings are executable fields.
@@ -581,6 +687,15 @@ pub fn import(
         source.len(),
     );
     builder.link(&exits, end);
+    // Keep only non-adjacent jumps explicit. The structured dispatcher already
+    // falls through to the next step when a linear node has no goto.
+    for index in 0..end {
+        if builder.nodes[index]["goto"].is_string()
+            && builder.nodes[index]["goto"] == builder.nodes[index + 1]["id"]
+        {
+            builder.nodes[index].as_object_mut().unwrap().remove("goto");
+        }
+    }
     for node in &mut builder.nodes {
         for field in ["operations", "condition"] {
             if let Some(value) = node.get_mut(field) {
@@ -641,11 +756,12 @@ fn annotate_branches(nodes: &mut [Value], translations: &BTreeMap<String, String
             editor.remove("native_condition");
         }
         let condition = &node["condition"];
-        let (value, result) = if condition["kind"] == "binary" {
-            (&condition["left"], condition["right"]["value"].to_string())
-        } else {
-            (condition, String::new())
-        };
+        let (value, result) =
+            if condition["kind"] == "binary" && condition["right"]["kind"] == "literal" {
+                (&condition["left"], condition["right"]["value"].to_string())
+            } else {
+                (condition, String::new())
+            };
         let binding = if value["kind"] == "local" {
             bindings.get(text(value, "symbol")).unwrap_or(value)
         } else {
@@ -655,7 +771,10 @@ fn annotate_branches(nodes: &mut [Value], translations: &BTreeMap<String, String
             continue;
         }
         let function = &binding["function"];
-        if function["kind"] == "name" && function["name"] == "choose" {
+        if function["kind"] == "name"
+            && function["name"] == "choose"
+            && matches!(condition["op"].as_str(), Some("==" | "~="))
+        {
             let table = &binding["args"][0];
             if let Some(labels) = choices.get(&(text(table, "symbol").to_owned(), result.clone())) {
                 node["_editor"]["native_condition"] =

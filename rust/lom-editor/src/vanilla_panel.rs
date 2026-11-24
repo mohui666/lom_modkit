@@ -717,14 +717,12 @@ impl Panel {
                         .desired_width(f32::INFINITY)
                         .hint_text(key("vanilla.chapter_search")),
                 );
+                let query = crate::i18n::simplified_label(&self.chapter_filter).to_lowercase();
                 egui::ScrollArea::vertical()
                     .auto_shrink([false, false])
                     .show(ui, |ui| {
                         for target in &self.chapters {
-                            if !target
-                                .to_lowercase()
-                                .contains(&self.chapter_filter.to_lowercase())
-                            {
+                            if !crate::game_flags::original_chapter_matches(target, "", &query) {
                                 continue;
                             }
                             if ui

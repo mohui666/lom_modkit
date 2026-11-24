@@ -5,6 +5,8 @@ using Mortal.Core;
 using Mortal.Story;
 using OBB.Framework.Extensions;
 using UnityEngine;
+using UnityEngine.AddressableAssets;
+using UnityEngine.ResourceManagement.AsyncOperations;
 
 namespace MortalModHost
 {
@@ -13,10 +15,12 @@ namespace MortalModHost
     {
         private static readonly Dictionary<UserContent, Sprite> Avatars = new Dictionary<UserContent, Sprite>();
         private static readonly Dictionary<UserContent, Sprite> Portraits = new Dictionary<UserContent, Sprite>();
+        private static readonly Dictionary<string, AsyncOperationHandle<Sprite>> StoryPortraits =
+            new Dictionary<string, AsyncOperationHandle<Sprite>>(StringComparer.Ordinal);
 
-        internal static bool IsCustom(string character)
+        internal static bool UsesSidecar(string character)
         {
-            return character != null && character.StartsWith(ContentRef.UserPrefix, StringComparison.Ordinal);
+            return ContentRef.IsUserRef(character) || ContentRef.IsStoryAffinityRef(character);
         }
 
         internal static UserContent RequireCharacter(ModPackage package, string character)
@@ -31,22 +35,63 @@ namespace MortalModHost
 
         internal static int Value(ModPackage package, string character)
         {
-            UserContent content = RequireCharacter(package, character);
-            return PersistentModState.CharacterAffinity(package, character, content.InitialAffinity);
+            int initial;
+            if (ContentRef.IsStoryAffinityRef(character))
+            {
+                if (!ContentRef.IsAffinityKey(character))
+                    throw new ArgumentException("原版剧情人物的作品好感 ID 无效：" + character);
+                initial = 0;
+            }
+            else initial = RequireCharacter(package, character).InitialAffinity;
+            return PersistentModState.CharacterAffinity(package, character, initial);
         }
 
         internal static void Change(ModPackage package, string character, int value, bool set, bool display)
         {
-            UserContent content = RequireCharacter(package, character);
             int current = Value(package, character);
             int next = set ? Mathf.Clamp(value, 0, 100) : (int)Math.Max(0L, Math.Min(100L, (long)current + value));
             PersistentModState.SetCharacterAffinity(package, character, next);
-            if (!display || value == 0) return;
+            if (!display || next == current || SystemMessageScope.Suppressed) return;
             StoryMainUI ui = StoryMainUI.Instance;
             if (ui == null) throw new InvalidOperationException("好感提示的剧情界面尚未就绪");
             RelationshipModifyMessagePanel panel = Traverse.Create(ui).Field("_relationshipMessagePanel").GetValue<RelationshipModifyMessagePanel>();
             if (panel == null) throw new InvalidOperationException("剧情界面缺少好感提示面板");
-            panel.DisplayRelationshipModification(Avatar(content), set ? next - current : value);
+            Sprite avatar = ContentRef.IsStoryAffinityRef(character)
+                ? StoryAvatar(package, character.Substring(ContentRef.StoryAffinityPrefix.Length))
+                : Avatar(RequireCharacter(package, character));
+            panel.DisplayRelationshipModification(avatar, next - current);
+        }
+
+        private static Sprite StoryAvatar(ModPackage package, string id)
+        {
+            UserContent extension;
+            if (package.CharacterExtensions.TryGetValue(id, out extension)
+                && !string.IsNullOrEmpty(extension.AvatarFile)) return Avatar(extension);
+
+            CharacterPlaceholder placeholder = CharacterPlaceholder.Instance;
+            var config = placeholder == null ? null
+                : Traverse.Create(placeholder).Field("_config").GetValue<StoryCharacterConfig>();
+            StoryCharacterData data = config == null ? null : config.Get(id);
+            if (data == null) throw new InvalidOperationException("找不到剧情好感提示的人物：" + id);
+            string address = null;
+            foreach (StoryCharaterImageItem portrait in data.PortraitResourceList ?? Array.Empty<StoryCharaterImageItem>())
+            {
+                if (portrait == null || portrait.Mapping == null || string.IsNullOrEmpty(portrait.AddressKey)) continue;
+                if (portrait.Mapping.Value == "normal")
+                {
+                    address = portrait.AddressKey;
+                    break;
+                }
+                if (address == null) address = portrait.AddressKey;
+            }
+            if (address == null) return null;
+            AsyncOperationHandle<Sprite> handle;
+            if (!StoryPortraits.TryGetValue(address, out handle))
+            {
+                handle = Addressables.LoadAssetAsync<Sprite>(address);
+                StoryPortraits.Add(address, handle);
+            }
+            return handle.WaitForCompletion();
         }
 
         internal static Sprite Avatar(UserContent content)
@@ -98,6 +143,9 @@ namespace MortalModHost
         internal static void Clear()
         {
             PlayerNormalAvatarRuntime.Clear();
+            foreach (var handle in StoryPortraits.Values)
+                if (handle.IsValid()) Addressables.Release(handle);
+            StoryPortraits.Clear();
             foreach (Sprite sprite in Portraits.Values)
                 if (sprite != null)
                 {
@@ -120,7 +168,7 @@ namespace MortalModHost
     {
         private static bool Prefix(string name, int value, int display)
         {
-            if (!CustomAffinityRuntime.IsCustom(name)) return true;
+            if (!CustomAffinityRuntime.UsesSidecar(name)) return true;
             CustomAffinityRuntime.Change(ModOverlay.CurrentPackage, name, value, false, display == 1);
             return false;
         }
@@ -131,7 +179,7 @@ namespace MortalModHost
     {
         private static bool Prefix(string name, int value)
         {
-            if (!CustomAffinityRuntime.IsCustom(name)) return true;
+            if (!CustomAffinityRuntime.UsesSidecar(name)) return true;
             CustomAffinityRuntime.Change(ModOverlay.CurrentPackage, name, value, true, false);
             return false;
         }
