@@ -50,7 +50,7 @@ pub fn update(
             "素材为空或超过大小限制"
         );
         ensure!(
-            ["wav", "ogg", "png", "jpg", "jpeg"].contains(&ext.as_str()),
+            ["wav", "ogg"].contains(&ext.as_str()) || content::IMAGE_EXTENSIONS.contains(&ext.as_str()),
             "不支持的素材格式"
         );
         assets.insert(format!("{prefix}{name}"), bytes.clone());
@@ -231,7 +231,7 @@ fn is_editor_replacement_filename(filename: &str) -> bool {
     let Some((stem, extension)) = filename.rsplit_once('.') else {
         return false;
     };
-    matches!(extension, "png" | "jpg" | "jpeg")
+    content::IMAGE_EXTENSIONS.contains(&extension)
         && stem
             .strip_prefix("asset_")
             .and_then(|s| s.split_once('_'))

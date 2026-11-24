@@ -4,6 +4,7 @@ pub mod character_profile;
 pub mod codegen;
 pub mod content;
 pub mod content_library;
+pub mod gif_image;
 pub mod legacy_activation;
 pub mod legacy_extensions;
 pub mod legacy_loose;

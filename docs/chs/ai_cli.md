@@ -1,6 +1,6 @@
 # Python 对象 API 与 Rust CLI
 
-本文对应 1.6.2。查签名与字段：[Python 接口参考](python_api.md)；查命令输入输出：[CLI 参数参考](cli_parameters.md)；AI 工作流：[lom-modkit-authoring skill](https://github.com/mohui666/lom_modkit/blob/v1.6.2/skills/lom-modkit-authoring/SKILL.md)。SDK 导出后本文为根目录 `README.md`，两份参考文档与它同目录，skill 位于 `skill/lom-modkit-authoring/`，可复制到自己的 Codex skills 目录。
+本文对应 1.6.11。查签名与字段：[Python 接口参考](python_api.md)；查命令输入输出：[CLI 参数参考](cli_parameters.md)；AI 工作流：[lom-modkit-authoring skill](https://github.com/mohui666/lom_modkit/blob/v1.6.11/skills/lom-modkit-authoring/SKILL.md)。SDK 导出后本文为根目录 `README.md`，两份参考文档与它同目录，skill 位于 `skill/lom-modkit-authoring/`，可复制到自己的 Codex skills 目录。
 
 推荐用户和 AI 使用 [Python 节点构造函数](#主要入口python-构造函数)批量制作剧本：每个节点是对象，构造时检查参数，生成失败抛出含完整诊断的异常。安装 Python 3.10+ 即可，无第三方包依赖。底层 Rust 核心负责校验、保存为编辑器工程、编译和导出；需要其他工具接入时也能直接使用下面的 Rust CLI。包／章节／内容契约保持 **3 / 2 / 1**。
 
@@ -32,7 +32,7 @@ Windows 正式附件只有内置组件的 `lom-editor.exe`；下面的 CLI、SDK
 
 生成 `作品/manifest.json` 和 `作品/story/main.json`，编辑器可打开目录或 MOD 包继续编辑。普通步骤依数组顺序执行，分支和 `goto` 使用节点 ID。请先使用新输出目录；不会自动覆盖不属于当前来源的工程。
 
-批量多章节示例见 [samples/cli-authoring/request.json](https://github.com/mohui666/lom_modkit/blob/v1.6.2/samples/cli-authoring/request.json)，包含两个章节、选项分支和跨章跳转。AI 可一次提交整个 stories 集合，不必逐节点启动命令。源码目录中可执行 `lomc project samples/cli-authoring/request.json -o out/cli-story --json`。
+批量多章节示例见 [samples/cli-authoring/request.json](https://github.com/mohui666/lom_modkit/blob/v1.6.11/samples/cli-authoring/request.json)，包含两个章节、选项分支和跨章跳转。AI 可一次提交整个 stories 集合，不必逐节点启动命令。源码目录中可执行 `lomc project samples/cli-authoring/request.json -o out/cli-story --json`。
 
 源码构建：`cargo build --locked --release -p lomc`。把本文的 `lom-editor.exe --cli` 换成 `target/release/lomc.exe` 即可使用独立 CLI；其他平台为 `lomc`。两种入口使用同一个 Rust 编译器。
 
@@ -62,9 +62,9 @@ Windows 正式附件只有内置组件的 `lom-editor.exe`；下面的 CLI、SDK
 
 > 阅读 ai_cli.md，查询 schema nodes/catalog，用节点对象制作剧本。通过 project 生成可编辑工程，按体检的章节／节点位置修正错误，再 export 和 inspect。保留原工程与存档身份，不猜测官方资源 ID。
 
-编排演出前先读 skill 的[演出节奏与站位](https://github.com/mohui666/lom_modkit/blob/v1.6.2/skills/lom-modkit-authoring/SKILL.md#演出节奏与站位)，按剧情处理位移、动作等待和人物距离；工程校验不代替这些演出判断。
+编排演出前先读 skill 的[演出节奏与站位](https://github.com/mohui666/lom_modkit/blob/v1.6.11/skills/lom-modkit-authoring/SKILL.md#演出节奏与站位)，按剧情处理位移、动作等待和人物距离；工程校验不代替这些演出判断。
 
-完整嵌套条件、选项、奖励和原版来源信息见 [Mod 格式参考](https://github.com/mohui666/lom_modkit/blob/v1.6.2/docs/chs/mod_format.md)。原版整章来源信息不能凭空编造。
+完整嵌套条件、选项、奖励和原版来源信息见 [Mod 格式参考](https://github.com/mohui666/lom_modkit/blob/v1.6.11/docs/chs/mod_format.md)。原版整章来源信息不能凭空编造。
 
 ## 工程请求字段
 
@@ -94,7 +94,7 @@ Windows 正式附件只有内置组件的 `lom-editor.exe`；下面的 CLI、SDK
 }}
 ```
 
-此片段合并到工程请求。具体字段见 [用户内容](https://github.com/mohui666/lom_modkit/blob/v1.6.2/docs/chs/user_content.md)、[自定义玩法](https://github.com/mohui666/lom_modkit/blob/v1.6.2/docs/chs/custom_gameplay.md)。事件和任务使用 [事件任务格式](https://github.com/mohui666/lom_modkit/blob/v1.6.2/docs/chs/events_and_tasks.md)；翻译放入章节 `localization`，离线测试放入 `_editor.tests`。所有现有节点和嵌套动作均能直接用对象表达。
+此片段合并到工程请求。具体字段见 [用户内容](https://github.com/mohui666/lom_modkit/blob/v1.6.11/docs/chs/user_content.md)、[自定义玩法](https://github.com/mohui666/lom_modkit/blob/v1.6.11/docs/chs/custom_gameplay.md)。事件和任务使用 [事件任务格式](https://github.com/mohui666/lom_modkit/blob/v1.6.11/docs/chs/events_and_tasks.md)；翻译放入章节 `localization`，离线测试放入 `_editor.tests`。所有现有节点和嵌套动作均能直接用对象表达。
 
 ## 主要入口：Python 构造函数
 
@@ -295,7 +295,7 @@ cli.open_editor("作品.lommod", output="导入工程", script="crossing", node=
 
 ## 复杂样例与重跑
 
-[《雾渡夜灯》完整 Python 文件](https://github.com/mohui666/lom_modkit/blob/v1.6.2/samples/python-api-complex/build_story.py)由独立新对话按[剧本委托](https://github.com/mohui666/lom_modkit/blob/v1.6.2/samples/python-api-complex/BRIEF.md)制作，随后更新为使用新增的配置构造函数。10 章、184 个顶层节点、24 类节点；包含调查循环、跨章旗标、三个结局、4 个事件、2 项任务、30:70 日常池、自定义图像／人物／音频、cht/ja 译文和 8 条离线路线。美术为自有几何示意，音频为合成测试音。
+[《雾渡夜灯》完整 Python 文件](https://github.com/mohui666/lom_modkit/blob/v1.6.11/samples/python-api-complex/build_story.py)由独立新对话按[剧本委托](https://github.com/mohui666/lom_modkit/blob/v1.6.11/samples/python-api-complex/BRIEF.md)制作，随后更新为使用新增的配置构造函数。10 章、184 个顶层节点、24 类节点；包含调查循环、跨章旗标、三个结局、4 个事件、2 项任务、30:70 日常池、自定义图像／人物／音频、cht/ja 译文和 8 条离线路线。美术为自有几何示意，音频为合成测试音。
 
 在仓库根目录，指定尚不存在的 SDK 和输出目录：
 
@@ -350,4 +350,4 @@ check／preflight／test 与 `--smoke-preview` 的离线校验不能代替 Windo
 
 `edit story.json --operations operations.json [-o edited.json] --json` 批量操作，每项省略 story，共享上一步结果；失败不写回。不带 -o 时改写原章节；不接受 new_story/new_node。旧操作沿用表单检查，完整原生字段使用对象与 project。
 
-其他既有命令包括 new-story、migrate、content-inspect、content-import、play-bundle、install-play-bundle、detect-watermark、detect-watermark-video。完整参数见 `--help`、[Rust 工具端](https://github.com/mohui666/lom_modkit/blob/v1.6.2/docs/chs/rust.md) 及各专题。检测器继续支持旧版媒体，当前输出不嵌入水印。1.6.0 顶层 `--help`／`--version` 直接输出，不打开窗口；查询旧版时使用 `--cli --version`。版本变化见 [GitHub Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.2)，仓库不保留独立版本 notes。
+其他既有命令包括 new-story、migrate、content-inspect、content-import、play-bundle、install-play-bundle、detect-watermark、detect-watermark-video。完整参数见 `--help`、[Rust 工具端](https://github.com/mohui666/lom_modkit/blob/v1.6.11/docs/chs/rust.md) 及各专题。检测器继续支持旧版媒体，当前输出不嵌入水印。1.6.0 顶层 `--help`／`--version` 直接输出，不打开窗口；查询旧版时使用 `--cli --version`。版本变化见 [GitHub Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.11)，仓库不保留独立版本 notes。

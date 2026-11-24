@@ -72,7 +72,7 @@ namespace MortalModHost
                     UserContent content = CustomGameplayRuntime.ResolveContent(ModOverlay.CurrentPackage, key);
                     if (!content.IsStoryPicture || content.Bytes == null) throw new InvalidOperationException("自定义大图不存在：" + key);
                     _texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
-                    if (!_texture.LoadImage(content.Bytes)) throw new InvalidOperationException("自定义大图解码失败：" + key);
+                    if (!GifImageRuntime.Load(_texture, content.Bytes)) throw new InvalidOperationException("自定义大图解码失败：" + key);
                     _texture.wrapMode = TextureWrapMode.Clamp;
                     _texture.filterMode = FilterMode.Bilinear;
                     picture = _sprite = Sprite.Create(_texture, new Rect(0, 0, _texture.width, _texture.height), new Vector2(.5f, .5f));

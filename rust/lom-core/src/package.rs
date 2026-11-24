@@ -674,6 +674,7 @@ fn add_user_content(
             if raw["biography"].is_null()
                 && raw.get("biography_pages").is_none()
                 && raw.get("initially_known").is_none()
+                && raw["social_thumbnail"].is_null()
             {
                 continue;
             }
@@ -691,10 +692,10 @@ fn add_user_content(
                 "人物资料 ID 与素材目录不一致：{}",
                 metadata_path.display()
             );
-            if crate::character_profile::has_profile(&metadata)
-                && metadata["extends"].as_str().unwrap_or("").is_empty()
-            {
-                scenario_nodes.push(json!({"type":"affinity", "character":format!("user:{}", metadata["id"].as_str().context("人物资料缺少 id")?), "delta":0}));
+            if crate::character_profile::has_profile(&metadata) {
+                let character = crate::character_profile::affinity_reference(&metadata)
+                    .context("人物资料缺少 id")?;
+                scenario_nodes.push(json!({"type":"affinity","character":character,"delta":0}));
             }
         }
     }
@@ -795,11 +796,19 @@ fn add_user_content(
         );
         for (raw, ctype, expected, category) in content_refs {
             let extension_id = if ctype == "character" {
-                extensions.get(raw).and_then(|(_, m)| m["id"].as_str())
+                extensions
+                    .get(content::extension_character_id(raw))
+                    .and_then(|(_, m)| m["id"].as_str())
             } else {
                 None
             };
             let Some(id) = raw.strip_prefix("user:").or(extension_id) else {
+                ensure!(
+                    kind != "character_profile"
+                        || !raw.starts_with(content::STORY_AFFINITY_PREFIX),
+                    "章节 {story_id}，步骤 {} 需要在人物素材中为 {raw} 设置人际资料",
+                    parent["id"]
+                );
                 continue;
             };
             let ctype = if ctype == "picture" {
@@ -1276,8 +1285,8 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
                     ensure!(image.starts_with("assets/"), "image 必须位于 assets/");
                     let lower = image.to_lowercase();
                     ensure!(
-                        [".png", ".jpg", ".jpeg"].iter().any(|e| lower.ends_with(e)),
-                        "image 必须 PNG/JPEG"
+                        [".png", ".jpg", ".jpeg", ".gif"].iter().any(|e| lower.ends_with(e)),
+                        "image 必须 PNG/JPEG/GIF"
                     );
                     let path = resolve_confined_file(&root, &root.join(image))?;
                     ensure!(
@@ -1580,7 +1589,28 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
                     .is_some_and(|id| id.starts_with("combat:"))
         })
     });
-    if story_affinity
+    let extended_character_profile = entries.iter().any(|(path, bytes)| {
+        path.starts_with("assets/user/character/")
+            && path.ends_with("/content.json")
+            && serde_json::from_slice::<Value>(bytes).is_ok_and(|meta| {
+                meta["social_thumbnail"].is_string()
+                    || (meta["extends"].as_str().is_some_and(|target| !target.is_empty())
+                        && crate::character_profile::has_profile(&meta))
+            })
+    });
+    let mut gif_images = false;
+    for (path, bytes) in &entries {
+        if path.starts_with("assets/")
+            && (path.to_ascii_lowercase().ends_with(".gif") || crate::gif_image::is_gif(bytes))
+        {
+            ensure!(bytes.len() as u64 <= content::MAX_IMAGE_BYTES, "GIF 超过 8 MiB：{path}");
+            crate::gif_image::validate(bytes).with_context(|| format!("无法导出 GIF 素材：{path}"))?;
+            gif_images = true;
+        }
+    }
+    if gif_images
+        || extended_character_profile
+        || story_affinity
         || gameplay_music
         || combat_backgrounds
         || picture_controls
@@ -1604,7 +1634,11 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
         || event_fade
         || dialogue_dimming
     {
-        let (minimum, required) = if story_affinity {
+        let (minimum, required) = if gif_images {
+            ([1, 6, 11], "1.6.11")
+        } else if extended_character_profile {
+            ([1, 6, 10], "1.6.10")
+        } else if story_affinity {
             ([1, 6, 9], "1.6.9")
         } else if gameplay_music {
             ([1, 6, 8], "1.6.8")

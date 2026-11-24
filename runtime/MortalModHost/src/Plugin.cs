@@ -30,7 +30,7 @@ namespace MortalModHost
     {
         public const string GUID = "com.mohui666.mortalmodhost";
         public const string NAME = "MortalModHost";
-        public const string VERSION = "1.6.9";
+        public const string VERSION = "1.6.11";
 
         internal static Plugin Instance { get; private set; }
 
@@ -624,6 +624,7 @@ namespace MortalModHost
         private void Update()
         {
             if (!VideoWorkerRuntime.Tick()) return;
+            GifImageRuntime.Tick();
             UpdateDebuggerInputBlocker();
             CustomCharacterRuntime.UpdateMoods();
             if (LuaManagerPatch.HasPendingAbort)
@@ -1097,6 +1098,7 @@ namespace MortalModHost
             DevelopmentNavigationRuntime.Clear();
             ModMenuTheme.Release();
             VideoRenderRuntime.Shutdown();
+            GifImageRuntime.Clear();
             if (_debugInputCanvas != null) Destroy(_debugInputCanvas);
             RouteRuntimeCapture.Reset();
             if (_enabled != null)

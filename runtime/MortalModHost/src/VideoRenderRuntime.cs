@@ -87,7 +87,18 @@ namespace MortalModHost
             if (session.Failure != null) yield break;
             StoryManager manager = StoryManager.Instance;
             if (manager != null) manager.AutoDialog(true);
-            while (playback.MoveNext()) yield return playback.Current;
+            while (playback.MoveNext())
+            {
+                yield return playback.Current;
+                if (_session != session || session.Request.EndNode != null && (session.End || session.Failure != null))
+                    yield break;
+            }
+            if (_session == session && session.Request.EndNode != null
+                && !session.End && !session.TerminalCard && session.Failure == null)
+            {
+                if (session.SegmentEndEntered) session.End = true;
+                else session.EndNotReached(RuntimeTrace.CurrentStory + "/" + RuntimeTrace.CurrentNode);
+            }
         }
 
         internal static void Tick()
@@ -102,10 +113,37 @@ namespace MortalModHost
         {
             var current = _session;
             if (current == null || !current.Running) return false;
-            string location = RuntimeTrace.CurrentStory + "/" + RuntimeTrace.CurrentNode;
+            string story = RuntimeTrace.CurrentStory, node = RuntimeTrace.CurrentNode;
+            string location = story + "/" + node;
+            if (current.Request.EndNode != null)
+            {
+                // The trace callback runs before the new step's commands.
+                if (current.SegmentEndEntered)
+                {
+                    current.End = true;
+                    return true;
+                }
+                if (story != current.Request.EntryStory)
+                {
+                    current.EndNotReached(location);
+                    return true;
+                }
+                if (!current.Recording)
+                {
+                    if (node != current.Request.EntryNode) return false;
+                    try { current.StartSegment(); }
+                    catch (Exception error) { current.Failure = error.Message; return true; }
+                }
+                current.SegmentEndEntered = node == current.Request.EndNode;
+            }
             current.NodeChanged();
             if (current.Request.Terminals.Contains(location))
             {
+                if (current.Request.EndNode != null && !current.SegmentEndEntered)
+                {
+                    current.EndNotReached(location);
+                    return true;
+                }
                 if (kind == "death" || current.Request.Cards.Contains(location)) current.TerminalCard = true;
                 else { current.End = true; return true; }
             }
@@ -151,13 +189,15 @@ namespace MortalModHost
             internal readonly string Id, Directory;
             internal readonly VideoRenderRequest Request;
             internal bool Running, Staged, End, TerminalCard;
+            internal bool SegmentEndEntered;
+            internal bool Recording { get { return Request.EndNode == null || _segmentStarted; } }
             internal string Failure;
             internal EndGamePanel CardPanel;
             private readonly int _width, _height, _refresh, _captureFps, _vSync, _targetFps;
             private readonly FullScreenMode _mode;
             private readonly bool _background;
             private readonly float _preparedAt;
-            private bool _audio, _finishing, _oldAuto;
+            private bool _audio, _finishing, _oldAuto, _segmentStarted;
             internal bool Finishing { get { return _finishing; } }
             private VideoNativeAudio _nativeAudio;
             private int _frames;
@@ -238,8 +278,21 @@ namespace MortalModHost
                 Check(AkSoundEngine.SetOfflineRenderingFrameTime(1f / Request.Fps), "设置原生音频帧率");
                 VideoAudioMixer.Begin(FileAt("custom.wav"), Request.Fps);
                 Running = true;
-                Status(Directory, "running", 0, 0, "正在生成游戏原生视频");
+                if (Recording) Status(Directory, "running", 0, 0, "正在生成游戏原生视频");
                 _owner.StartCoroutine(Capture());
+            }
+
+            internal void StartSegment()
+            {
+                _nativeAudio.Frame(false);
+                _segmentStarted = true;
+                Status(Directory, "running", 0, 0, "正在录制指定片段");
+            }
+
+            internal void EndNotReached(string location)
+            {
+                Failure = "剧情在 " + location + " 结束或离开当前章节，未到达片段终点 "
+                    + Request.EntryStory + "/" + Request.EndNode + "。请检查起止步骤和预设选项。";
             }
 
             internal void NodeChanged() { _choiceLocation = null; _choiceElapsed = 0; }
@@ -251,12 +304,13 @@ namespace MortalModHost
                 // end-of-frame callbacks, so cancellation must also live here.
                 if (File.Exists(FileAt("cancel"))) { Finish("cancelled", "视频生成已取消"); return; }
                 if (Failure != null) { Finish("error", Failure); return; }
-                if (!Running)
+                if (!Running || !Recording)
                 {
                     if (Time.realtimeSinceStartup - _preparedAt > 60)
-                        Finish("error", "游戏演出启动超时");
+                        Finish("error", Running ? "等待片段起点超时：" + Request.EntryStory + "/" + Request.EntryNode : "游戏演出启动超时");
                     return;
                 }
+                if (End) return;
                 if (TerminalCard)
                 {
                     bool ready = false;
@@ -319,6 +373,14 @@ namespace MortalModHost
                     {
                         if (Failure != null) throw new InvalidOperationException(Failure);
                         if (!Ready()) throw new InvalidOperationException("生成期间游戏窗口尺寸发生变化，请保持游戏窗口尺寸");
+                        if (!Recording)
+                        {
+                            // Advance the audio clocks so looping prelude tracks
+                            // continue into the clip, while discarding their lead-in.
+                            _nativeAudio.Frame(false);
+                            VideoAudioMixer.Frame(false);
+                            continue;
+                        }
                         _frameWriter.Check();
                         DrainReadbacks(false);
                         if (_readbacks.Count >= BufferedFrames) DrainReadback(true);

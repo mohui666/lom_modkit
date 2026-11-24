@@ -376,7 +376,7 @@ namespace MortalModHost
             Sprite cached;
             if (Icons.TryGetValue(content, out cached) && cached != null) return cached;
             var texture = Own(new Texture2D(2, 2, TextureFormat.RGBA32, false));
-            if (content.Bytes == null || !texture.LoadImage(content.Bytes))
+            if (content.Bytes == null || !GifImageRuntime.Load(texture, content.Bytes))
                 throw new InvalidOperationException("自定义玩法图标解码失败：" + content.Id);
             texture.filterMode = FilterMode.Bilinear;
             Sprite sprite = Own(Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(.5f, .5f), 100));

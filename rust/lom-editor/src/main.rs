@@ -23,6 +23,7 @@ mod native_forms;
 mod persistence;
 mod play_bundle;
 mod preview;
+mod gif_preview;
 mod preview_event_fade;
 mod preview_layout;
 mod preview_report;

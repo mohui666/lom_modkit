@@ -1,9 +1,9 @@
 # 日本語ドキュメント
 
-現在のバージョンは **1.6.8** です。決闘と戦役ごとのBGM設定を追加し、『活俠傳』1.0.6001.2 のバックグラウンド動画書き出しを修正しました。 [更新内容](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.8)
+現在のバージョンは **1.6.11** です。GIF アニメ、物語の指定区間の録画、キャラクターの伝記とサムネイルの設定に対応しました。 [更新内容](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.11)
 
 エディターの日本語 UI は引き続き利用できます。操作・形式・API の最新情報は簡体字中国語の資料に統一しています。
 
-ゲーム環境を再設定して Host も 1.6.8 に更新してください。操作方法は [F8 の開発ツール](../chs/software_usage.md#游戏内-mod-工坊与开发工具)を参照してください。
+ゲーム環境を再設定して Host も 1.6.11 に更新してください。操作方法は [F8 の開発ツール](../chs/software_usage.md#游戏内-mod-工坊与开发工具)を参照してください。
 
 [最新ドキュメント](../README.md) · [Windows](../chs/windows_quick_start.md) · [Python API](../chs/python_api.md) · [CLI](../chs/cli_parameters.md) · [Mod v3](../chs/mod_format.md)

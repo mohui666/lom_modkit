@@ -647,7 +647,7 @@ namespace MortalModHost
             }
 
             Texture2D texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
-            if (!texture.LoadImage(bytes, true))
+            if (!GifImageRuntime.Load(texture, bytes, true))
             {
                 UnityEngine.Object.Destroy(texture);
                 if (Log != null) Log.LogWarning("自定义角色立绘解码失败：" + actor.RawId + "/" + portrait);

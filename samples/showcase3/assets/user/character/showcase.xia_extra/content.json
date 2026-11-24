@@ -5,6 +5,13 @@
   "type": "character",
   "extends": "special825",
   "name": "夏灵犀扩展立绘示例",
+  "social_thumbnail": "sleep.png",
+  "biography_pages": [
+    {
+      "text": "夏灵犀认识赵活后，就能在原有人际条目阅读这一页作品传记。",
+      "unlock_level": 0
+    }
+  ],
   "files": {
     "main": "tired.png"
   },

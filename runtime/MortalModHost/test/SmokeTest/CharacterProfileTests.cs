@@ -52,6 +52,14 @@ namespace MortalModHost
             Check(store.CharacterAffinity(first,slot,storyActor,0)==7
                 && new PersistentStateStore(folder).CharacterAffinity(second,slot,storyActor,0)==0,
                 "story affinity survives reload and remains package-scoped");
+            store.SetCharacterKnown(first,slot,storyActor,true);
+            store.SetBiographyOverride(first,slot,storyActor,1,true);
+            store.Flush();
+            store=new PersistentStateStore(folder);
+            Check(store.CharacterKnown(first,slot,storyActor,false)
+                && store.BiographyOverride(first,slot,storyActor,1)==1
+                && store.CharacterAffinity(first,slot,storyActor,0)==7,
+                "story character biography and affinity share a persistent profile");
             Reject(()=>store.SetCharacterAffinity(first,slot,"story:../invalid",7),"malformed story affinity key");
             Check(!store.CharacterKnown(first,slot,actor,false) && store.CharacterKnown(first,slot,actor,true)
                 && store.BiographyOverride(first,slot,actor,1)==0,"existing sidecar without profile fields uses metadata defaults");

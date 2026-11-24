@@ -147,6 +147,7 @@ impl<'a> AssetSource<'a> {
 
 pub(super) struct Pixels {
     pub(super) image: egui::ColorImage,
+    pub(super) gif: Option<crate::gif_preview::Player>,
     pub(super) opaque: Rect,
     pub(super) source_size: [usize; 2],
 }
@@ -155,6 +156,18 @@ pub(super) fn decode(source: AssetSource<'_>, max_side: u32) -> Option<Pixels> {
     let bytes = source.bytes().ok()?;
     if bytes.len() > MAX_IMAGE_BYTES {
         return None;
+    }
+    if lom_core::gif_image::is_gif(&bytes) {
+        let decoded = lom_core::gif_image::decode(&bytes, Some(max_side.min(800))).ok()?;
+        let source_size = [decoded.width as usize, decoded.height as usize];
+        let opaque = opaque_bounds(decoded.frames[0].buffer());
+        let gif = crate::gif_preview::Player::new(decoded);
+        return Some(Pixels {
+            image: (*gif.first()).clone(),
+            gif: Some(gif),
+            opaque,
+            source_size,
+        });
     }
     let image = image::ImageReader::new(std::io::Cursor::new(bytes))
         .with_guessed_format()
@@ -171,6 +184,7 @@ pub(super) fn decode(source: AssetSource<'_>, max_side: u32) -> Option<Pixels> {
     let size = [image.width() as usize, image.height() as usize];
     Some(Pixels {
         image: egui::ColorImage::from_rgba_unmultiplied(size, image.as_raw()),
+        gif: None,
         opaque: opaque_bounds(&image),
         source_size,
     })

@@ -68,7 +68,7 @@ namespace MortalModHost
                 if (!inventory)
                 {
                     visual.Texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
-                    if (!visual.Texture.LoadImage(content.Bytes)) throw new InvalidOperationException("图片解码失败：" + key);
+                    if (!GifImageRuntime.Load(visual.Texture, content.Bytes)) throw new InvalidOperationException("图片解码失败：" + key);
                     visual.Texture.wrapMode = TextureWrapMode.Clamp;
                     visual.Texture.filterMode = FilterMode.Bilinear;
                     visual.Sprite = Sprite.Create(visual.Texture,

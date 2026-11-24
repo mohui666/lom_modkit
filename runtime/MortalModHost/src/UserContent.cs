@@ -14,8 +14,10 @@ namespace MortalModHost
         public string Title;
         public string Biography;
         public bool InitiallyKnown;
+        public bool HasProfile;
         public List<CharacterBiographyPage> BiographyPages = new List<CharacterBiographyPage>();
         public string AvatarFile;
+        public string SocialThumbnailFile;
         public int InitialAffinity;
         public float Scale = 100f;
         public string Extends;

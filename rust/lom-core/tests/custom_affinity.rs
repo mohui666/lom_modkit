@@ -64,6 +64,45 @@ fn affinity_only_reference_packages_avatar_biography_and_requires_current_host()
 }
 
 #[test]
+fn story_affinity_packages_the_character_extension_avatar_without_a_stage_reference() {
+    let mut project = Project::new();
+    add_character(&mut project);
+    let key = "assets/user/character/demo.biography/content.json";
+    let mut metadata: Value = serde_json::from_slice(&project.assets[key]).unwrap();
+    metadata["extends"] = json!("special830");
+    metadata.as_object_mut().unwrap().remove("biography");
+    project
+        .assets
+        .insert(key.into(), serde_json::to_vec(&metadata).unwrap());
+    project.stories.insert("main".into(), json!({
+        "story_schema":2,"id":"main","title":"作品好感","start":"up","nodes":[
+            {"id":"up","type":"affinity","character":"story:special830","delta":3,"show_message":true},
+            {"id":"end","type":"end"}
+        ]
+    }));
+    let folder = tempfile::tempdir().unwrap();
+    let source = folder.path().join("project");
+    project.save_to(&source).unwrap();
+    let saved = Project::open(&source).unwrap();
+    let issues = release::run_preflight(&saved, release::Profile::Release, "1.6.9");
+    assert!(
+        !issues
+            .iter()
+            .any(|issue| issue.severity == "error" || issue.code == "unused_content"),
+        "{issues:?}"
+    );
+    let package = folder.path().join("affinity.lommod");
+    saved.export(&package).unwrap();
+    let reopened = Project::open(&package).unwrap();
+    let metadata: Value = serde_json::from_slice(&reopened.assets[key]).unwrap();
+    assert_eq!(metadata["extends"], "special830");
+    assert_eq!(metadata["avatar"], "avatar.png");
+    let avatar = "assets/user/character/demo.biography/avatar.png";
+    assert_eq!(reopened.assets[avatar], saved.assets[avatar]);
+    assert_eq!(reopened.manifest["min_host_version"], "1.6.9");
+}
+
+#[test]
 fn released_154_project_accepts_custom_character_edit_save_export_reopen_and_rejects_lua_swap() {
     let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures/released-1.5.4-name-base.lommod");

@@ -1,15 +1,15 @@
 # lom_modkit 文档
 
-当前版本为 **1.6.8**，编辑器和编译器使用 Rust，C# Host 提供游戏接入并内置 Rust 计算组件。仓库维护当前操作与接口文档，历史更新正文保留在 GitHub Release。 [国内下载](https://toolbox.mahui.site/downloads/lom-modkit/v1.6.8/lom-editor.exe) · [GitHub Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.8)
+当前版本为 **1.6.11**，编辑器和编译器使用 Rust，C# Host 提供游戏接入并内置 Rust 计算组件。仓库维护当前操作与接口文档，历史更新正文保留在 GitHub Release。 [国内下载](https://toolbox.mahui.site/downloads/lom-modkit/v1.6.11/lom-editor.exe) · [GitHub Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.11)
 
-决斗和战役可单独选曲，支持原版曲目和作品音频。升级时请同步游戏 Host。
+本版支持 GIF 动图、指定片段录制、人物传记和人际页缩略图。升级后请同步游戏 Host。
 
 ## 开始使用
 
 | 文档 | 内容 |
 | --- | --- |
 | [Windows 快速开始](chs/windows_quick_start.md) | 安装、升级、配置游戏和提取素材 |
-| [软件使用](chs/software_usage.md) | 多工程标签、步骤、预览分辨率、后台视频和导出 |
+| [软件使用](chs/software_usage.md) | 章节编辑、F5 试玩、预览和导出 |
 | [原版剧情编辑与路线图](chs/software_usage.md#原版剧情编辑与路线图) | 整章导入、条件插入、游戏标记与定位 |
 | [游戏内 F8 工坊](chs/software_usage.md#游戏内-mod-工坊与开发工具) | 独立工具语言、原版事件目录、开发跳转与操作记录 |
 | [决斗背景](chs/software_usage.md#查找官方背景) | 后山等专用背景、缩略图与 Host 版本要求 |
@@ -20,7 +20,8 @@
 
 | 文档 | 内容 |
 | --- | --- |
-| [用户内容](chs/user_content.md) | 导入音频、人物、图片和原版人物补绘 |
+| [用户内容](chs/user_content.md) | 导入 GIF、音频、角色及设置传记和人际页缩略图 |
+| [生成视频](chs/software_usage.md#生成视频) | 按起止步骤录制指定演出片段，导出 MP4 |
 | [原版特效与音效常用组合](chs/effect_sound_combinations.md) | 按打击、格挡、暗器、内力和环境选择现成搭配 |
 | [事件与任务](chs/events_and_tasks.md) | 触发条件、重复事件、任务状态和结果动作 |
 | [自定义玩法与存档](chs/custom_gameplay.md) | 物品、消耗品、招式、三种玩法与独立存档 |

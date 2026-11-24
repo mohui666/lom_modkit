@@ -1,6 +1,6 @@
 # Python API 接口参考
 
-本文对应 1.6.2 配套 SDK；完整教程见 [对象创作指南](https://github.com/mohui666/lom_modkit/blob/v1.6.2/docs/chs/ai_cli.md)，SDK 中对应本地 `README.md`，命令参数见 [CLI 参数](cli_parameters.md)。Python 3.10+，只用标准库。SDK 必须从使用中的 exe 导出，不能复用已退役的旧 Python 编辑器模块。Windows 正式发布只提供该内置组件 exe，不另发 SDK 安装包。
+本文对应 1.6.11 配套 SDK；完整教程见 [对象创作指南](https://github.com/mohui666/lom_modkit/blob/v1.6.11/docs/chs/ai_cli.md)，SDK 中对应本地 `README.md`，命令参数见 [CLI 参数](cli_parameters.md)。Python 3.10+，只用标准库。SDK 必须从使用中的 exe 导出，不能复用已退役的旧 Python 编辑器模块。Windows 正式发布只提供该内置组件 exe，不另发 SDK 安装包。
 
 ```powershell
 .\lom-editor.exe --cli sdk -o .\authoring --json
@@ -86,7 +86,7 @@ entry 默认首章；mode=story/addon/sandbox/vanilla_patch，最后一种需要
 | `cli.open_editor(project, output=None, script=None, node=None)` | 可选导入为新工程，再打开真实界面并定位；返回 pid |
 | `cli.render_preview(project, script, node, output, **options)` | 转发 render-preview；可传 library、width、height、time，输出一张离线预览 PNG |
 | `cli.render_previews(project, frames, output, **options)` | 转发 render-previews；frames 为 script/node 与可选 time 的字典列表，output 为输出目录 |
-| `cli.render_video(project, game, output, **options)` | 同步生成游戏原生 MP4；默认后台独立渲染，不弹出游戏窗口。options 支持范围、尺寸、帧率、自动播放速度、预设选项与 background=False 前台模式。直接运行 CLI 可实时读取 stderr 进度，SDK 方法等待最终结果 |
+| `cli.render_video(project, game, output, **options)` | 同步生成游戏原生 MP4；默认后台独立渲染，不弹出游戏窗口。指定片段使用 scope=segment、script、node 和 end_node。options 还支持尺寸、帧率、自动播放速度、预设选项与 background=False 前台模式。直接运行 CLI 可实时读取 stderr 进度，SDK 方法等待最终结果 |
 | `cli.playtest_status(game, request_id)` | 查询一次指定试玩请求状态，不自行轮询 |
 | `cli.query_assets(**options)` | 转发 asset-query；可传 library/project/game、kind/query/id/portrait、limit/offset、thumbnail_size/cache_dir/position |
 
@@ -126,7 +126,7 @@ entry 默认首章；mode=story/addon/sandbox/vanilla_patch，最后一种需要
 | `ImageAsset` | id、name、main=本地图片 |
 | `AudioAsset` | id、name、main、audio_kind=music/sound/env，可选 character |
 | `CharacterAsset` | id、name、main、portraits={表情ID:本地图片}，以及 scale/extends/portrait_layouts 等 metadata |
-| `CharacterAsset.from_folder` | id、name、folder、prefix=""，以及人物 metadata；只读当前目录，前缀筛选后生成独立表情 |
+| `CharacterAsset.from_folder` | id、name、folder、prefix=""，以及人物 metadata；读取当前目录中的 PNG、JPEG 和 GIF，前缀筛选后生成独立表情 |
 | `Asset` | type/id/name/main，额外 files={文件名:本地路径} 与类型字段；支持全部七种内容类型，包括 item/martial/support/skill |
 | `ChoiceStep` | node、option（0 基下标） |
 | `RouteTest` | name、story，choices=()、reaches_node=()、reaches_ending=True、flags/variables/initial_flags/initial_variables |

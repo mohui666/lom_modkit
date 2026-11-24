@@ -178,7 +178,10 @@ fn content_specs(node: &Value) -> Vec<ContentSpec<'_>> {
         });
     }
     for (raw, content_kind, _) in crate::content::gameplay_references(node) {
-        if raw.starts_with("user:") {
+        if raw.starts_with("user:")
+            || (content_kind == "character"
+                && raw.starts_with(crate::content::STORY_AFFINITY_PREFIX))
+        {
             refs.push(ContentSpec {
                 field: "gameplay",
                 raw,
@@ -220,7 +223,10 @@ fn audit_content(project: &Project, root: &Path) -> Vec<PreflightIssue> {
                 crate::parallel::story_actions(s).any(|(_, n)| {
                     content_specs(n)
                         .iter()
-                        .any(|r| r.kind == "character" && r.raw == target)
+                        .any(|r| {
+                            r.kind == "character"
+                                && crate::content::extension_character_id(r.raw) == target
+                        })
                 })
             }) {
                 referenced.insert(("character".into(), text(&meta, "id").to_owned()));
@@ -490,10 +496,7 @@ fn audit_content(project: &Project, root: &Path) -> Vec<PreflightIssue> {
                     ));
                 } else {
                     valid.insert((kind.to_owned(), id.to_owned()));
-                    if kind == "character"
-                        && meta["extends"].as_str().unwrap_or("").is_empty()
-                        && crate::character_profile::has_profile(meta)
-                    {
+                    if kind == "character" && crate::character_profile::has_profile(meta) {
                         referenced.insert((kind.to_owned(), id.to_owned()));
                     }
                 }
@@ -770,7 +773,10 @@ pub fn run_preflight(
                     crate::parallel::story_actions(s).any(|(_, n)| {
                         content_specs(n)
                             .iter()
-                            .any(|r| r.kind == "character" && r.raw == *target)
+                            .any(|r| {
+                                r.kind == "character"
+                                    && crate::content::extension_character_id(r.raw) == *target
+                            })
                     })
                 })
             })
@@ -951,7 +957,7 @@ pub fn apply_release_profile(
                 .extension()
                 .and_then(|s| s.to_str())
                 .is_some_and(|ext| {
-                    ["png", "jpg", "jpeg", "wav", "ogg", "mp3", "flac"]
+                    ["png", "jpg", "jpeg", "gif", "wav", "ogg", "mp3", "flac"]
                         .contains(&ext.to_ascii_lowercase().as_str())
                 })
             {

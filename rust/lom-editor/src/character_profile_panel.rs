@@ -29,17 +29,22 @@ fn store_pages(metadata: &mut Value, pages: Vec<Value>, had_pages: bool) {
 }
 
 pub fn content(ui: &mut egui::Ui, metadata: &mut Value, catalog: &Catalog) {
-    catalog.field(
-        ui,
-        metadata,
-        "initially_known",
-        &i18n::key("editor.profile.initial_known"),
-        "bool",
-        false,
-        &[],
-        &[],
-    );
-    ui.small(i18n::key("editor.profile.known_hint"));
+    let native_affinity = metadata["extends"]
+        .as_str()
+        .is_some_and(lom_core::character_profile::uses_native_affinity);
+    if !native_affinity {
+        catalog.field(
+            ui,
+            metadata,
+            "initially_known",
+            &i18n::key("editor.profile.initial_known"),
+            "bool",
+            false,
+            &[],
+            &[],
+        );
+        ui.small(i18n::key("editor.profile.known_hint"));
+    }
     if !metadata["biography_pages"].is_null() && !metadata["biography_pages"].is_array() {
         ui.colored_label(
             ui.visuals().error_fg_color,
@@ -70,7 +75,11 @@ pub fn content(ui: &mut egui::Ui, metadata: &mut Value, catalog: &Catalog) {
     let mut pages = editable_pages(metadata);
     let original = pages.clone();
     ui.label(i18n::key("editor.content.biography"));
-    ui.small(i18n::key("editor.profile.pages_hint"));
+    ui.small(i18n::key(if native_affinity {
+        "editor.profile.native_affinity_hint"
+    } else {
+        "editor.profile.pages_hint"
+    }));
     let mut remove = None;
     for (index, page) in pages.iter_mut().enumerate() {
         ui.push_id(("biography-page", index), |ui| {

@@ -30,6 +30,8 @@ namespace MortalModHost
             }
             if(content.BiographyPages.Count>0 && !string.IsNullOrWhiteSpace(content.Biography))
                 throw new FormatException("人物同时存在 biography 旧传记与 biography_pages 分页，请保留所需正文后明确选择一种传记配置");
+            content.HasProfile = root.ContainsKey("initially_known")
+                || content.BiographyPages.Count > 0 || !string.IsNullOrWhiteSpace(content.Biography);
             if(content.BiographyPages.Count==0 && content.Biography!=null)
                 content.BiographyPages.Add(new CharacterBiographyPage {Text=content.Biography,UnlockLevel=0});
         }

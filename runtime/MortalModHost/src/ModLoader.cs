@@ -42,9 +42,7 @@ namespace MortalModHost
         /// <summary>结局卡背景图允许的扩展名（契约 §3.1）。</summary>
         private static bool IsImageAsset(string path)
         {
-            return path.EndsWith(".png", StringComparison.OrdinalIgnoreCase)
-                || path.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase)
-                || path.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase);
+            return IsImageExt(Path.GetExtension(path));
         }
 
         /// <summary>统一包内路径分隔符为正斜杠（与编译器打包/lua 传参一致）。</summary>
@@ -252,7 +250,7 @@ namespace MortalModHost
                     }
                 }
 
-                // assets/ 下的图片（契约 §3.1 结局卡背景图）：只收 .png/.jpg/.jpeg，
+                // assets/ 下的图片（契约 §3.1 结局卡背景图）：PNG/JPEG/GIF，
                 // 单张 ≤8MB（超限警告跳过）。用户音频走 assets/user/，见 LoadUserContents。
                 foreach (var entry in zip.Entries)
                 {
@@ -844,7 +842,7 @@ namespace MortalModHost
         {
             string ext = Path.GetExtension(mainFile);
             if (!IsImageExt(ext))
-                throw new FormatException("角色主立绘必须是 .png / .jpg / .jpeg");
+                throw new FormatException("角色主立绘必须是 PNG/JPEG/GIF");
 
             string extends = GetString(root, "extends", required: false);
             if (!string.IsNullOrEmpty(extends)
@@ -862,7 +860,7 @@ namespace MortalModHost
                     if (fname.IndexOf('/') >= 0 || fname.IndexOf('\\') >= 0 || fname.IndexOf("..", StringComparison.Ordinal) >= 0)
                         throw new FormatException("portraits 文件名不能含路径：" + fname);
                     if (!IsImageExt(Path.GetExtension(fname)))
-                        throw new FormatException("立绘必须是 .png / .jpg / .jpeg：" + fname);
+                        throw new FormatException("立绘必须是 PNG/JPEG/GIF：" + fname);
                     portraits[pair.Key] = fname;
                 }
             }
@@ -905,16 +903,9 @@ namespace MortalModHost
                 fileBytes[mainFile] = mainBytes;
             }
 
-            string avatar = GetString(root, "avatar", required: false);
-            if (!string.IsNullOrEmpty(avatar))
-            {
-                if (avatar.IndexOf('/') >= 0 || avatar.IndexOf('\\') >= 0
-                    || avatar.IndexOf("..", StringComparison.Ordinal) >= 0
-                    || !IsImageExt(Path.GetExtension(avatar)))
-                    throw new FormatException("avatar 必须是同一人物目录下的图片文件名");
-                if (!fileBytes.ContainsKey(avatar))
-                    fileBytes[avatar] = ReadZipBytes(package, entries, expectedDir + "/" + avatar, 8L * 1024 * 1024, "好感头像");
-            }
+            string avatar = ReadCharacterImage(package, entries, expectedDir, root, fileBytes, "avatar", "好感头像");
+            string socialThumbnail = ReadCharacterImage(package, entries, expectedDir, root, fileBytes,
+                "social_thumbnail", "人际页缩略图");
             string title = GetString(root, "title", required: false);
             if (string.IsNullOrEmpty(title) && root.ContainsKey("intro")
                 && root["intro"] is Dictionary<string, object>)
@@ -940,6 +931,7 @@ namespace MortalModHost
                 Title = title,
                 Biography = GetString(root, "biography", required: false),
                 AvatarFile = avatar,
+                SocialThumbnailFile = socialThumbnail,
                 InitialAffinity = GetClampedInt(root, "initial_affinity", 0, 0, 100),
                 Scale = GetPositiveScale(root, "scale", 100f),
                 Extends = extends,
@@ -957,6 +949,21 @@ namespace MortalModHost
             };
             CharacterProfilePolicy.ReadDefinition(root,content);
             return content;
+        }
+
+        private static string ReadCharacterImage(
+            ModPackage package, Dictionary<string, ZipArchiveEntry> entries, string directory,
+            Dictionary<string, object> metadata, Dictionary<string, byte[]> files, string field, string label)
+        {
+            string filename = GetString(metadata, field, required: false);
+            if (string.IsNullOrEmpty(filename)) return filename;
+            if (filename.IndexOf('/') >= 0 || filename.IndexOf('\\') >= 0
+                || filename.IndexOf("..", StringComparison.Ordinal) >= 0
+                || !IsImageExt(Path.GetExtension(filename)))
+                throw new FormatException(field + " 必须是同一人物目录下的图片文件名");
+            if (!files.ContainsKey(filename))
+                files[filename] = ReadZipBytes(package, entries, directory + "/" + filename, 8L * 1024 * 1024, label);
+            return filename;
         }
 
         private static string ParsePortraitReference(Dictionary<string, object> root, Dictionary<string, string> portraits)
@@ -1002,7 +1009,7 @@ namespace MortalModHost
             Dictionary<string, ZipArchiveEntry> entries)
         {
             if (!IsImageExt(Path.GetExtension(mainFile)))
-                throw new FormatException("用户图片只支持 .png / .jpg / .jpeg");
+                throw new FormatException("用户图片只支持 PNG/JPEG/GIF");
             string imagePath = expectedDir + "/" + mainFile;
             byte[] bytes = ReadZipBytes(package, entries, imagePath, ContentRef.MaxImageBytes, "图片");
             return new UserContent
@@ -1069,7 +1076,8 @@ namespace MortalModHost
         {
             return ext.Equals(".png", StringComparison.OrdinalIgnoreCase)
                 || ext.Equals(".jpg", StringComparison.OrdinalIgnoreCase)
-                || ext.Equals(".jpeg", StringComparison.OrdinalIgnoreCase);
+                || ext.Equals(".jpeg", StringComparison.OrdinalIgnoreCase)
+                || ext.Equals(".gif", StringComparison.OrdinalIgnoreCase);
         }
 
         private static byte[] ReadZipBytes(

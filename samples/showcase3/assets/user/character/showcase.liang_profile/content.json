@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "content_schema": 1,
+  "id": "showcase.liang_profile",
+  "type": "character",
+  "extends": "special830",
+  "name": "梁有诗",
+  "files": {
+    "main": "profile_sample.png"
+  },
+  "avatar": "profile_sample.png",
+  "portraits": {
+    "profile_sample": "profile_sample.png"
+  },
+  "biography_pages": [
+    {
+      "text": "认识梁有诗后，即可在人际页阅读这篇传记。",
+      "unlock_level": 0
+    },
+    {
+      "text": "梁有诗的作品好感达到 10 后，即可阅读第二页。",
+      "unlock_level": 1
+    }
+  ]
+}

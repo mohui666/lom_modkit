@@ -243,7 +243,7 @@ namespace MortalModHost
             try
             {
                 texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
-                if (!texture.LoadImage(bytes))
+                if (!GifImageRuntime.Load(texture, bytes))
                 {
                     UnityEngine.Object.Destroy(texture);
                     texture = null;

@@ -990,7 +990,7 @@ namespace MortalModHost
                 || bytes == null || bytes.Length == 0)
                 throw new InvalidOperationException("自定义决斗动画文件不存在：" + file);
             Texture2D texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
-            if (!texture.LoadImage(bytes))
+            if (!GifImageRuntime.Load(texture, bytes))
             {
                 UnityObject.Destroy(texture);
                 throw new InvalidOperationException("自定义决斗动画图片解码失败：" + file);

@@ -29,9 +29,18 @@ namespace MortalModHost
                     + "\"choices\":{\"main/route\":1},\"terminal_nodes\":[\"main/end\"],\"terminal_cards\":[]}";
                 string request = Path.Combine(directory, "request.json"); File.WriteAllText(request, valid);
                 var parsed = VideoRenderRequest.Read(directory, preview);
-                Require(parsed.Choices["main/route"] == 1 && parsed.Terminals.Contains("main/end"), "route was changed");
+                Require(parsed.Choices["main/route"] == 1 && parsed.Terminals.Contains("main/end") && parsed.EndNode == null,
+                    "legacy route was changed");
+                string segment = valid.Substring(0, valid.Length - 1).Replace("\"format\":1", "\"format\":2")
+                    + ",\"end_node\":\"clip_end\"}";
+                File.WriteAllText(request, segment);
+                parsed = VideoRenderRequest.Read(directory, preview);
+                Require(parsed.EntryStory == "main" && parsed.EntryNode == "start" && parsed.EndNode == "clip_end",
+                    "segment boundaries were changed");
                 foreach (string invalid in new[] { valid.Replace("\"fps\":30", "\"fps\":30.5"),
-                    valid.Replace("\"main/route\":1", "\"main/route\":-1"), valid.Replace("\"entry_node\":\"start\"", "\"entry_node\":\"other\"") })
+                    valid.Replace("\"main/route\":1", "\"main/route\":-1"), valid.Replace("\"entry_node\":\"start\"", "\"entry_node\":\"other\""),
+                    valid.Replace("\"format\":1", "\"format\":2"), segment.Replace("\"format\":2", "\"format\":1"),
+                    segment.Replace("\"clip_end\"", "\"main/other\"") })
                 {
                     File.WriteAllText(request, invalid);
                     bool rejected = false;
