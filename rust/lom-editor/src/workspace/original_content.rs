@@ -2,6 +2,33 @@
 use super::*;
 
 impl App {
+    pub(super) fn normalize_original_links(&mut self) {
+        if !self.apply_pending_drafts() {
+            return;
+        }
+        self.track();
+        self.flush();
+        let mut chapters = 0;
+        let mut links = 0;
+        for story in self.project.stories.values_mut() {
+            let changed = lom_core::native_flow::normalize_linear_links(story);
+            if changed != 0 {
+                chapters += 1;
+                links += changed;
+            }
+        }
+        self.track();
+        self.flush();
+        self.status = if links == 0 {
+            crate::i18n::key("vanilla.normalize_no_links")
+        } else {
+            crate::i18n::message(
+                "vanilla.normalize_done",
+                &[("chapters", chapters.to_string()), ("links", links.to_string())],
+            )
+        };
+    }
+
     pub(super) fn open_original_content(&mut self, ctx: &egui::Context) {
         if self.project.manifest["play_mode"] != "addon" {
             self.request(Pending::NewVanillaPatch, ctx);

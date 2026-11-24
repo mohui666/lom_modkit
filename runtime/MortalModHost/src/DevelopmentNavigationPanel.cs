@@ -83,7 +83,7 @@ namespace MortalModHost
             if (_rows == null)
             {
                 _rows = new List<Dictionary<string, object>>();
-                Run(() => _rows = VanillaBookmarkCapture.ReadTimelineRows());
+                Run(() => _rows = VanillaBookmarkCapture.ReadTimelineRows(includeWithoutChapter: true));
                 _catalog = new DevelopmentEventCatalog(_rows);
                 SearchEntries.Clear();
                 if (_selected != null)
@@ -343,11 +343,13 @@ namespace MortalModHost
                 _visitPlace = _draftPlace != PositionType.無;
                 _jumpTab = 0; ChangePane(JumpPane);
             }
-            if (GUI.Button(new Rect((width + 8) / 2, y, (width - 8) / 2, 32), I18n.MenuT("dev.prepare_script"), ModMenuTheme.Link))
+            if (_selected.Script.Length != 0
+                && GUI.Button(new Rect((width + 8) / 2, y, (width - 8) / 2, 32), I18n.MenuT("dev.prepare_script"), ModMenuTheme.Link))
             { PrepareChapter(_selected.Script, _selected); _jumpTab = 1; ChangePane(JumpPane); }
             y += 48;
             MetadataPair(ref y, width, I18n.MenuT("dev.time_range"), DisplayWhen(_selected), I18n.MenuT("dev.place"), Display(_selected.Place));
-            MetadataPair(ref y, width, I18n.MenuT("dev.mission_key"), _selected.Series + " / " + _selected.Key, I18n.MenuT("dev.script"), _selected.Script);
+            MetadataPair(ref y, width, I18n.MenuT("dev.mission_key"), _selected.Series + " / " + _selected.Key,
+                I18n.MenuT("dev.script"), _selected.Script.Length == 0 ? I18n.MenuT("dev.no_script") : _selected.Script);
             Field(ref y, width, I18n.MenuT("dev.conditions"), DisplayCondition(_selected.Condition));
             if (_selected.ConditionSources.Length > 0)
             {
@@ -432,7 +434,7 @@ namespace MortalModHost
                 Paragraph(ref y, width, I18n.MenuT("dev.script"), ModMenuTheme.Caption, 6);
                 string script = GUI.TextField(new Rect(0, y, width, 38), _script); y += 50;
                 if (script != _script) { _script = script; _syncChapterDate = false; }
-                if (_selected != null)
+                if (_selected != null && _selected.Script.Length != 0)
                 {
                     if (GUI.Button(new Rect(0, y, width, 32), I18n.MenuT("dev.use_node_script"), ModMenuTheme.Link))
                         PrepareChapter(_selected.Script, _selected);

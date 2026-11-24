@@ -518,7 +518,8 @@ def main():
     env_sounds = set()
     positions = set()
     stats = set(PLAYER_STAT_NAMES)
-    affinity_chars = set()
+    # 夏靈犀 has a native RelationshipStat in the installed game, even when absent from script changes.
+    affinity_chars = {"special825"}
     menu_dialogs = set()
     effects_found = set()
     dice_checks = set()

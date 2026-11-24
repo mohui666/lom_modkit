@@ -43,9 +43,16 @@ namespace MortalModHost
             var second=new ModPackage {Id="profile_two",CampaignId="profile_two",PlayMode="addon",PackageFingerprint=new string('B',64)};
             string slot=ModSaveSlotPolicy.AddonManualSlot(1),copy=ModSaveSlotPolicy.AddonManualSlot(2),automatic=ModSaveSlotPolicy.AddonAutoSlot("auto");
             const string actor="user:demo.person";
+            const string storyActor="story:special830";
             var store=new PersistentStateStore(folder);
-            store.SetCharacterAffinity(first,slot,actor,61);store.Flush();
+            store.SetCharacterAffinity(first,slot,actor,61);
+            store.SetCharacterAffinity(first,slot,storyActor,7);
+            store.Flush();
             store=new PersistentStateStore(folder);
+            Check(store.CharacterAffinity(first,slot,storyActor,0)==7
+                && new PersistentStateStore(folder).CharacterAffinity(second,slot,storyActor,0)==0,
+                "story affinity survives reload and remains package-scoped");
+            Reject(()=>store.SetCharacterAffinity(first,slot,"story:../invalid",7),"malformed story affinity key");
             Check(!store.CharacterKnown(first,slot,actor,false) && store.CharacterKnown(first,slot,actor,true)
                 && store.BiographyOverride(first,slot,actor,1)==0,"existing sidecar without profile fields uses metadata defaults");
             store.SetCharacterKnown(first,slot,actor,true);store.SetBiographyOverride(first,slot,actor,4,true);store.SetBiographyOverride(first,slot,actor,1,false);store.Flush();

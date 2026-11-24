@@ -54,9 +54,7 @@ impl App {
         if self.defer_recovery_clear() {
             return;
         }
-        if self.recovery_dir.exists() {
-            let _ = std::fs::remove_dir_all(&self.recovery_dir);
-        }
+        let _ = remove_recovery_files(&self.recovery_dir);
         self.recovery_paths.clear();
         self.recovery_assets.clear();
         self.reset_recovery_tracking();
@@ -142,6 +140,13 @@ impl App {
             session: json!({"source":self.project.source,"paths":self.project.paths,"story_subdir":self.project.story_subdir,"has_manifest":self.project.has_manifest,"current":self.current,"selected":self.selected}),
             pending_content: self.content_panel.pending_snapshot(),
         });
+    }
+}
+
+pub(super) fn remove_recovery_files(directory: &Path) -> std::io::Result<()> {
+    match std::fs::remove_dir_all(directory) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        result => result,
     }
 }
 

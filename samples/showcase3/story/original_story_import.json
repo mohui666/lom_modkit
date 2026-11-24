@@ -10,7 +10,6 @@
       "_editor": {
         "vanilla_origin": 0
       },
-      "goto": "original_2",
       "id": "original_1",
       "operations": [
         {
@@ -135,7 +134,6 @@
       "_editor": {
         "vanilla_origin": 2
       },
-      "goto": "original_4",
       "id": "original_3",
       "operations": [
         {
@@ -177,7 +175,6 @@
       "_editor": {
         "vanilla_origin": 4
       },
-      "goto": "original_6",
       "id": "original_5",
       "operations": [],
       "type": "native_action"
@@ -186,7 +183,6 @@
       "_editor": {
         "vanilla_origin": 5
       },
-      "goto": "original_7",
       "id": "original_6",
       "operations": [
         {
@@ -217,7 +213,6 @@
       "_editor": {
         "vanilla_origin": 6
       },
-      "goto": "original_8",
       "id": "original_7",
       "inherit_dialog": true,
       "mode": "narrative",
@@ -228,7 +223,6 @@
       "_editor": {
         "vanilla_origin": 7
       },
-      "goto": "original_9",
       "id": "original_8",
       "operations": [],
       "type": "native_action"
@@ -237,7 +231,6 @@
       "_editor": {
         "vanilla_origin": 8
       },
-      "goto": "inserted",
       "id": "original_9",
       "operations": [
         {
@@ -321,14 +314,12 @@
       "type": "native_action"
     },
     {
-      "goto": "segment1_0",
       "id": "inserted",
       "inherit_dialog": true,
       "text": "新增对白",
       "type": "say"
     },
     {
-      "goto": "segment1_1",
       "id": "segment1_0",
       "mode": "narrative",
       "text": "这是一整段插入剧情的开场。",
@@ -356,7 +347,6 @@
       "type": "say"
     },
     {
-      "goto": "segment1_4",
       "id": "segment1_3",
       "mode": "narrative",
       "text": "第二条路径也会接回同一个原版位置。",
@@ -372,7 +362,6 @@
       "_editor": {
         "vanilla_origin": 9
       },
-      "goto": "original_11",
       "id": "original_10",
       "inherit_dialog": true,
       "mode": "narrative",
@@ -396,7 +385,6 @@
       {
         "code": "-- Synthetic chapter for native-scope regression checks.\nlocal total = 3\nsetsaydialog(saydialogs.narrative)\nsetmenudialog(menudialogs.native)\nsetcharacter(narrative)\nsayoptions.waitforinput = false",
         "node": {
-          "goto": "original_2",
           "id": "original_1",
           "operations": [
             {
@@ -516,7 +504,6 @@
       {
         "code": "\n    total = total + 4",
         "node": {
-          "goto": "original_4",
           "id": "original_3",
           "operations": [
             {
@@ -589,7 +576,6 @@
       {
         "code": "\nelse",
         "node": {
-          "goto": "original_6",
           "id": "original_5",
           "operations": [],
           "type": "native_action"
@@ -598,7 +584,6 @@
       {
         "code": "\n    total = total + 7",
         "node": {
-          "goto": "original_7",
           "id": "original_6",
           "operations": [
             {
@@ -629,7 +614,6 @@
       {
         "code": "\n    say(luamanager.GetStoryText(\"N_IMPORT_B\"))",
         "node": {
-          "goto": "original_8",
           "id": "original_7",
           "inherit_dialog": true,
           "mode": "narrative",
@@ -671,7 +655,6 @@
       {
         "code": "\nend",
         "node": {
-          "goto": "original_9",
           "id": "original_8",
           "operations": [],
           "type": "native_action"
@@ -680,7 +663,6 @@
       {
         "code": "\nlocal options = {\"O_ONE\", \"O_TWO\"}\nlocal selected = choose(options)\nmark_progress(total + selected)",
         "node": {
-          "goto": "original_10",
           "id": "original_9",
           "operations": [
             {
@@ -767,7 +749,6 @@
       {
         "code": "\nsay(luamanager.GetStoryText(\"N_IMPORT_DONE\"))",
         "node": {
-          "goto": "original_11",
           "id": "original_10",
           "inherit_dialog": true,
           "mode": "narrative",

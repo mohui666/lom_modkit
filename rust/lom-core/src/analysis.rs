@@ -38,6 +38,20 @@ fn terminal(kind: &str) -> bool {
 fn final_ending(kind: &str) -> bool {
     matches!(kind, "end" | "goto_scene" | "death")
 }
+
+/// The structured dispatcher returns when the final linear step has no successor.
+pub fn implicit_original_ending(story: &Value, index: usize) -> bool {
+    let ns = nodes(story);
+    story["vanilla_import"]["schema"] == 2
+        && index + 1 == ns.len()
+        && ns.get(index).is_some_and(|node| {
+            node.get("goto").is_none()
+                && !crate::validate::node_schema()["no_goto_types"]
+                    .as_array()
+                    .unwrap()
+                    .contains(&node["type"])
+        })
+}
 fn branch_fully_covered(node: &Value) -> bool {
     let source = node["source"].as_str().unwrap_or("mod");
     ["mod", "condition"].contains(&source)
@@ -49,6 +63,16 @@ fn branch_fully_covered(node: &Value) -> bool {
             .collect::<BTreeSet<_>>()
             == BTreeSet::from([1, 2])
 }
+
+/// True when this step can continue at the next physical step in the story.
+pub fn follows_next(node: &Value) -> bool {
+    let kind = text(node, "type");
+    !terminal(kind)
+        && !["choice", "dice"].contains(&kind)
+        && !(kind == "branch" && branch_fully_covered(node))
+        && (kind == "branch" || text(node, "goto").is_empty())
+}
+
 pub fn successors(story: &Value, index: usize) -> Vec<String> {
     let ns = nodes(story);
     let Some(node) = ns.get(index) else {
@@ -98,11 +122,7 @@ pub fn successors(story: &Value, index: usize) -> Vec<String> {
         }
         _ => {}
     }
-    if !terminal(kind)
-        && !["choice", "dice"].contains(&kind)
-        && !(kind == "branch" && branch_fully_covered(node))
-        && (kind == "branch" || text(node, "goto").is_empty())
-    {
+    if follows_next(node) {
         if let Some(next) = ns.get(index + 1) {
             add(&next["id"]);
         }
@@ -253,8 +273,11 @@ pub fn analyze_project(stories: &BTreeMap<String, Value>, manifest: &Value) -> V
         let dominated = dominated_flag_reads(story, &graph, &reached);
         let finals = nodes(story)
             .iter()
-            .filter(|n| final_ending(text(n, "type")))
-            .map(|n| text(n, "id"));
+            .enumerate()
+            .filter(|(index, n)| {
+                final_ending(text(n, "type")) || implicit_original_ending(story, *index)
+            })
+            .map(|(_, n)| text(n, "id"));
         let reverse = reversed(&graph);
         let can_finish = reachable(&reverse, finals, |_| false);
         for id in graph.keys().filter(|id| !reached.contains(id.as_str())) {
@@ -407,12 +430,13 @@ pub fn analyze_project(stories: &BTreeMap<String, Value>, manifest: &Value) -> V
     let mut finals = Vec::new();
     let mut unknown = Vec::new();
     for (sid, s) in stories {
-        for n in nodes(s) {
+        for (index, n) in nodes(s).iter().enumerate() {
             if text(n, "type") == "raw" {
                 unknown.push(node_key(sid, text(n, "id")));
             }
             if final_ending(text(n, "type"))
                 && !(text(n, "type") == "end" && !text(n, "next_script").is_empty())
+                || implicit_original_ending(s, index)
             {
                 finals.push(node_key(sid, text(n, "id")));
             }

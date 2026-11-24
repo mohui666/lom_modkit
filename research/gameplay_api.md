@@ -1,5 +1,9 @@
 # Gameplay API 实证矩阵
 
+## 2026-11-24 原版剧情检索
+
+原版章节索引从 `LuaManager.ExecuteLuaScript` 使用的 Story 资源目录读取章节。旗标名称来自 `MissionManagerData.FlagsCollection` 中的 `FlagData.DevNote`，与脚本中 `StatModifyManager.SetFlag/AddFlag` 和 `LuaManager.GetFlagData` 的字面 ID 关联。任务保留 `MissionCheckData.StartScript` 和配置备注。检定索引只读取 `CheckPointManager.Condition/Switch/Dice/Position` 的调用位置，战斗索引使用 `LuaManager.ChangeScene` 的场景和关卡参数。结局标题来自 `LibrarySystem.EndGame`。检索和构建索引不会调用原版任务检查或检定求值，也不会写入旗标。
+
 ## 2026-11-19 原版剧情检索、开发跳转和移动高度
 
 实时核对 `LuaManager.ExecuteLuaScript` 从 `Story/ChineseTraditional/<ScriptName>` 加载本机 Lua。检索调用 `LeanLocalizationResolver.GetStoryText(string)`，用当前游戏语言读取 `Story/<key>`。演出入口 `LuaManager.GetStoryText` 还会设置已读颜色并写日志，检索不调用该入口。`GameOverController.Start` 按场景键查 `LibrarySystem.Dead`，用 `LibraryItemData.GetTitleKey/GetDescKey` 读标题和描述，另会记录解锁。检索只读夺命谱条目、原版脚本的 `ChangeScene("GameOver", id, next)` 和 `StoryMainUI.ShowPicture/ShowBigPicture` 资源键。本机夺命谱条目的 `LibraryItemData.Picture` 均为空。
@@ -127,6 +131,12 @@
 `camera.exclude_characters` 在 UICamera 上建立 order -1 的独立运行时画布，镜像指定人物及气泡的 Image、屏幕四角、表情、颜色与透明度；原 holder 留在舞台，继续原版移动、旋转和压暗。当前原版 SayDialog 在对白之间停用 GameObject，因此读取其序列化画布必须使用 `GetComponentInParent<Canvas>(true)`，不激活对白对象。镜像期间每帧保持原 Image 停用，避免自定义换表情重新启用原图后双重绘制。对应滤镜淡出完成后恢复原 Image，清舞台和离场清理克隆。未修改官方素材、相机配置或人物资产。编辑器模拟渐变权重，将原彩人物绘制于场景滤镜和前景后、对白与黑幕前；模糊、暗角仍是二维近似。
 
 已通过 Host 编译、真实发布版 1.5.9 滤镜包的打开→编辑新字段→保存／导出→重开，以及重算完整性记录后的无关 Lua 替换拒绝测试。本轮在独立 Host 与测试存档中完成滤镜域30项实机检查，覆盖渐入／渐出逐帧权重、相机栈 Volume 选择、官方和自定义人物及气泡的原彩层、位移与换表情、对白层序、淡出恢复23张原 Image、旧节点重新启用、再次分层和清场。满权重帧与正常基准帧的像素比较中，天空／地面蓝通道平均变化约75／73级，两个原彩人物衣物不透明内部区域各通道平均变化均低于3.4级；结合实际画面核对，确认场景黄化、人物保留原彩。该结果只覆盖本轮所用场景、滤镜和人物组合。
+
+## 2026-11-24 原版剧情人物的作品好感
+
+复核安装版 `StatModifyManager.Character(string,int,int)`、`SetCharacter(string,int)` 与 `RelationshipStatType`。梁有诗的剧情 ID 是 `special830`，不在原生好感枚举内。Host 通过原来的两个修改入口分派 `story:` 好感引用，沿用作品与存档槽归属，通过 `StoryCharacterConfig.Get(string)`、`StoryCharacterData.PortraitResourceList` 和立绘地址取得通知图像，再调用 `RelationshipModifyMessagePanel.DisplayRelationshipModification(Sprite,int)`。原版 Stat 的值和资源继续由游戏管理。作品好感与独立人物提示均按实际增减量显示。
+
+隔离实机使用游戏 release_1.0.6001.2 从原版整章选中的第 356 步进入。原版提示实例完成梁有诗增减与独立人物增加的淡入。现场确认 `PlayerStatManagerData.Relationships.Get(RelationshipStatType.夏靈犀)` 返回带图标的原生好感数据，选择器增加 `special825`。
 
 ## 2026-11-11 好感头像与自定义人物好感
 
@@ -336,6 +346,8 @@ Host 1.4.5 的 `mod_effect` 始终经原 SetupEffect(unique=0,play=1) 创建自�
 - `MenuPanel.LoadButtonClick`、`SaveButtonClick` 和 `Mortal.Battle.PausePanel.LoadButtonClick` 是游戏内存读档入口。MOD 模式打开当前进度所属的独立页；原版模式不接管。继续使用 `SaveSystem.GetSaveData/GetAutoSaveData/SaveGameData/AutoLoadGameData`，不改变原版 GameSave 格式。
 
 独立 UI 的原版＋MOD 栏位使用 `mod_addon_default`，纯 MOD 保留 `mod_campaign_<campaign_id>`；Universe 最近原版槽保护继续有效。新自定义玩法最低要求 Host 1.4.0。
+
+从原版进度进入附加剧情时，`SaveSystem.GetSaveData(string)` 读取手动档，`GetAutoSaveData(string).GameSave` 读取自动档的同一进度对象。当前安装的 `SaveSystem.GetSaveDataFile(string)` 按用户目录和栏位名解析路径，`ExecuteSaveData(string, object)` 写入原版序列化格式。Host 先写临时文件，再移入空的附加模式栏位，随后沿用 `SetSlot`、`LoadGameData` 和 `SceneController.LoadCurrentScene` 恢复日期、旗标和场景。导入的原版战斗进度在依赖记录中保留该快照的时间标记，供重读时区分原版战斗与需要 Gameplay 上下文的 MOD 战斗。
 
 下方既有矩阵来自 Phase 49 的接口核对；`gameplay_api_contract.json` 保留当时的记录，不能把历史程序集摘要作为现版兼容证明。游戏更新后按根目录 `AGENTS.md` 只读反编译受影响类型与方法，不运行基于程序集哈希的复验。
 

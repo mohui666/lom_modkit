@@ -1,5 +1,119 @@
 use super::*;
 
+#[test]
+#[cfg(windows)]
+#[ignore = "manual ten-minute soak with an original chapter from the installed game"]
+fn original_chapter_edit_soak() {
+    let path = std::env::var_os("LOM_ORIGINAL_SOAK_SOURCE").expect("set LOM_ORIGINAL_SOAK_SOURCE");
+    let input = lom_core::load_json(path).unwrap();
+    let source = input["source"].as_str().unwrap();
+    let target = input["target"].as_str().unwrap();
+    let texts = serde_json::from_value(input["translations"].clone()).unwrap();
+    let mut story =
+        lom_core::native_flow::import(source, "main", "原版章节长时间编辑", target, &texts)
+            .unwrap();
+    // Restore the adjacent explicit links used in previously saved imports.
+    let len = story["nodes"].as_array().unwrap().len();
+    for index in 0..len - 1 {
+        if lom_core::analysis::follows_next(&story["nodes"][index]) {
+            let next = story["nodes"][index + 1]["id"].clone();
+            let origin = lom_core::vanilla_import::origin_index(&story["nodes"][index]).unwrap();
+            story["nodes"][index]["goto"] = next.clone();
+            story["vanilla_import"]["origins"][origin]["node"]["goto"] = next;
+        }
+    }
+    let mut project = Project::new_vanilla_patch(target).unwrap();
+    project.manifest["entry"] = json!("main");
+    project.stories.clear();
+    project.stories.insert("main".into(), story);
+    let mut app = app();
+    app.install(project);
+    app.current = "main".into();
+    app.managed_tab = true;
+    app.frame = 1;
+    let temporary = tempfile::tempdir().unwrap();
+    app.recovery_dir = temporary.path().join("recovery");
+    app.clipboard =
+        vec![json!({"id":"inserted","type":"say","mode":"narrative","text":"插入压力验证"})];
+
+    let ctx = egui::Context::default();
+    let mut frame = eframe::Frame::_new_kittest();
+    let duration = Duration::from_secs(
+        std::env::var("LOM_ORIGINAL_SOAK_SECONDS")
+            .ok()
+            .and_then(|value| value.parse().ok())
+            .unwrap_or(610),
+    );
+    let began = Instant::now();
+    let mut edit_at = began;
+    let mut evidence_at = began;
+    let mut edits = 0;
+    let mut slow_frames = 0;
+    let mut slowest_frame = Duration::ZERO;
+    let mut slowest_insert = Duration::ZERO;
+    println!(
+        "ORIGINAL_SOAK target={target} nodes={len} duration={} debug={}",
+        duration.as_secs(),
+        cfg!(debug_assertions)
+    );
+    while began.elapsed() < duration {
+        let tick = Instant::now();
+        if tick >= edit_at {
+            let nodes = app.story()["nodes"].as_array().unwrap();
+            let len = nodes.len();
+            let pivot = (len / 2 + edits * 17) % (len - 1);
+            let index = (pivot..len - 1)
+                .chain(1..pivot)
+                .find(|&index| {
+                    nodes[index]["goto"].is_string()
+                        && nodes[index]["goto"] == nodes[index + 1]["id"]
+                })
+                .unwrap();
+            app.selected = index;
+            app.center = Center::Node;
+            let start = Instant::now();
+            app.paste();
+            slowest_insert = slowest_insert.max(start.elapsed());
+            assert!(app.error.is_none(), "{:?}", app.error);
+            edits += 1;
+            edit_at = tick + Duration::from_millis(4750);
+        }
+        let started = Instant::now();
+        std::hint::black_box(ctx.run(
+            egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1500.0, 960.0),
+                )),
+                ..Default::default()
+            },
+            |ctx| eframe::App::update(&mut app, ctx, &mut frame),
+        ));
+        let elapsed = started.elapsed();
+        slowest_frame = slowest_frame.max(elapsed);
+        if elapsed >= Duration::from_millis(250) {
+            slow_frames += 1;
+        }
+        if tick >= evidence_at {
+            let label = format!("original_at_{}s_edits_{edits}", began.elapsed().as_secs());
+            memory(&label);
+            println!(
+                "ORIGINAL_SOAK frames_over_250ms={slow_frames} max_frame_ms={} max_insert_ms={}",
+                slowest_frame.as_millis(),
+                slowest_insert.as_millis()
+            );
+            evidence_at = tick + Duration::from_secs(30);
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    app.flush();
+    assert_eq!(app.story()["nodes"].as_array().unwrap().len(), len + edits);
+    lom_core::validate::validate_story(app.story()).unwrap();
+    memory("original_final");
+    println!("ORIGINAL_SOAK finished_secs={} edits={edits} undo={} frames_over_250ms={slow_frames} max_frame_ms={} max_insert_ms={}",
+        began.elapsed().as_secs(), app.undo.len(), slowest_frame.as_millis(), slowest_insert.as_millis());
+}
+
 #[cfg(windows)]
 fn memory(label: &str) {
     #[repr(C)]

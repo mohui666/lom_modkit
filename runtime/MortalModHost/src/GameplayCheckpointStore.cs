@@ -146,6 +146,14 @@ namespace MortalModHost
             return false;
         }
 
+        internal static void ClearAddonManualSlot(string slot)
+        {
+            if (!ModSaveSlotPolicy.IsAddonManualSlot(slot))
+                throw new ArgumentException("只能清理原版＋MOD 的手动栏位上下文。", nameof(slot));
+            string path = PathFor(slot);
+            if (File.Exists(path)) File.Delete(path);
+        }
+
         private static void ValidateSlot(ModPackage package, string slot)
         {
             if (package == null || string.IsNullOrEmpty(package.Id)

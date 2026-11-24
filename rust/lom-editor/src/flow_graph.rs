@@ -253,14 +253,15 @@ fn find_back_edges(
 
 fn layout(story: &Value) -> Layout {
     let nodes = story["nodes"].as_array().map(Vec::as_slice).unwrap_or(&[]);
-    layout_graph(nodes, text(story, "start"), edges(story))
+    let ids: Vec<_> = nodes.iter().map(|node| text(node, "id")).collect();
+    layout_graph(&ids, text(story, "start"), edges(story))
 }
 
-fn layout_graph(nodes: &[Value], start: &str, raw: Vec<(String, String, String)>) -> Layout {
+fn layout_graph(nodes: &[&str], start: &str, raw: Vec<(String, String, String)>) -> Layout {
     let indices: BTreeMap<_, _> = nodes
         .iter()
         .enumerate()
-        .map(|(index, node)| (text(node, "id"), index))
+        .map(|(index, &id)| (id, index))
         .collect();
     let mut forward = vec![Vec::new(); nodes.len()];
     let mut reverse = vec![Vec::new(); nodes.len()];
@@ -518,10 +519,10 @@ struct ViewState {
     zoom: f32,
     full: bool,
     selected: Option<String>,
+    revision: u64,
     layout: Option<std::sync::Arc<CachedLayout>>,
 }
 struct CachedLayout {
-    story: Value,
     selected: Option<String>,
     full: bool,
     members: Vec<Vec<usize>>,
@@ -533,6 +534,7 @@ impl Default for ViewState {
             zoom: 1.0,
             full: false,
             selected: None,
+            revision: 0,
             layout: None,
         }
     }
@@ -561,7 +563,6 @@ fn display_layout(story: &Value, selected: usize, full: bool) -> CachedLayout {
     let selected_id = nodes.get(selected).map(|node| text(node, "id").to_owned());
     if full {
         return CachedLayout {
-            story: story.clone(),
             selected: selected_id,
             full,
             members: (0..nodes.len()).map(|index| vec![index]).collect(),
@@ -669,7 +670,7 @@ fn display_layout(story: &Value, selected: usize, full: bool) -> CachedLayout {
     }
     let representatives: Vec<_> = members
         .iter()
-        .map(|members| nodes[members[0]].clone())
+        .map(|members| text(&nodes[members[0]], "id"))
         .collect();
     let mut projected: BTreeMap<(usize, String), Vec<String>> = BTreeMap::new();
     for (from, target, label) in raw {
@@ -680,7 +681,7 @@ fn display_layout(story: &Value, selected: usize, full: bool) -> CachedLayout {
             if from == group && original_from != target {
                 continue;
             }
-            text(&representatives[group], "id").to_owned()
+            representatives[group].to_owned()
         } else {
             target
         };
@@ -692,20 +693,15 @@ fn display_layout(story: &Value, selected: usize, full: bool) -> CachedLayout {
     let links = projected
         .into_iter()
         .map(|((from, target), labels)| {
-            (
-                text(&representatives[from], "id").to_owned(),
-                target,
-                labels.join(" / "),
-            )
+            (representatives[from].to_owned(), target, labels.join(" / "))
         })
         .collect();
     let start = indices
         .get(text(story, "start"))
-        .map(|&index| text(&representatives[owners[index]], "id"))
+        .map(|&index| representatives[owners[index]])
         .unwrap_or("");
     let layout = layout_graph(&representatives, start, links);
     CachedLayout {
-        story: story.clone(),
         selected: selected_id,
         full,
         members,
@@ -974,6 +970,7 @@ pub(super) fn show(
     project: &Project,
     story: &Value,
     selected: usize,
+    revision: u64,
 ) -> Option<usize> {
     let nodes = story["nodes"].as_array()?;
     let state_id = ui.id().with(("flow-view", text(story, "id")));
@@ -1009,14 +1006,43 @@ pub(super) fn show(
             locate = true;
         }
     });
+    let mut choose = if story.get("vanilla_import").is_some() {
+        crate::forms::resource_combo(ui, "flow-flag-search", &key("flow_graph.find_flag"), |ui| {
+            crate::forms::search_menu(ui, |ui, query| {
+                let hits =
+                    crate::game_flags::find_steps(lom_core::validate::editor_data(), nodes, query);
+                if hits.is_empty() {
+                    ui.weak(key("flow_graph.no_flag"));
+                }
+                for (index, id, usage, metadata) in hits {
+                    let description = metadata.map(crate::game_flags::label).unwrap_or_default();
+                    let caption = format!("{} · {} · {} {description}", index + 1, key(usage), id);
+                    if ui
+                        .selectable_label(index == selected, &caption)
+                        .on_hover_text(caption)
+                        .clicked()
+                    {
+                        ui.close();
+                        return Some(index);
+                    }
+                }
+                None
+            })
+        })
+        .inner
+        .flatten()
+    } else {
+        None
+    };
     if state.layout.as_ref().is_none_or(|cached| {
-        !crate::json::same(&cached.story, story)
+        state.revision != revision
             || cached.full != state.full
             || !state.full && cached.selected != selected_id
     }) {
         state.layout = Some(std::sync::Arc::new(display_layout(
             story, selected, state.full,
         )));
+        state.revision = revision;
     }
     let cached = state.layout.clone().unwrap();
     let layout = &cached.layout;
@@ -1067,7 +1093,6 @@ pub(super) fn show(
         );
     }
     ui.separator();
-    let mut choose = None;
     egui::ScrollArea::both()
         .id_salt(("flow-canvas", text(story, "id")))
         .auto_shrink([false, false])
@@ -1629,7 +1654,7 @@ mod tests {
                 },
                 |context| {
                     egui::CentralPanel::default().show(context, |ui| {
-                        chosen = show(ui, &project, &story, selected);
+                        chosen = show(ui, &project, &story, selected, 0);
                         full = ui
                             .data_mut(|data| {
                                 data.get_temp::<ViewState>(ui.id().with(("flow-view", "main")))
@@ -1911,7 +1936,7 @@ mod tests {
                 },
                 |ctx| {
                     egui::CentralPanel::default().show(ctx, |ui| {
-                        chosen = show(ui, &project, &story, 56);
+                        chosen = show(ui, &project, &story, 56, 0);
                     });
                 },
             );

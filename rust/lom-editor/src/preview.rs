@@ -50,28 +50,21 @@ pub(crate) fn animation_window_active(ctx: &egui::Context) -> bool {
 
 pub fn edges(story: &Value) -> Vec<(String, String, String)> {
     let mut out = Vec::new();
-    for (index, node) in story["nodes"].as_array().into_iter().flatten().enumerate() {
+    let nodes = story["nodes"].as_array().map(Vec::as_slice).unwrap_or(&[]);
+    for (index, node) in nodes.iter().enumerate() {
         let id = text(node, "id");
+        let is_next = |target: &str| nodes.get(index + 1).is_some_and(|next| next["id"] == target);
         for target in lom_core::analysis::successors(story, index) {
             let mut labels = Vec::new();
             for (key, label) in [
                 ("goto", "跳转"),
                 ("win", "胜利"),
                 ("lose", "失败"),
-                ("success", "成功"),
-                ("failure", "失败"),
+                ("success", "条件成立"),
+                ("failure", "条件不成立"),
             ] {
                 if node[key].as_str() == Some(&target) {
-                    labels.push(if node["type"] == "native_branch" {
-                        match key {
-                            "success" => "条件成立",
-                            "failure" => "条件不成立",
-                            _ => label,
-                        }
-                        .to_owned()
-                    } else {
-                        label.to_owned()
-                    });
+                    labels.push(if key == "goto" && is_next(&target) { "下一步" } else { label }.into());
                 }
             }
             for key in ["options", "cases", "bands"] {
@@ -115,6 +108,18 @@ pub fn edges(story: &Value) -> Vec<(String, String, String)> {
                             }
                         }
                     }
+                }
+            }
+            if is_next(&target) && node["type"] == "branch" && lom_core::analysis::follows_next(node) {
+                let source = node["source"].as_str().unwrap_or("mod");
+                if ["mod", "condition"].contains(&source) {
+                    for (value, label) in [(1, "条件成立"), (2, "条件不成立")] {
+                        if !node["cases"].as_array().into_iter().flatten().any(|row| row["value"] == value) {
+                            labels.push(label.into());
+                        }
+                    }
+                } else {
+                    labels.push("条件不成立".into());
                 }
             }
             out.push((
@@ -4306,8 +4311,9 @@ pub fn graph(
     project: &Project,
     story: &Value,
     selected: usize,
+    revision: u64,
 ) -> Option<usize> {
-    flow_graph::show(ui, project, story, selected)
+    flow_graph::show(ui, project, story, selected, revision)
 }
 #[cfg(test)]
 mod tests {

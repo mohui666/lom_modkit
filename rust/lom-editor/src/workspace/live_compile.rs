@@ -122,7 +122,6 @@ impl App {
         let full = self.preflight_tracked;
         let metadata = full.then(|| background_save::ProjectMetadata::capture(&self.project));
         let chapter = self.current.clone();
-        let mut catalog = self.catalog.data.clone();
         let repaint = ctx.clone();
         let (sender, result) = mpsc::channel();
         match std::thread::Builder::new()
@@ -139,10 +138,13 @@ impl App {
                         ),
                     )
                 } else {
+                    let catalog = lom_core::validate::catalog_with_assets(&snapshot.assets).ok();
+                    let catalog = catalog
+                        .as_ref()
+                        .unwrap_or_else(|| lom_core::validate::editor_data());
                     let stories = snapshot.materialize_stories();
                     let flags = project_flags(&stories);
-                    catalog["project_flags"] = flags.clone();
-                    (flags, compiler_issues(&stories, &catalog))
+                    (flags, compiler_issues(&stories, catalog))
                 };
                 let lua = show_lua.then(|| {
                     let story = snapshot

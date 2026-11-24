@@ -1484,6 +1484,28 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
                 .as_str()
                 .is_some_and(|id| id.starts_with("user:"))
         });
+    let story_affinity_ref = |value: &Value| {
+        value
+            .as_str()
+            .is_some_and(|id| id.starts_with(content::STORY_AFFINITY_PREFIX))
+    };
+    let story_affinity = stories.values().any(|story| {
+        crate::parallel::story_actions(story).any(|(_, node)| {
+            content::gameplay_references(node)
+                .iter()
+                .any(|(id, kind, _)| {
+                    *kind == "character" && id.starts_with(content::STORY_AFFINITY_PREFIX)
+                })
+        })
+    }) || scenario.as_ref().is_some_and(|config| {
+        content::scenario_gameplay_nodes(config)
+            .iter()
+            .any(|node| node["type"] == "affinity" && story_affinity_ref(&node["character"]))
+    }) || manifest["campaign"]["triggers"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .any(|trigger| story_affinity_ref(&trigger["when_affinity"]["character"]));
     let filter_controls = stories.values().any(|story| {
         crate::parallel::story_actions(story).any(|(_, node)| {
             node["type"] == "camera"
@@ -1558,7 +1580,8 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
                     .is_some_and(|id| id.starts_with("combat:"))
         })
     });
-    if gameplay_music
+    if story_affinity
+        || gameplay_music
         || combat_backgrounds
         || picture_controls
         || presentation_controls
@@ -1581,7 +1604,9 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
         || event_fade
         || dialogue_dimming
     {
-        let (minimum, required) = if gameplay_music {
+        let (minimum, required) = if story_affinity {
+            ([1, 6, 9], "1.6.9")
+        } else if gameplay_music {
             ([1, 6, 8], "1.6.8")
         } else if combat_backgrounds {
             ([1, 6, 2], "1.6.2")

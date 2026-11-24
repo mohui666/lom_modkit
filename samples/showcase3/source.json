@@ -4,7 +4,7 @@
     "package_format": 3,
     "story_schema": 2,
     "content_schema": 1,
-    "min_host_version": "1.6.8",
+    "min_host_version": "1.6.9",
     "id": "showcase3",
     "campaign_id": "showcase3",
     "name": "全节点样例3.0·七十三节点实机验收",
@@ -678,6 +678,20 @@
           "type": "affinity",
           "character": "user:showcase.lin_deng",
           "delta": -2,
+          "show_message": true
+        },
+        {
+          "id": "story_affinity_up",
+          "type": "affinity",
+          "character": "story:special830",
+          "delta": 7,
+          "show_message": true
+        },
+        {
+          "id": "story_affinity_down",
+          "type": "affinity",
+          "character": "story:special830",
+          "delta": -4,
           "show_message": true
         },
         {
@@ -2244,8 +2258,7 @@
           "id": "original_1",
           "_editor": {
             "vanilla_origin": 0
-          },
-          "goto": "original_2"
+          }
         },
         {
           "type": "native_branch",
@@ -2306,8 +2319,7 @@
           "id": "original_3",
           "_editor": {
             "vanilla_origin": 2
-          },
-          "goto": "original_4"
+          }
         },
         {
           "type": "say",
@@ -2326,8 +2338,7 @@
           "id": "original_5",
           "_editor": {
             "vanilla_origin": 4
-          },
-          "goto": "original_6"
+          }
         },
         {
           "type": "native_action",
@@ -2357,8 +2368,7 @@
           "id": "original_6",
           "_editor": {
             "vanilla_origin": 5
-          },
-          "goto": "original_7"
+          }
         },
         {
           "type": "say",
@@ -2368,8 +2378,7 @@
           "id": "original_7",
           "_editor": {
             "vanilla_origin": 6
-          },
-          "goto": "original_8"
+          }
         },
         {
           "type": "native_action",
@@ -2377,8 +2386,7 @@
           "id": "original_8",
           "_editor": {
             "vanilla_origin": 7
-          },
-          "goto": "original_9"
+          }
         },
         {
           "type": "native_action",
@@ -2464,22 +2472,19 @@
           "id": "original_9",
           "_editor": {
             "vanilla_origin": 8
-          },
-          "goto": "inserted"
+          }
         },
         {
           "id": "inserted",
           "type": "say",
           "text": "新增对白",
-          "inherit_dialog": true,
-          "goto": "segment1_0"
+          "inherit_dialog": true
         },
         {
           "id": "segment1_0",
           "type": "say",
           "mode": "narrative",
-          "text": "这是一整段插入剧情的开场。",
-          "goto": "segment1_1"
+          "text": "这是一整段插入剧情的开场。"
         },
         {
           "id": "segment1_1",
@@ -2506,8 +2511,7 @@
           "id": "segment1_3",
           "type": "say",
           "mode": "narrative",
-          "text": "第二条路径也会接回同一个原版位置。",
-          "goto": "segment1_4"
+          "text": "第二条路径也会接回同一个原版位置。"
         },
         {
           "id": "segment1_4",
@@ -2523,8 +2527,7 @@
           "id": "original_10",
           "_editor": {
             "vanilla_origin": 9
-          },
-          "goto": "original_11"
+          }
         },
         {
           "type": "end",
@@ -2629,8 +2632,7 @@
                   }
                 }
               ],
-              "id": "original_1",
-              "goto": "original_2"
+              "id": "original_1"
             }
           },
           {
@@ -2686,8 +2688,7 @@
                   }
                 }
               ],
-              "id": "original_3",
-              "goto": "original_4"
+              "id": "original_3"
             }
           },
           {
@@ -2737,8 +2738,7 @@
             "node": {
               "type": "native_action",
               "operations": [],
-              "id": "original_5",
-              "goto": "original_6"
+              "id": "original_5"
             }
           },
           {
@@ -2768,8 +2768,7 @@
                   }
                 }
               ],
-              "id": "original_6",
-              "goto": "original_7"
+              "id": "original_6"
             }
           },
           {
@@ -2779,8 +2778,7 @@
               "mode": "narrative",
               "text": "原版乙",
               "inherit_dialog": true,
-              "id": "original_7",
-              "goto": "original_8"
+              "id": "original_7"
             },
             "operations": [
               {
@@ -2819,8 +2817,7 @@
             "node": {
               "type": "native_action",
               "operations": [],
-              "id": "original_8",
-              "goto": "original_9"
+              "id": "original_8"
             }
           },
           {
@@ -2906,8 +2903,7 @@
                   }
                 }
               ],
-              "id": "original_9",
-              "goto": "original_10"
+              "id": "original_9"
             }
           },
           {
@@ -2917,8 +2913,7 @@
               "mode": "narrative",
               "text": "原版尾句",
               "inherit_dialog": true,
-              "id": "original_10",
-              "goto": "original_11"
+              "id": "original_10"
             },
             "operations": [
               {

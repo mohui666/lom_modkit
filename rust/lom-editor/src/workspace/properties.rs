@@ -102,7 +102,7 @@ impl App {
                 self.status = if let Some((_, count)) = inserted {
                     crate::i18n::message("vanilla.segment_done", &[("count", count.to_string())])
                 } else {
-                    "已导入原版整章，可在步骤间插入内容。F5 从原版章节入口试玩。".into()
+                    crate::i18n::key("editor.original.imported")
                 };
             }
             if let Some(mark) = self.vanilla.take_bookmark() {

@@ -40,7 +40,7 @@ namespace MortalModHost
             return path;
         }
 
-        internal static List<Dictionary<string,object>> ReadTimelineRows()
+        internal static List<Dictionary<string,object>> ReadTimelineRows(bool includeWithoutChapter = false)
         {
             MissionManagerData manager = MissionManagerData.Instance;
             if (manager == null) throw new InvalidOperationException("当前任务时间线尚未就绪");
@@ -56,7 +56,9 @@ namespace MortalModHost
                 if (checks == null) continue;
                 foreach (MissionCheckData check in checks)
                 {
-                    if (check == null || !VanillaStoryPatch.ValidTarget(check.StartScript)) continue;
+                    if (check == null) continue;
+                    string script = VanillaStoryPatch.ValidTarget(check.StartScript) ? check.StartScript : "";
+                    if (!includeWithoutChapter && script.Length == 0) continue;
                     int? from = null, to = null;
                     string when = "任意时间／条件触发";
                     if (Field<bool>(check,"_dayCheck"))
@@ -80,7 +82,7 @@ namespace MortalModHost
                     if (string.IsNullOrWhiteSpace(title)) title = Field<string>(item,"_desc") ?? "";
                     if (string.IsNullOrWhiteSpace(title)) title = check.Key;
                     rows.Add(new Dictionary<string,object> {
-                        {"script",check.StartScript},{"title",title},{"series",item.Name},
+                        {"script",script},{"title",title},{"series",item.Name},
                         {"key",check.Key},{"main",ReferenceEquals(item,manager.Main)},
                         {"next_key",check.HasNextState ? check.NextState : ""},
                         {"condition",Conditions(check)},

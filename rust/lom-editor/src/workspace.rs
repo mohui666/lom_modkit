@@ -19,6 +19,7 @@ mod quick_tools;
 mod recovery;
 mod segment_insertion;
 mod settings;
+mod step_deletion;
 mod steps;
 mod tabs;
 mod text_edit;
@@ -232,6 +233,7 @@ struct App {
     live_compile: Option<live_compile::Task>,
     chapter_dialog: Option<ChapterDialog>,
     delete_chapter_dialog: Option<DeleteChapterDialog>,
+    step_delete_dialog: Option<step_deletion::StepDeletion>,
     rename_dialog: Option<RenameDialog>,
     settings_open: bool,
     settings_page: usize,
@@ -697,6 +699,7 @@ impl App {
             live_compile: None,
             chapter_dialog: None,
             delete_chapter_dialog: None,
+            step_delete_dialog: None,
             rename_dialog: None,
             settings_open: false,
             settings_page: 0,
@@ -855,6 +858,7 @@ impl eframe::App for App {
         if self.chapter_dialog.is_none()
             && self.project_choice.is_none()
             && self.delete_chapter_dialog.is_none()
+            && self.step_delete_dialog.is_none()
             && self.rename_dialog.is_none()
             && self.asset_import_dialog.is_none()
             && crate::macos_window::take_settings_request()

@@ -434,6 +434,7 @@ impl Workspace {
             || app.chapter_dialog.is_some()
             || app.project_choice.is_some()
             || app.delete_chapter_dialog.is_some()
+            || app.step_delete_dialog.is_some()
             || app.rename_dialog.is_some()
             || app.asset_import_dialog.is_some()
             || app.video_dialog.is_some()

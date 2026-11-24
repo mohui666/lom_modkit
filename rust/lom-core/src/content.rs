@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 
 pub const MAX_AUDIO_BYTES: u64 = 20 * 1024 * 1024;
 pub const MAX_IMAGE_BYTES: u64 = 8 * 1024 * 1024;
+pub const STORY_AFFINITY_PREFIX: &str = "story:";
 pub const CONTENT_TYPES: &[&str] = &[
     "audio",
     "character",

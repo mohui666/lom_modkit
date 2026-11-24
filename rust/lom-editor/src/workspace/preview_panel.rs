@@ -608,8 +608,18 @@ impl App {
                         }
                     }
                     View::Graph => {
-                        if let Some(i) = preview::graph(ui, &self.project, &story, self.selected) {
+                        if let Some(i) = preview::graph(
+                            ui,
+                            &self.project,
+                            &story,
+                            self.selected,
+                            self.document_revision,
+                        ) {
                             self.selected = i;
+                            self.multiselect.clear();
+                            if let Some(story) = self.project.stories.get_mut(&self.current) {
+                                authoring::expand_for_node(story, i);
+                            }
                             self.center = Center::Node;
                         }
                     }

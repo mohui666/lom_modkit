@@ -142,13 +142,13 @@ fn chapter(
                         .hint_text(i18n::key("common.quick.original_search"))
                         .desired_width(ui.available_width()),
                 );
-                let query = search.to_lowercase();
+                let query = i18n::simplified_label(&search).to_lowercase();
                 egui::ScrollArea::vertical()
                     .max_height(240.0)
                     .show(ui, |ui| {
                         for id in chapters {
                             let name = label(names, id);
-                            if !format!("{id} {name}").to_lowercase().contains(&query) {
+                            if !crate::game_flags::original_chapter_matches(id, &name, &query) {
                                 continue;
                             }
                             if ui

@@ -9,7 +9,7 @@ namespace MortalModHost
     {
         internal static int AffinityValue(string character, ModPackage package = null)
         {
-            if (CustomAffinityRuntime.IsCustom(character))
+            if (CustomAffinityRuntime.UsesSidecar(character))
                 return CustomAffinityRuntime.Value(package ?? ModOverlay.CurrentPackage, character);
             PlayerStatManagerData stats = PlayerStatManagerData.Instance;
             if (stats == null) throw new InvalidOperationException("PlayerStatManagerData.Instance 为 null");

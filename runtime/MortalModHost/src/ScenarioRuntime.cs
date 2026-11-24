@@ -175,7 +175,7 @@ namespace MortalModHost
                 switch(type) {
                     case "stat":if(op=="set")modifier.SetPlayer(key,n);else modifier.Player(key,n,"",0);break;
                     case "affinity":
-                        if(CustomAffinityRuntime.IsCustom(key)) CustomAffinityRuntime.Change(package,key,n,op=="set",false);
+                        if(CustomAffinityRuntime.UsesSidecar(key)) CustomAffinityRuntime.Change(package,key,n,op=="set",false);
                         else if(op=="set")modifier.SetCharacter(key,n);else modifier.Character(key,n,0);break;
                     case "flag":modifier.AddStory(key);break;
                     case "game_flag":if(op=="set")modifier.SetFlag(key,n);else modifier.AddFlag(key,n);break;

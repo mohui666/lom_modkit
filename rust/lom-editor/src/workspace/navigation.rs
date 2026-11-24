@@ -40,6 +40,7 @@ impl App {
         if self.chapter_dialog.is_some()
             || self.project_choice.is_some()
             || self.delete_chapter_dialog.is_some()
+            || self.step_delete_dialog.is_some()
             || self.rename_dialog.is_some()
             || self.asset_import_dialog.is_some()
             || self.video_dialog.is_some()
@@ -304,6 +305,12 @@ impl App {
                             }
                             if ui.button(crate::i18n::key("editor.workspace.routes")).clicked() {
                                 ui.close();self.open_vanilla_routes(ctx);
+                            }
+                            if ui.button(crate::i18n::key("vanilla.normalize_links"))
+                                .on_hover_text(crate::i18n::key("vanilla.normalize_hint")).clicked()
+                            {
+                                ui.close();
+                                self.normalize_original_links();
                             }
                             if ui.button(crate::i18n::key("editor.workspace.bookmark")).clicked() {
                                 ui.close();

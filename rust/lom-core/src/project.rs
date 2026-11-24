@@ -3,6 +3,7 @@ use crate::{load_json, package, stable_json};
 use anyhow::{ensure, Context, Result};
 use serde_json::{json, Value};
 use std::{
+    borrow::Cow,
     collections::{BTreeMap, BTreeSet},
     fs,
     io::Write,
@@ -301,7 +302,7 @@ impl Project {
                 .and_then(|p| p.canonicalize().ok())
                 .zip(absolute.canonicalize().ok())
                 .is_some_and(|(source, target)| source == target);
-            let mut writes = vec![(absolute.clone(), stable_json(story)?)];
+            let mut writes = vec![(absolute.clone(), Cow::Owned(stable_json(story)?))];
             for (name, bytes) in &self.assets {
                 package::canonical_archive_name(name)?;
                 ensure!(name.starts_with("assets/"), "项目资源路径必须在 assets/ 下");
@@ -310,7 +311,7 @@ impl Project {
                     !destination.exists() || same_source,
                     "目标资源不属于当前项目，拒绝覆盖: {name}"
                 );
-                writes.push((destination, bytes.clone()));
+                writes.push((destination, Cow::Borrowed(bytes.as_slice())));
             }
             write_confined_files(asset_root, &writes)?;
             self.paths = BTreeMap::from([(
@@ -356,7 +357,7 @@ impl Project {
                     path.display()
                 );
             }
-            writes.push((path, stable_json(story)?));
+            writes.push((path, Cow::Owned(stable_json(story)?)));
             new_paths.insert(id.clone(), filename);
         }
         let manifest_path = target.join("manifest.json");
@@ -364,21 +365,21 @@ impl Project {
             !manifest_path.exists() || same_source,
             "目标 manifest 不属于当前项目，拒绝覆盖"
         );
-        writes.push((manifest_path, stable_json(&self.manifest)?));
+        writes.push((manifest_path, Cow::Owned(stable_json(&self.manifest)?)));
         if let Some(scenario) = &self.scenario {
             let path = target.join("scenario.json");
             ensure!(
                 !path.exists() || same_source,
                 "目标 scenario.json 不属于当前项目，拒绝覆盖"
             );
-            writes.push((path, stable_json(scenario)?));
+            writes.push((path, Cow::Owned(stable_json(scenario)?)));
         }
         for (name, bytes) in &self.assets {
             package::canonical_archive_name(name)?;
             ensure!(name.starts_with("assets/"), "项目资源路径必须在 assets/ 下");
             let dest = target.join(name);
             ensure!(!dest.exists() || same_source, "目标资源已存在: {name}");
-            writes.push((dest, bytes.clone()));
+            writes.push((dest, Cow::Borrowed(bytes.as_slice())));
         }
         write_confined_files(&target, &writes)?;
         let root = target.canonicalize()?;
@@ -400,7 +401,7 @@ impl Project {
     }
 }
 /// Prepare all temporary files before replacing any owned document or asset.
-fn write_confined_files(root: &Path, writes: &[(PathBuf, Vec<u8>)]) -> Result<()> {
+fn write_confined_files(root: &Path, writes: &[(PathBuf, Cow<'_, [u8]>)]) -> Result<()> {
     fs::create_dir_all(root)?;
     let root = root.canonicalize()?;
     for (path, _) in writes {

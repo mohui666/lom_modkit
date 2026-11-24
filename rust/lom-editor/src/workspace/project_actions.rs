@@ -622,6 +622,7 @@ impl App {
         self.chapter_dialog = None;
         self.project_choice = None;
         self.delete_chapter_dialog = None;
+        self.step_delete_dialog = None;
         self.rename_dialog = None;
         self.asset_import_dialog = None;
         self.video_dialog = None;
