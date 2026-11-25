@@ -154,7 +154,12 @@ impl App {
                                     ui.small(crate::i18n::key("editor.form.big_picture_hint"));
                                 }
                                 if event_picture {
-                                    ui.small(crate::i18n::key("editor.workspace.event_hint"));
+                                    let hint = if lom_core::content::is_custom_event_picture(&node) {
+                                        "editor.workspace.event_drag_hint"
+                                    } else {
+                                        "editor.workspace.event_hint"
+                                    };
+                                    ui.small(crate::i18n::key(hint));
                                 }
                                 if matches!(
                                     node["type"].as_str(),

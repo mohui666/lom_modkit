@@ -9,7 +9,14 @@ pub enum Target {
     Mood(String),
     Overlay(String),
     Cg,
+    EventPicture,
     Effect { node: String, action: Option<usize> },
+}
+
+impl Target {
+    pub(crate) fn position_in_percent(&self) -> bool {
+        matches!(self, Self::Overlay(_) | Self::Cg | Self::EventPicture)
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -44,6 +51,7 @@ fn affects(action: &Value, target: &Target) -> bool {
             action["type"] == "overlay" && action["slot"].as_str().unwrap_or("main") == slot
         }
         Target::Cg => action["type"] == "custom_cg",
+        Target::EventPicture => action["type"] == "cg" && action["kind"] == "event",
         Target::Effect { .. } => false,
     }
 }
@@ -109,7 +117,7 @@ fn apply_inner(story: &mut Value, selected: usize, change: &Change) -> Result<us
         );
     }
     lom_core::content::positive_scale(&json!(change.scale), "scale")?;
-    if matches!(&change.target, Target::Overlay(_) | Target::Cg) {
+    if change.target.position_in_percent() {
         ensure!(
             (-100.0..=100.0).contains(&change.x) && (-100.0..=100.0).contains(&change.y),
             "图片位置必须在 -100～100% 之间"
@@ -178,6 +186,9 @@ fn apply_inner(story: &mut Value, selected: usize, change: &Change) -> Result<us
         }
         Target::Overlay(slot) => state["overlays"][slot].is_object(),
         Target::Cg => state["custom_cg"].is_object(),
+        Target::EventPicture => {
+            lom_core::content::is_custom_event_picture(&state["official_pictures"]["event"])
+        }
         Target::Effect { .. } => unreachable!(),
     };
     ensure!(visible, "目标尚未显示或已经隐藏，无法调整布局");
@@ -282,9 +293,18 @@ fn apply_inner(story: &mut Value, selected: usize, change: &Change) -> Result<us
             action.is_object() && action["action"] == "show",
             "当前图片没有可编辑的显示步骤"
         );
-        action["x"] = json!(change.x);
-        action["y"] = json!(change.y);
-        action["scale"] = json!(change.scale);
+        if change.target == Target::EventPicture {
+            ensure!(
+                lom_core::content::is_custom_event_picture(action),
+                "当前图片没有可编辑的事件图显示步骤"
+            );
+            action["image_x"] = json!(change.x);
+            action["image_y"] = json!(change.y);
+        } else {
+            action["x"] = json!(change.x);
+            action["y"] = json!(change.y);
+            action["scale"] = json!(change.scale);
+        }
         Ok(selected)
     }
 }

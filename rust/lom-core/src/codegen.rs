@@ -1076,7 +1076,22 @@ fn emit(node: &Value, ctx: &Context<'_>) -> Result<Vec<String>> {
                 }
             } else {
                 let fade = n(node, "fade_in", json!(0));
-                if fade.parse::<f64>()? > 0.0 {
+                if crate::content::has_event_picture_offset(node) {
+                    out.push("\tif mod_event_picture_show_positioned == nil then error(\"事件图位置需要 Host 1.6.12，请在游戏与 MOD 中更新 Host\") end".into());
+                    out.push(call(
+                        "mod_event_picture_show_positioned",
+                        &[
+                            q(node, "key"),
+                            qd(node, "event_title", "事件"),
+                            fade.clone(),
+                            n(node, "image_x", json!(0)),
+                            n(node, "image_y", json!(0)),
+                        ],
+                    ));
+                    if fade.parse::<f64>()? > 0.0 {
+                        out.push(wait(fade));
+                    }
+                } else if fade.parse::<f64>()? > 0.0 {
                     out.push("\tif mod_event_picture_show_fade == nil then error(\"事件图淡入需要更新游戏接入组件，请在游戏与 MOD 中同步后重新试玩\") end".into());
                     out.push(call(
                         "mod_event_picture_show_fade",

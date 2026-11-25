@@ -817,8 +817,10 @@
       "action": "show",
       "key": "user:showcase.departure_cg",
       "event_title": "来信",
+      "image_x": 8,
+      "image_y": -6,
       "fade_in": 0.5,
-      "event_text": "自定义图片按比例适配左侧图框，右侧题字也可以自行修改。"
+      "event_text": "这张自定义图片向右和向下挪了一点。可在画面预览勾选“调整画面”后拖动左页图片。"
     },
     {
       "id": "event_book_hide",

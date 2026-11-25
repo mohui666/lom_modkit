@@ -284,6 +284,8 @@
         "wait_after": "num",
         "event_title": "str",
         "event_text": "str",
+        "image_x": "num",
+        "image_y": "num",
         "fade_in": "num",
         "fade_out": "num",
         "background_only": "bool"

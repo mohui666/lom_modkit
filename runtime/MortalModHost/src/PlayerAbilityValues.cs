@@ -113,7 +113,7 @@ namespace MortalModHost
         }
 
         [HarmonyPatch(typeof(GameStatUtils), nameof(GameStatUtils.GetGameStatLevel))]
-        private static class AbilityLevelText
+        internal static class AbilityLevelText
         {
             private static bool Prefix(int value, int max, int levelLength, ref int __result)
             {

@@ -55,6 +55,11 @@ impl LayoutObject {
         }
     }
     fn aligned(&self, stage: Rect, alignment: Align) -> LayoutChange {
+        let stage = if self.target == LayoutTarget::EventPicture {
+            event_book_rects(stage).1
+        } else {
+            stage
+        };
         let bounds = self.visible_bounds();
         let delta = match alignment {
             Align::Left => Vec2::new(stage.left() - bounds.left(), 0.0),
@@ -64,7 +69,12 @@ impl LayoutObject {
             Align::CenterY => Vec2::new(0.0, stage.center().y - bounds.center().y),
             Align::Bottom => Vec2::new(0.0, stage.bottom() - bounds.bottom()),
         };
-        self.translated(&self.value, delta)
+        let mut aligned = self.translated(&self.value, delta);
+        if aligned.target == LayoutTarget::EventPicture {
+            aligned.x = aligned.x.clamp(-100.0, 100.0);
+            aligned.y = aligned.y.clamp(-100.0, 100.0);
+        }
+        aligned
     }
 }
 
@@ -96,16 +106,18 @@ fn snap_delta(bounds: Rect, stage: Rect) -> (Vec2, [Option<f32>; 2]) {
 }
 
 pub(super) fn snap(drag: &mut LayoutDrag, stage: Rect, painter: &egui::Painter) {
+    let stage = if drag.object.target == LayoutTarget::EventPicture {
+        event_book_rects(stage).1
+    } else {
+        stage
+    };
     let bounds = drag
         .object
         .visible_bounds()
         .translate(drag.object.displacement(&drag.next));
     let (delta, guides) = snap_delta(bounds, stage);
     drag.next = drag.object.translated(&drag.next, delta);
-    if matches!(
-        drag.next.target,
-        LayoutTarget::Overlay(_) | LayoutTarget::Cg
-    ) {
+    if drag.next.target.position_in_percent() {
         drag.next.x = drag.next.x.clamp(-100.0, 100.0);
         drag.next.y = drag.next.y.clamp(-100.0, 100.0);
     }
@@ -265,7 +277,7 @@ impl Preview {
                         delta.y * stage.height() / 1080.0,
                     ),
                 );
-                if matches!(change.target, LayoutTarget::Overlay(_) | LayoutTarget::Cg) {
+                if change.target.position_in_percent() {
                     change.x = change.x.clamp(-100.0, 100.0);
                     change.y = change.y.clamp(-100.0, 100.0);
                 }

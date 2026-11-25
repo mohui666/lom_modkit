@@ -125,9 +125,11 @@ internal class ModNativeSaveBrowser : MonoBehaviour
         new Dictionary<CanvasGroup, (float, bool, bool)>();
     private RectTransform _saveHeader;
     private Vector2 _saveHeaderPosition;
+    private Action _restoreCompanionBrowser;
 
     internal static ModNativeSaveBrowser Current { get { return _current; } }
     internal static bool IsActive { get { return _current != null && _current._scope != null && _current._host != null && _current._host.gameObject.activeInHierarchy; } }
+    internal static bool OwnsPanel(CommonPanel host) { return _current != null && _current._scope != null && _current._host == host; }
     internal static string SelectedCampaignId { get { return _current != null ? _current.CampaignId : null; } }
     internal bool Saving { get { return !_isLoad; } }
     internal string CampaignId { get { return _scope != null ? _scope.CampaignId : null; } }
@@ -173,6 +175,7 @@ internal class ModNativeSaveBrowser : MonoBehaviour
         _opening = true;
         try
         {
+            browser._restoreCompanionBrowser = CoffeeCompanionCompatibility.SuspendSaveBrowser(owner);
             if (!host.gameObject.activeInHierarchy) host.Show(true);
             if (browser._root != null && browser._language != I18n.Current)
             {
@@ -289,6 +292,8 @@ internal class ModNativeSaveBrowser : MonoBehaviour
         _hidden.Clear();
         if (_saveHeader != null) _saveHeader.anchoredPosition = _saveHeaderPosition;
         _saveHeader = null;
+        _restoreCompanionBrowser?.Invoke();
+        _restoreCompanionBrowser = null;
         _detaching = false;
     }
 

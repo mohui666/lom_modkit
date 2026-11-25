@@ -16,6 +16,10 @@ fn adjustment_name(project: &Project, state: &Value, target: &LayoutTarget) -> O
         LayoutTarget::Cg if state["custom_cg"].is_object() => {
             ("全屏图片", text(&state["custom_cg"], "image"))
         }
+        LayoutTarget::EventPicture => (
+            "事件图（书页）",
+            text(&state["official_pictures"]["event"], "key"),
+        ),
         _ => return None,
     };
     (!id.is_empty()).then(|| {
@@ -134,7 +138,7 @@ impl LayoutDrag {
         };
         change.x += (delta.x / self.object.units.x) as f64;
         change.y -= (delta.y / self.object.units.y) as f64;
-        if matches!(change.target, LayoutTarget::Overlay(_) | LayoutTarget::Cg) {
+        if change.target.position_in_percent() {
             change.x = change.x.clamp(-100.0, 100.0);
             change.y = change.y.clamp(-100.0, 100.0);
         }
@@ -186,6 +190,11 @@ impl Preview {
                     character_display_name(project, text(&state["custom_cg"], "image"))
                 ),
             ));
+        }
+        if lom_core::content::is_custom_event_picture(&state["official_pictures"]["event"]) {
+            if let Some(label) = adjustment_name(project, state, &LayoutTarget::EventPicture) {
+                choices.push((LayoutTarget::EventPicture, label));
+            }
         }
         for (index, effect) in state["effects"]
             .as_array()
@@ -336,6 +345,13 @@ impl Preview {
                     state["custom_cg"]["y"] = json!(change.y);
                     state["custom_cg"]["scale"] = json!(change.scale);
                 }
+                LayoutTarget::EventPicture => {
+                    let picture = &mut state["official_pictures"]["event"];
+                    if lom_core::content::is_custom_event_picture(picture) {
+                        picture["image_x"] = json!(change.x);
+                        picture["image_y"] = json!(change.y);
+                    }
+                }
                 LayoutTarget::Mood(cid) if state["mood_overrides"][cid].is_object() => {
                     state["mood_overrides"][cid]["offset_x"] = json!(change.x);
                     state["mood_overrides"][cid]["offset_y"] = json!(change.y);
@@ -390,7 +406,9 @@ impl Preview {
             for (index, corner) in corners
                 .iter()
                 .enumerate()
-                .filter(|_| !matches!(object.target, LayoutTarget::Mood(_)))
+                .filter(|_| {
+                    !matches!(object.target, LayoutTarget::Mood(_) | LayoutTarget::EventPicture)
+                })
             {
                 if !corner.is_finite() {
                     continue;

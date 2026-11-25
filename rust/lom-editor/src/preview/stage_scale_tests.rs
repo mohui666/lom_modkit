@@ -230,6 +230,76 @@ fn stage_pictures_scale_the_image_without_scaling_the_book_or_title() {
 }
 
 #[test]
+fn dragging_a_custom_event_picture_moves_its_source_inside_the_left_page_frame() {
+    let project = project();
+    let node = json!({"id":"scaled","type":"cg","kind":"event","action":"show","key":"user:scaled",
+        "event_title":"固定题字","scale":65});
+    let mut story = json!({"id":"main","start":"scaled","nodes":[node.clone(),{"id":"later","type":"wait","seconds":1}]});
+    let ctx = egui::Context::default();
+    let mut preview = Preview::new(Path::new("."));
+    preview.mapping = json!({});
+    preview.layout_mode = true;
+    preview.layout_snap = false;
+    let mut texture_id = None;
+    let mut frame = |events| {
+        ctx.run(
+            egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(1280.0, 820.0))),
+                events,
+                ..Default::default()
+            },
+            |ctx| {
+                texture_id = Some(preview.texture(ctx, &project, "user:scaled", false, "").unwrap().0.id());
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    preview.show(ui, &project, &story, 1, None);
+                });
+            },
+        )
+        .shapes
+        .into_iter()
+        .find_map(|shape| match shape.shape {
+            egui::Shape::Mesh(mesh) if Some(mesh.texture_id) == texture_id => Some((
+                Rect::from_points(&mesh.vertices.iter().map(|vertex| vertex.pos).collect::<Vec<_>>()),
+                shape.clip_rect,
+            )),
+            _ => None,
+        })
+        .unwrap()
+    };
+    let (image, clip) = frame(vec![]);
+    let origin = image.center();
+    let delta = Vec2::new(clip.width() * 0.2, clip.height() * 0.15);
+    let button = |pos, pressed| egui::Event::PointerButton {
+        pos, pressed, button: egui::PointerButton::Primary,
+        modifiers: egui::Modifiers::NONE,
+    };
+    frame(vec![
+        egui::Event::PointerMoved(origin),
+        button(origin, true),
+        egui::Event::PointerMoved(origin + delta),
+        button(origin + delta, false),
+    ]);
+    let change = preview.layout_edit.take().unwrap();
+    assert_eq!(change.target, LayoutTarget::EventPicture);
+    close(change.x as f32, 20.0);
+    close(change.y as f32, -15.0);
+    assert_eq!(crate::preview_layout::apply(&mut story, 1, &change).unwrap(), 1);
+    assert_eq!(story["nodes"][0]["scale"], 65);
+    let prelude = build_playtest_prelude(&story, "later");
+    let picture = prelude.iter().find(|node| node["kind"] == "event").unwrap();
+    assert_eq!(picture["image_x"], story["nodes"][0]["image_x"]);
+    assert_eq!(picture["image_y"], story["nodes"][0]["image_y"]);
+
+    let before = render(&project, node, None, false);
+    let after = render(&project, story["nodes"][0].clone(), None, false);
+    assert_eq!(after.book, before.book);
+    assert_eq!(after.title, before.title);
+    assert_eq!(after.clip, before.clip);
+    close(after.image.center().x - before.image.center().x, before.clip.width() * 0.2);
+    close(after.image.center().y - before.image.center().y, before.clip.height() * 0.15);
+}
+
+#[test]
 fn stage_character_show_size_changes_around_the_same_feet_position() {
     let project = project();
     let node = json!({"id":"scaled","type":"show","character":"user:scaled.actor","portrait":"normal","position":"M"});

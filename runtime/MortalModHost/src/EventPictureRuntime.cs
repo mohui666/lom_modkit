@@ -25,10 +25,12 @@ namespace MortalModHost
 
         internal static void Init(MonoBehaviour host) { _host = host; }
 
-        internal static void Show(string key, string title, float fadeIn = 0f)
+        internal static void Show(string key, string title, float fadeIn = 0f, float x = 0f, float y = 0f)
         {
             if (float.IsNaN(fadeIn) || float.IsInfinity(fadeIn) || fadeIn < 0f)
                 throw new ArgumentOutOfRangeException("fadeIn", "事件图淡入时间必须为非负有限数值");
+            if (!(Mathf.Abs(x) <= 100f && Mathf.Abs(y) <= 100f))
+                throw new ArgumentOutOfRangeException("x/y", "事件图偏移须在 -100～100% 之间");
             ClearVisual();
             CustomPictureRuntime.ClearPicture();
             try
@@ -86,8 +88,11 @@ namespace MortalModHost
                 image.preserveAspect = true;
                 image.raycastTarget = false;
                 RectTransform rect = image.rectTransform;
-                rect.anchorMin = Vector2.zero;
-                rect.anchorMax = Vector2.one;
+                // Anchor offsets are relative to the left-page Image's parent,
+                // so moving the image keeps the same proportions at any UI size.
+                Vector2 offset = new Vector2(x / 100f, y / 100f);
+                rect.anchorMin = offset;
+                rect.anchorMax = Vector2.one + offset;
                 rect.pivot = new Vector2(0.5f, 0.5f);
                 rect.offsetMin = Vector2.zero;
                 rect.offsetMax = Vector2.zero;

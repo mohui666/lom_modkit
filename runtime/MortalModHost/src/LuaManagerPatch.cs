@@ -585,7 +585,9 @@ namespace MortalModHost
                     TextAsset original = Resources.Load<TextAsset>("Story/ChineseTraditional/" + target);
                     if (original == null) throw new InvalidOperationException("当前游戏没有原版章节：" + target);
                     string patched = VanillaStoryPatch.Apply(original.text, editsJson);
-                    Closure function = env.LoadLuaFunction(patched, target + ".VanillaPatch");
+                    // Match the native loader so event and choice hooks see the
+                    // chapter body, rather than only the small MOD wrapper.
+                    Closure function = env.LoadLuaFunction(patched, target + ".LuaScript");
                     if (function == null) throw new InvalidOperationException("原版章节补丁 Lua 编译失败：" + target);
                     // A direct F5 entry starts with the registered MOD name.
                     // Native checkpoints and bookmarks must see the original chapter.
@@ -891,6 +893,12 @@ namespace MortalModHost
                     EventPictureRuntime.Show(ArgString(args, 0), ArgString(args, 1, "事件"), ArgFloat(args, 2, 0f));
                     return DynValue.Nil;
                 }, "mod_event_picture_show_fade");
+                script.Globals["mod_event_picture_show_positioned"] = new CallbackFunction((ctx, args) =>
+                {
+                    EventPictureRuntime.Show(ArgString(args, 0), ArgString(args, 1, "事件"),
+                        ArgFloat(args, 2, 0f), ArgFloat(args, 3, 0f), ArgFloat(args, 4, 0f));
+                    return DynValue.Nil;
+                }, "mod_event_picture_show_positioned");
                 script.Globals["mod_event_picture_hide"] = new CallbackFunction((ctx, args) =>
                 {
                     EventPictureRuntime.Hide(0f);

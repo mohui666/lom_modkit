@@ -26,13 +26,19 @@ namespace MortalModHost
     /// 运行行为契约见 docs/chs/mod_format.md §6。
     /// </summary>
     [BepInPlugin(GUID, NAME, VERSION)]
+    [BepInDependency(CoffeeCompanionCompatibility.Guid, BepInDependency.DependencyFlags.SoftDependency)]
     public class Plugin : BaseUnityPlugin
     {
         public const string GUID = "com.mohui666.mortalmodhost";
         public const string NAME = "MortalModHost";
-        public const string VERSION = "1.6.11";
+        public const string VERSION = "1.6.12";
 
         internal static Plugin Instance { get; private set; }
+
+        private static readonly KeyboardShortcut CompanionMenuKey = new KeyboardShortcut(KeyCode.F11);
+        private static readonly KeyboardShortcut CompanionStoryKey = new KeyboardShortcut(KeyCode.F11, KeyCode.LeftShift);
+        private static readonly KeyboardShortcut CompanionDebuggerKey = new KeyboardShortcut(KeyCode.F11, KeyCode.LeftControl);
+        private static readonly KeyboardShortcut CompanionBookmarkKey = new KeyboardShortcut(KeyCode.F11, KeyCode.LeftAlt);
 
         private const int WindowId = 886310; // IMGUI 窗口 id，取个不易与其他插件撞车的数
         private const int DebugWindowId = 886311;
@@ -102,9 +108,6 @@ namespace MortalModHost
         private Vector2 _debugScroll;
         private GameObject _debugInputCanvas;
         private RectTransform _debugInputRect;
-        private Action _titleOpenModes;
-        private Action<string> _titleLogInfo;
-        private Action<string> _titleLogWarning;
 
         private void Awake()
         {
@@ -141,7 +144,6 @@ namespace MortalModHost
             AutoDialogueRuntime.Speed = Config.Bind("Dialogue", "AutoSpeed", AutoDialogueSpeed.Standard,
                 "MOD 自动播放阅读速度：Slow / Standard / Fast。文字显示完成后按字数计时，语音结束后至少保留0.3秒。");
             MigrateLegacyHotkey();
-            Logger.LogInfo("菜单热键：" + _menuHotkey.Value + "（Title 使用原版风格战役入口，Free 左下角保留常驻入口）；原版剧情开关热键：" + _vanillaStoryHotkey.Value);
 
             // 契约 §6.13：死亡/结局文本覆盖的静态初始态（重复启动时防止残留上次会话的文本）
             ModOverlay.Clear();
@@ -211,7 +213,6 @@ namespace MortalModHost
             RouteRuntimeCapture.Reset();
             _disablePendingForDisclosure = false;
             VanillaModCampaignPanel.Remove();
-            VanillaTitleModEntry.Remove();
             RemoveHarmonyPatches();
             LuaManagerPatch.CleanupRuntimeState();
             RestoreBackgroundExecution();
@@ -501,7 +502,12 @@ namespace MortalModHost
             }
             try
             {
-                new Harmony(GUID).PatchAll(); // patch 本程序集全部 [HarmonyPatch] 类
+                var harmony = new Harmony(GUID);
+                harmony.PatchAll(); // patch 本程序集全部 [HarmonyPatch] 类
+                CoffeeCompanionCompatibility.Install(harmony, Logger);
+                MoveCoffeeDefaultHotkeys();
+                Logger.LogInfo("菜单热键：" + _menuHotkey.Value
+                    + "；原版剧情开关热键：" + _vanillaStoryHotkey.Value);
                 RequireOwnedPatch("CombatActionController.SetStat(CombatStat)",
                     AccessTools.Method(typeof(CombatActionController), "SetStat",
                         new Type[] { typeof(CombatStat) }));
@@ -646,7 +652,6 @@ namespace MortalModHost
             if (traceActive && IsHotkeyDown(_debuggerHotkey.Value))
                 _showDebugger = !_showDebugger;
             MaintainModDisclosure();
-            MaintainVanillaTitleEntry();
             VanillaModCampaignPanel.Maintain();
 
             try { HandlePreviewRequest(); }
@@ -1079,10 +1084,13 @@ namespace MortalModHost
             RestoreOfficialSlotAtTitle();
         }
 
-        private void OpenPlayModePicker()
+        internal bool TryOpenPlayModePicker()
         {
+            if (!_enabled.Value || !_runtimeReady || !IsMenuScene(out bool title) || !title)
+                return false;
             ModSaveBrowser.ShowModes(VanillaTitleModEntry.OpenOriginalGame,
                 OpenAddonMenuFromTitle, OpenMenuFromVanillaTitle);
+            return true;
         }
 
         private void OpenAddonMenuFromTitle()
@@ -1113,7 +1121,6 @@ namespace MortalModHost
                 // 回 Free，只有真正到达 Title / Free 可信边界才会清除。
             }
             VanillaModCampaignPanel.Remove();
-            VanillaTitleModEntry.Remove();
             RemoveHarmonyPatches();
             LuaManagerPatch.CleanupRuntimeState();
             RestoreBackgroundExecution();
@@ -1151,24 +1158,6 @@ namespace MortalModHost
                 return true;
             }
             return false;
-        }
-
-        private void MaintainVanillaTitleEntry()
-        {
-            if (_titleOpenModes == null)
-            {
-                _titleOpenModes = OpenPlayModePicker;
-                _titleLogInfo = msg => Logger.LogInfo(msg);
-                _titleLogWarning = msg => Logger.LogWarning(msg);
-            }
-            bool isTitle;
-            bool shouldExist = _enabled.Value && _runtimeReady
-                && IsMenuScene(out isTitle) && isTitle;
-            VanillaTitleModEntry.Maintain(
-                shouldExist,
-                _titleOpenModes,
-                _titleLogInfo,
-                _titleLogWarning);
         }
 
         internal bool TryOpenInGameModLoadMenu(object loadHost)
@@ -1341,6 +1330,27 @@ namespace MortalModHost
             VanillaStorySwitch.Toggle();
         }
 
+        private void MoveCoffeeDefaultHotkeys()
+        {
+            if (!CoffeeCompanionCompatibility.IsLoaded) return;
+            // Coffee's detector reads live BepInEx config entries. The actual
+            // shortcut has to be visible there or Coffee unbinds its own keys.
+            MoveDefaultHotkey(_menuHotkey, CompanionMenuKey);
+            MoveDefaultHotkey(_vanillaStoryHotkey, CompanionStoryKey);
+            MoveDefaultHotkey(_debuggerHotkey, CompanionDebuggerKey);
+            MoveDefaultHotkey(_storyBookmarkHotkey, CompanionBookmarkKey);
+            CoffeeCompanionCompatibility.RecoverCoffeeHotkeys(Config, Logger, new HashSet<KeyCode>
+            {
+                _menuHotkey.Value.MainKey, _vanillaStoryHotkey.Value.MainKey,
+                _debuggerHotkey.Value.MainKey, _storyBookmarkHotkey.Value.MainKey
+            });
+        }
+
+        private static void MoveDefaultHotkey(ConfigEntry<KeyboardShortcut> binding, KeyboardShortcut companionKey)
+        {
+            if (binding.Value.Equals(binding.DefaultValue)) binding.Value = companionKey;
+        }
+
         /// <summary>
         /// 用新 InputSystem 判定快捷键。不能用 BepInEx 自带的 KeyboardShortcut.IsDown()——
         /// 它走旧 UnityEngine.Input，本游戏只启用新输入系统，运行时会抛 InvalidOperationException。
@@ -1355,13 +1365,19 @@ namespace MortalModHost
                 return false;
             if (!keyboard[mainKey].wasPressedThisFrame)
                 return false;
+            int requiredModifiers = 0;
             foreach (KeyCode modifier in shortcut.Modifiers)
             {
                 Key modifierKey;
                 if (!TryConvertKeyCode(modifier, out modifierKey) || !keyboard[modifierKey].isPressed)
                     return false;
+                requiredModifiers++;
             }
-            return true;
+            if (!shortcut.Equals(CompanionMenuKey) && !shortcut.Equals(CompanionStoryKey)
+                && !shortcut.Equals(CompanionDebuggerKey)) return true;
+            int heldModifiers = (keyboard.ctrlKey.isPressed ? 1 : 0)
+                + (keyboard.altKey.isPressed ? 1 : 0) + (keyboard.shiftKey.isPressed ? 1 : 0);
+            return requiredModifiers == heldModifiers;
         }
 
         /// <summary>KeyCode 与 InputSystem.Key 基本同名，仅 Control 系列命名不同（LeftControl→LeftCtrl），做个映射。</summary>
@@ -1408,7 +1424,8 @@ namespace MortalModHost
             if (_enabled != null && _enabled.Value && RuntimeTrace.Active && _showDebugger)
             {
                 _debugWindowRect.height = Mathf.Min(680f, Math.Max(240f, Screen.height - 40f));
-                _debugWindowRect = GUI.Window(DebugWindowId, _debugWindowRect, DrawDebuggerWindow, I18n.MenuT("debug.window", _debuggerHotkey.Value));
+                _debugWindowRect = GUI.Window(DebugWindowId, _debugWindowRect, DrawDebuggerWindow,
+                    I18n.MenuT("debug.window", _debuggerHotkey.Value));
             }
             bool isTitle;
             if (!_enabled.Value || !_runtimeReady
@@ -1442,11 +1459,14 @@ namespace MortalModHost
         private void HandleStoryBookmarkKey(Event input)
         {
             if (_enabled == null || !_enabled.Value || !_runtimeReady || input == null
-                || input.type != EventType.KeyDown || input.keyCode != _storyBookmarkHotkey.Value.MainKey)
+                || input.type != EventType.KeyDown)
+                return;
+            KeyboardShortcut shortcut = _storyBookmarkHotkey.Value;
+            if (input.keyCode != shortcut.MainKey || (shortcut.Equals(CompanionBookmarkKey) && (input.control || input.shift)))
                 return;
             // Use the modifiers carried by this key event. A quick chord can be
             // fully released before the next MonoBehaviour.Update polls Keyboard.
-            foreach (KeyCode modifier in _storyBookmarkHotkey.Value.Modifiers)
+            foreach (KeyCode modifier in shortcut.Modifiers)
             {
                 bool down;
                 if (modifier == KeyCode.LeftControl || modifier == KeyCode.RightControl) down = input.control;

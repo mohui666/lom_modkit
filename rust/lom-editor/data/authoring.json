@@ -1866,6 +1866,8 @@
         ],
         ["background_only", "只显示底色（不放图片）", "bool", true],
         ["scale", "图片大小（%）", "percent_scale", true],
+        ["image_x", "横向偏移（%）", "percent_position", true],
+        ["image_y", "纵向偏移（%）", "percent_position", true],
         [
           "key",
           "显示内容",

@@ -119,3 +119,47 @@ fn only_a_positive_event_fade_requires_host_1419_and_roundtrips() {
         assert_eq!(reopened.stories, project.stories);
     }
 }
+
+#[test]
+fn positioned_event_picture_survives_export_and_waits_for_the_existing_fade() {
+    let mut project = Project::new();
+    project.manifest["min_host_version"] = json!("1.4.2");
+    let mut source = json!({"story_schema":2,"id":"main","start":"book","nodes":[
+        {"id":"book","type":"cg","kind":"event","action":"show","key":"user:demo.image",
+         "event_title":"来信","event_text":"读信","fade_in":0.3},
+        {"id":"end","type":"end"}]});
+    let centered = codegen::compile_story(&source, None, None, None).unwrap();
+    source["nodes"][0]["image_x"] = json!(0);
+    source["nodes"][0]["image_y"] = json!(0);
+    assert_eq!(
+        codegen::compile_story(&source, None, None, None).unwrap(),
+        centered
+    );
+    source["nodes"][0]["image_x"] = json!(12.5);
+    source["nodes"][0]["image_y"] = json!(-8);
+    let lua = codegen::compile_story(&source, None, None, None).unwrap();
+    let show = lua.find("mod_event_picture_show_positioned(\"user:demo.image\", \"来信\", 0.3, 12.5, -8)").unwrap();
+    assert!(lua[show..].find("wait(0.3)").unwrap() < lua[show..].find("say(\"读信\")").unwrap());
+    project.stories.insert("main".into(), source.clone());
+    let prefix = "assets/user/image/demo.image";
+    project.assets.insert(
+        format!("{prefix}/content.json"),
+        serde_json::to_vec(&json!({
+            "schema":1,"id":"demo.image","type":"image","name":"图片","files":{"main":"image.png"}
+        }))
+        .unwrap(),
+    );
+    project.assets.insert(
+        format!("{prefix}/image.png"),
+        include_bytes!("../../../samples/showcase3/assets/user/character/showcase.lin_deng/normal.png").to_vec(),
+    );
+    let folder = tempfile::tempdir().unwrap();
+    let package = folder.path().join("positioned.lommod");
+    project.export(&package).unwrap();
+    let reopened = Project::open(&package).unwrap();
+    assert_eq!(reopened.manifest["min_host_version"], "1.6.12");
+    assert_eq!(reopened.stories["main"], source);
+
+    source["nodes"][0]["image_x"] = json!(101);
+    assert!(validate::validate_story(&source).unwrap_err().to_string().contains("image_x"));
+}

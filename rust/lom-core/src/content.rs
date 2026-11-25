@@ -148,6 +148,20 @@ pub fn positive_scale(value: &Value, label: &str) -> Result<Value> {
         json!(number)
     })
 }
+pub fn is_custom_event_picture(node: &Value) -> bool {
+    node["type"] == "cg"
+        && node["kind"] == "event"
+        && node["action"] == "show"
+        && text(node, "key").starts_with("user:")
+}
+
+pub(crate) fn has_event_picture_offset(node: &Value) -> bool {
+    is_custom_event_picture(node)
+        && ["image_x", "image_y"]
+            .iter()
+            .any(|key| node[*key].as_f64().is_some_and(|offset| offset != 0.0))
+}
+
 /// Original-character additions stay in project assets, never in the preview cache.
 pub fn character_extensions(
     assets: &std::collections::BTreeMap<String, Vec<u8>>,

@@ -517,6 +517,7 @@ fn verify_story_lua_pairs(entries: &Entries, manifest: &Value) -> Result<BTreeMa
     }
     Ok(stories)
 }
+
 pub fn write_package(mut entries: Entries, output: &Path) -> Result<PathBuf> {
     ensure!(
         !entries.keys().any(|name| name.ends_with('/')),
@@ -1409,6 +1410,10 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
                     .is_some_and(|seconds| seconds > 0.0)
         })
     });
+    let positioned_event_picture = stories.values().any(|story| {
+        crate::parallel::story_actions(story)
+            .any(|(_, node)| content::has_event_picture_offset(node))
+    });
     let dialogue_dimming = stories.values().any(|story| {
         crate::parallel::story_actions(story).any(|(_, node)| {
             (node["type"] == "dim"
@@ -1632,9 +1637,12 @@ pub fn pack_mod(root: &Path, output: Option<&Path>) -> Result<PathBuf> {
         || effect_controls
         || portrait_calibration
         || event_fade
+        || positioned_event_picture
         || dialogue_dimming
     {
-        let (minimum, required) = if gif_images {
+        let (minimum, required) = if positioned_event_picture {
+            ([1, 6, 12], "1.6.12")
+        } else if gif_images {
             ([1, 6, 11], "1.6.11")
         } else if extended_character_profile {
             ([1, 6, 10], "1.6.10")
