@@ -342,7 +342,7 @@ Host 1.4.5 的 `mod_effect` 始终经原 SetupEffect(unique=0,play=1) 创建自�
 - 当前 `ItemDatabase.Save/Load` 没有序列化 `Consumables`。Host 仅将自有道具数量编码进 `PlayerStatManagerData.StoryKeyList` 的原生 `StorySave` 通路，并在原生加载后恢复数量；不修改 `GameSave` 格式。
 - `CombatManager.Action/ActionRoundHandle/ActionCost` 与 `CombatActionButton` 是自创招式的执行和选招入口；基础威力接 `SetCurrentDamageResult`，耗气接 `GetActionCost`，命中接 `GetAttackHitRate/GetWeaponHitRate`，保留原生互拼、克制及防御换算。绝招对嘴炮时会改读 `GetTalkUltimateHitRate`；绝招互拼耗气可能乘原版比例，不能把编辑值宣称为所有情形的最终结果。
 - `CombatPlayerController`、`CombatPlayerRootController`、`CombatEnemyController` 的 `Attack/Weapon/Ultimate` 是实际角色演出协程。自有 PNG 序列帧替换本次演出，在指定帧调用 `TakeDamage/HandleDamage`。播放时隐藏角色子树的精灵和模型渲染器，结束逐项恢复原 `Renderer.enabled` 与 Idle；PNG 沿用精灵分支的坐标与图层，不能使用 MaxModel 模型分支的渲染空间。源帧统一朝左，通过 `_sourceAction` 与 `CombatManager.GetActionController(我方)` 比较来决定我方水平翻转，避免取到未激活精灵的错误朝向。`CanUseAnyAction` 原判断为 false 时，仅补充真正可用的自创招式或可操作玩家的恢复药，不绕过死亡、眩晕或自动行动。
-- `TitleManager.OpenSlot/NewGame/LoadGame/ContinueGame` 是原版流程入口；MOD 入口直接调用 `SaveSystem` 并选择自己的隔离槽。标题只提供一个开始游戏按钮，再选择纯原版、原版＋MOD、纯 MOD；纯 MOD 随后选择具体作品。
+- `TitleManager._startButton` 的持久点击事件调用 `CommonPanel.Show(bool, bool)`，目标是 `TitleManager._slotPanel`。Host 在这一处接入玩法选择，保留原版按钮和导航。纯原版通过 `TitleManager.OpenSlot/NewGame/LoadGame/ContinueGame` 进入；MOD 入口直接调用 `SaveSystem` 并选择自己的隔离槽。
 - `MenuPanel.LoadButtonClick`、`SaveButtonClick` 和 `Mortal.Battle.PausePanel.LoadButtonClick` 是游戏内存读档入口。MOD 模式打开当前进度所属的独立页；原版模式不接管。继续使用 `SaveSystem.GetSaveData/GetAutoSaveData/SaveGameData/AutoLoadGameData`，不改变原版 GameSave 格式。
 
 独立 UI 的原版＋MOD 栏位使用 `mod_addon_default`，纯 MOD 保留 `mod_campaign_<campaign_id>`；Universe 最近原版槽保护继续有效。新自定义玩法最低要求 Host 1.4.0。
@@ -507,6 +507,7 @@ Windows 实机还确认 `Mortal.Core.CharacterIntroPanel` 同时提供 `IEnumera
 ### 1.4.2 书页事件图
 
 - 本次实时反编译确认 `Mortal.Story.StoryMainUI._picture` 为 `StoryPicture`，`ShowPicture(string)` 调用其 `Show`，加载 `pic_` 地址。`EventPictureRuntime` 克隆这个实例并禁用克隆的 `StoryPicture`，通过其 `_image` 设置原版或包内图片，使用 `preserveAspect` 适配左侧图框。克隆保留 `DialogUISizePosition`，清除时释放自己加载的 Sprite/Texture/Addressables handle。
+- 自定义事件图的偏移通过克隆中 `StoryPicture._image` 的 `RectTransform` 锚点实现。游戏 1.0.6001.2 的左页图框为 400×588，`_image` 的父对象 `Mask` 以 `RectMask2D` 裁切。图框和题字仍由克隆书页负责布局。
 - 原版 Story 场景的 `Picture/Mask/Image` 为左侧插图，`Picture/Text` 是右侧“事件”题字。仅在克隆中关闭题字的 `LeanLocalizedText` 后写入作者文字。可选下方文字复用 `saydialogs.narrative`，点击继续。原版书页 `pic_book_1` 仅从用户游戏提取到本地缓存。
 
 ### 2026-11-07 旧散装 MOD 格式与本机接口核对

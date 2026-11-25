@@ -2792,10 +2792,7 @@ impl Preview {
                         painter.multiply_opacity(number(picture, "preview_opacity", 1.0) as f32);
                         // Scene layout from StoryMainUI._picture, in the native 1920×1080 canvas.
                         let scale = rect.height() / 1080.0;
-                        let book = Rect::from_center_size(
-                            rect.center() - egui::vec2(0.0, 65.0 * scale),
-                            egui::vec2(1000.0, 1000.0) * scale,
-                        );
+                        let (book, image_rect) = event_book_rects(rect);
                         let frame = self.mapping["event_book"].as_str().unwrap_or("").to_owned();
                         if let Some((texture, _)) = self.texture(&ctx, p, &frame, false, "") {
                             painter.image(
@@ -2814,10 +2811,6 @@ impl Preview {
                                 Color32::DARK_GRAY,
                             );
                         }
-                        let image_rect = Rect::from_min_size(
-                            book.min + egui::vec2(87.0, 202.0) * scale,
-                            egui::vec2(400.0, 588.0) * scale,
-                        );
                         let key = text(picture, "key");
                         let lookup = if key.starts_with("user:") {
                             key.to_owned()
@@ -2830,15 +2823,48 @@ impl Preview {
                             } else {
                                 painter.clone()
                             };
-                            fit_image(
+                            let movable = lom_core::content::is_custom_event_picture(picture);
+                            let (x, y) = if movable {
+                                (
+                                    number(picture, "image_x", 0.0),
+                                    number(picture, "image_y", 0.0),
+                                )
+                            } else {
+                                (0.0, 0.0)
+                            };
+                            let units = image_rect.size() / 100.0;
+                            let center = image_rect.center()
+                                + Vec2::new(x as f32 * units.x, -y as f32 * units.y);
+                            let fitted = fit_image(
                                 &image_painter,
                                 &texture,
                                 Rect::from_center_size(
-                                    image_rect.center(),
+                                    center,
                                     image_rect.size()
                                         * (number(picture, "scale", 100.0) as f32 / 100.0),
                                 ),
                             );
+                            if self.layout_mode && movable {
+                                let visible = self
+                                    .opaque_rect(&texture, fitted, false)
+                                    .intersect(image_rect);
+                                if visible.is_positive() {
+                                    layout_objects.push(LayoutObject {
+                                        target: LayoutTarget::EventPicture,
+                                        bounds: visible,
+                                        pivot: center,
+                                        angle: 0.0,
+                                        value: LayoutChange {
+                                            target: LayoutTarget::EventPicture,
+                                            x,
+                                            y,
+                                            scale: 100.0,
+                                            effect_scale: None,
+                                        },
+                                        units,
+                                    });
+                                }
+                            }
                         } else {
                             painter.text(
                                 image_rect.center(),
@@ -3332,6 +3358,7 @@ impl Preview {
                     }
                     LayoutTarget::Overlay(slot) => ("overlay", slot.as_str(), "", false),
                     LayoutTarget::Cg => ("custom_cg", "", "", false),
+                    LayoutTarget::EventPicture => ("event", "", "", false),
                     LayoutTarget::Effect { .. } => {
                         let item = state["effects"]
                             .as_array()
@@ -3627,11 +3654,17 @@ impl Preview {
                 Color32::BLACK,
             );
         }
+        let pictures = &state["official_pictures"];
+        let picture_panel_open = pictures.as_object().is_some_and(|items| !items.is_empty());
+        let event_picture_editable =
+            lom_core::content::is_custom_event_picture(&pictures["event"])
+                && pictures["big"].is_null();
+        if picture_panel_open {
+            layout_objects.retain(|object| object.target == LayoutTarget::EventPicture);
+        }
         if !self.stage_only
             && covered == 0.0
-            && !state["official_pictures"]
-                .as_object()
-                .is_some_and(|images| !images.is_empty())
+            && (!picture_panel_open || event_picture_editable)
             && !matches!(text(node, "type"), "intro" | "endgame" | "death")
         {
             self.layout_handles(ui, rect, &layout_objects, p, &state);
@@ -4326,15 +4359,25 @@ fn paint_text(painter: &egui::Painter, rect: Rect, text: &str, size: f32, color:
         .with_clip_rect(rect)
         .galley(rect.left_top(), galley, color);
 }
-fn fit_image(painter: &egui::Painter, texture: &TextureHandle, rect: Rect) {
+fn event_book_rects(stage: Rect) -> (Rect, Rect) {
+    let scale = stage.height() / 1080.0;
+    let book = Rect::from_center_size(
+        stage.center() - Vec2::new(0.0, 65.0) * scale,
+        Vec2::splat(1000.0) * scale,
+    );
+    let image = Rect::from_min_size(
+        book.min + Vec2::new(87.0, 202.0) * scale,
+        Vec2::new(400.0, 588.0) * scale,
+    );
+    (book, image)
+}
+
+fn fit_image(painter: &egui::Painter, texture: &TextureHandle, rect: Rect) -> Rect {
     let size = texture.size_vec2();
     let scale = (rect.width() / size.x).min(rect.height() / size.y);
-    painter.image(
-        texture.id(),
-        Rect::from_center_size(rect.center(), size * scale),
-        uv(),
-        Color32::WHITE,
-    );
+    let fitted = Rect::from_center_size(rect.center(), size * scale);
+    painter.image(texture.id(), fitted, uv(), Color32::WHITE);
+    fitted
 }
 
 pub fn graph(

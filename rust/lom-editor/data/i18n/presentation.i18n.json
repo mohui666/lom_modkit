@@ -3,5 +3,7 @@
   "field.show.initial_y": {"chs": "登场纵向偏移（像素）", "cht": "登場縱向偏移（像素）", "ja": "登場時の縦オフセット（px）", "ko": "등장 세로 오프셋(px)"},
   "editor.presentation.character_scale": {"chs": "人物大小（%）", "cht": "人物大小（%）", "ja": "人物サイズ（%）", "ko": "인물 크기(%)"},
   "editor.presentation.picture_scale": {"chs": "图片大小（%）", "cht": "圖片大小（%）", "ja": "画像サイズ（%）", "ko": "이미지 크기(%)"},
+  "field.cg.image_x": {"chs": "横向偏移（%）", "cht": "橫向偏移（%）", "ja": "横オフセット（%）", "ko": "가로 오프셋(%)"},
+  "field.cg.image_y": {"chs": "纵向偏移（%）", "cht": "縱向偏移（%）", "ja": "縦オフセット（%）", "ko": "세로 오프셋(%)"},
   "editor.event_picture.fade_out_label": {"chs": "淡出时长（秒）", "cht": "淡出時長（秒）", "ja": "フェードアウト時間（秒）", "ko": "페이드아웃 시간(초)"}
 }

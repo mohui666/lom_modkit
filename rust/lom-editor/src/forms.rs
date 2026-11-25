@@ -1784,7 +1784,9 @@ impl Catalog {
                             } else {
                                 drag
                             };
-                            let response = if ["wait_after", "fade_out", "fade_in"].contains(&key)
+                            let response = if node["type"] == "cg" && matches!(key, "image_x" | "image_y") {
+                                ui.add(drag.range(-100.0..=100.0))
+                            } else if ["wait_after", "fade_out", "fade_in"].contains(&key)
                                 || node["type"] == "hide_all" && key == "fadeDuration"
                                 || node["type"] == "effect" && matches!(key, "speed" | "stop_after")
                             {
@@ -2699,6 +2701,7 @@ fn field_visible(kind: &str, node: &Value, key: &str) -> bool {
                     )
             }
             "event_title" | "event_text" => node["action"] == "show" && node["kind"] == "event",
+            "image_x" | "image_y" => lom_core::content::is_custom_event_picture(node),
             _ => true,
         };
     }

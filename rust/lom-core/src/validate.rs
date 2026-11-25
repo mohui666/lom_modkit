@@ -1365,6 +1365,10 @@ fn extra(n: &Value, ntype: &str, catalog: &Value, check_effect_names: bool) -> R
         ),
         "cg" => {
             int_field(n, "color", 0, 2)?;
+            if crate::content::is_custom_event_picture(n) {
+                range(n, "image_x", -100.0, 100.0)?;
+                range(n, "image_y", -100.0, 100.0)?;
+            }
             if has(n, "scale") {
                 ensure!(
                     s(n, "action") == "show"
