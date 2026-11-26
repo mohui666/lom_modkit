@@ -604,6 +604,7 @@ pub fn event(
     names: &Names,
     catalog: &Catalog,
     story_ids: &[String],
+    addon_mode: bool,
 ) {
     ui.push_id("easy", |ui| {
         let mut name = names.event(e);
@@ -656,6 +657,9 @@ pub fn event(
             if trigger != before {
                 e["trigger"] = json!(trigger);
                 trigger_changed(e);
+            }
+            if addon_mode && matches!(e["trigger"].as_str(), Some("auto" | "position")) {
+                ui.small(crate::i18n::key("common.quick.original_flow_hint"));
             }
             if e["trigger"] == "position" {
                 let places = catalog.options("free_position", e, &[], story_ids);

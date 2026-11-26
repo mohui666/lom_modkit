@@ -1,6 +1,6 @@
 # 当前能力与边界
 
-本文对应 **1.6.11**。Rust 编辑器与编译器提供结构化节点，C# `MortalModHost` 接入游戏，包／剧情／内容契约为 **3 / 2 / 1**。版本变化见 [1.6.11 Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.11)，验证入口见 [测试矩阵](test_matrix.md)，操作见 [软件使用](software_usage.md)。
+本文对应 **1.6.13**。Rust 编辑器与编译器提供结构化节点，C# `MortalModHost` 接入游戏，包／剧情／内容契约为 **3 / 2 / 1**。 [1.6.13 Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.13) · [测试矩阵](test_matrix.md) · [软件使用](software_usage.md)
 
 MOD 智能自动播放使用游戏的自动按钮，从文字显示完成后按有效字数计算阅读时间；有语音时等待结束并保留 0.3 秒。支持个人速度三档、菜单／日志暂停、手动继续、快进和选项等待；接口及既有证据见 [API 实证](../../research/gameplay_api.md#2026-11-09-mod-智能自动播放)。需要 Host 1.5.3。
 

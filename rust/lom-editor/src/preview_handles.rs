@@ -191,7 +191,9 @@ impl Preview {
                 ),
             ));
         }
-        if lom_core::content::is_custom_event_picture(&state["official_pictures"]["event"]) {
+        let pictures = &state["official_pictures"];
+        let movable_book_picture = lom_core::content::is_custom_event_picture(&pictures["event"]);
+        if movable_book_picture {
             if let Some(label) = adjustment_name(project, state, &LayoutTarget::EventPicture) {
                 choices.push((LayoutTarget::EventPicture, label));
             }
@@ -223,7 +225,7 @@ impl Preview {
         }
         ui.horizontal_wrapped(|ui| {
             ui.checkbox(&mut self.layout_mode, crate::i18n::tr("调整画面"));
-            if self.layout_mode {
+            if self.layout_mode && !choices.is_empty() {
                 crate::forms::SearchCombo::from_id_salt("layout-object")
                     .width((ui.available_width() - 64.0).clamp(100.0, 260.0))
                     .selected_text(
@@ -292,6 +294,15 @@ impl Preview {
             }
         });
         if self.layout_mode {
+            if !movable_book_picture
+                && (pictures["picture"].is_object() || pictures["event"].is_object())
+            {
+                ui.small(crate::i18n::key("editor.preview.book_picture_adjustment_hint"));
+            }
+            if choices.is_empty() {
+                ui.small(crate::i18n::key("editor.preview.no_adjustment_targets"));
+                return;
+            }
             let name = self
                 .layout_selected
                 .as_ref()

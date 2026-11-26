@@ -230,6 +230,41 @@ fn stage_pictures_scale_the_image_without_scaling_the_book_or_title() {
 }
 
 #[test]
+fn book_picture_adjustment_shows_how_to_find_movable_art() {
+    let project = project();
+    let hint = crate::i18n::key("editor.preview.book_picture_adjustment_hint");
+    let empty = crate::i18n::key("editor.preview.no_adjustment_targets");
+    let picker = crate::i18n::tr("选择人物、插图或特效");
+    for (kind, key, movable) in [
+        ("picture", "user:scaled", false),
+        ("picture", "adventure_001", false),
+        ("event", "adventure_001", false),
+        ("event", "user:scaled", true),
+    ] {
+        let story = json!({"id":"main","start":"book","nodes":[
+            {"id":"book","type":"cg","kind":kind,"action":"show","key":key,"scale":150}
+        ]});
+        let state = simulate(&story, "book");
+        let ctx = egui::Context::default();
+        let mut preview = Preview::new(Path::new("."));
+        preview.layout_mode = true;
+        let frame = ctx.run(Default::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                preview.layout_controls(ui, &project, &state);
+            });
+        });
+        let has_text = |expected: &str| {
+            frame.shapes.iter().any(|shape| {
+                matches!(&shape.shape, egui::Shape::Text(text) if text.galley.text() == expected)
+            })
+        };
+        assert_eq!(has_text(&hint), !movable, "{kind} {key}");
+        assert_eq!(has_text(&empty), !movable, "{kind} {key}");
+        assert_eq!(has_text(&picker), movable, "{kind} {key}");
+    }
+}
+
+#[test]
 fn dragging_a_custom_event_picture_moves_its_source_inside_the_left_page_frame() {
     let project = project();
     let node = json!({"id":"scaled","type":"cg","kind":"event","action":"show","key":"user:scaled",
