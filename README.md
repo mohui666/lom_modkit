@@ -2,11 +2,11 @@
 
 用可视化步骤制作《活侠传》MOD，支持多章节、人物演出、分支、事件任务和自定义素材，也支持 Python 批量制作。
 
-**当前版本：1.6.11 · Windows x64 · 只需一个 exe**
+**当前版本 1.6.13 · Windows x64 · 只需一个 exe**
 
-[国内下载](https://toolbox.mahui.site/downloads/lom-modkit/v1.6.11/lom-editor.exe) · [GitHub 下载](https://github.com/mohui666/lom_modkit/releases/download/v1.6.11/lom-editor.exe) · [更新内容](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.11) · [全部文档](docs/README.md)
+[国内下载](https://toolbox.mahui.site/downloads/lom-modkit/v1.6.13/lom-editor.exe) · [GitHub 下载](https://github.com/mohui666/lom_modkit/releases/download/v1.6.13/lom-editor.exe) · [更新内容](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.13) · [全部文档](docs/README.md)
 
-支持导入 GIF 动图、录制剧情的指定片段，以及为自定义和原版人物设置人际页传记。F5 试玩在后台准备演出包。
+附加剧情的触发方式下新增崆峒留学等原版流程的章节入口提示。书页预览会提示如何选择和拖动作品图片，调整列表为空时会直接显示原因。
 
 [繁體中文](README.cht.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
@@ -19,7 +19,7 @@
 
 可通过“检查更新 → 更新并重启”升级，也可退出编辑器后手动替换 exe。已有作品、素材和存档身份保留。
 
-升级后先退出游戏，在「游戏与 MOD」点击「重新配置游戏环境」同步 Host 1.6.11，再重启游戏。
+升级后先退出游戏，在「游戏与 MOD」点击「重新配置游戏环境」同步 Host 1.6.13，再重启游戏。
 
 | 要做什么 | 从这里开始 |
 | --- | --- |

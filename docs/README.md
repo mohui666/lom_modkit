@@ -1,6 +1,6 @@
 # lom_modkit 文档
 
-当前版本为 **1.6.11**，编辑器和编译器使用 Rust，C# Host 提供游戏接入并内置 Rust 计算组件。仓库维护当前操作与接口文档，历史更新正文保留在 GitHub Release。 [国内下载](https://toolbox.mahui.site/downloads/lom-modkit/v1.6.11/lom-editor.exe) · [GitHub Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.11)
+当前版本为 **1.6.13**，编辑器和编译器使用 Rust，C# Host 提供游戏接入并内置 Rust 计算组件。仓库维护当前操作与接口文档，历史更新正文保留在 GitHub Release。 [国内下载](https://toolbox.mahui.site/downloads/lom-modkit/v1.6.13/lom-editor.exe) · [GitHub Release](https://github.com/mohui666/lom_modkit/releases/tag/v1.6.13)
 
 本版支持 GIF 动图、指定片段录制、人物传记和人际页缩略图。升级后请同步游戏 Host。
 

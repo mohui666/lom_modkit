@@ -207,7 +207,14 @@ pub fn show(
         } else {
             bool_field(ui, e, "enabled", "启用这个事件", true);
             let before = e["script"].clone();
-            crate::scenario_quick::event(ui, e, &names, catalog, &stories);
+            crate::scenario_quick::event(
+                ui,
+                e,
+                &names,
+                catalog,
+                &stories,
+                project.manifest["play_mode"] == "addon",
+            );
             crate::scenario_quick::results(ui, e, &names);
             ui.add_space(12.0);
             ui.collapsing(tr("高级设置"), |ui| {
@@ -1404,6 +1411,7 @@ mod windows_merge_tests {
                                     &names,
                                     &catalog,
                                     &ids,
+                                    true,
                                 );
                             }
                             assert!(
